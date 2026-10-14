@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#d32f2f" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="NW Class" />
+<title>NW Class 實體課程會員系統</title>
+
+<!--
+  ============================================================
+  NW Class — 單檔 PWA 會員系統 (Phase 1)
+  託管：GitHub Pages
+  技術：HTML5 + Tailwind CSS (CDN) + Firebase v10 (ESM CDN)
+  ============================================================
+-->
+
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            DEFAULT: '#d32f2f', /* 品牌紅：按鈕、標題、狀態、導覽選中 */
+            dark: '#b71c1c',
+            light: '#ef5350',
+          },
+        },
+        fontFamily: {
+          sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', 'sans-serif'],
+        },
+      },
+    },
+  };
+</script>
+
+<!--
+  ============================================================
+  PWA Manifest（以 Data URL 內嵌，維持單檔架構）
+  若欲獨立維護：可另存 manifest.json，並將下方 link 改為 href="./manifest.json"
+  ============================================================
+  圖示替換說明：
+    - icon-192x192.png  放於專案根目錄（建議 192x192 PNG）
+    - icon-512x512.png  放於專案根目錄（建議 512x512 PNG）
+    - 下方 icons.src 目前使用 SVG Data URL 作為預設，可直接替換為 PNG 路徑
+  ============================================================
+-->
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<script>
+  const NW_MANIFEST = {
+    name: "NW Class 實體課程會員系統",
+    short_name: "NW Class",
+    description: "實體課程會員、報到、投票、測驗、講義、下載整合系統",
+    start_url: "./",
+    scope: "./",
+    display: "standalone",
+    orientation: "portrait",
+    background_color: "#ffffff",
+    theme_color: "#d32f2f",
+    lang: "zh-Hant",
+    icons: [
+      {
+        src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%23d32f2f'/%3E%3Ctext x='96' y='120' font-size='78' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3ENW%3C/text%3E%3C/svg%3E",
+        sizes: "192x192",
+        type: "image/svg+xml",
+        purpose: "any maskable"
+      },
+      {
+        src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%23d32f2f'/%3E%3Ctext x='256' y='320' font-size='210' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3ENW%3C/text%3E%3C/svg%3E",
+        sizes: "512x512",
+        type: "image/svg+xml",
+        purpose: "any maskable"
+      }
+    ]
+  };
+  const manifestBlob = new Blob([JSON.stringify(NW_MANIFEST)], { type: 'application/json' });
+  const manifestURL = URL.createObjectURL(manifestBlob);
+  document.write('<link rel="manifest" href="' + manifestURL + '">');
+</script>
+
+<!-- 自訂樣式：橫屏阻擋、動畫、滾動條 -->
+<style>
+  html, body { height: 100%; }
+  body {
+    background: #f1f5f9;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* 隱藏捲軸但保留滾動 */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* 脈衝呼吸動畫（按鈕） */
+  @keyframes pulse-soft {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0.45); }
+    50%      { box-shadow: 0 0 0 8px rgba(211, 47, 47, 0); }
+  }
+  .pulse-btn { animation: pulse-soft 2s infinite; }
+
+  /* 淡入 */
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to {opacity:1; transform:none;} }
+  .fade-in { animation: fadeIn .25s ease-out; }
+
+  /* 橫屏覆蓋層：手機橫向時提示轉直屏 */
+  #landscape-lock { display: none; }
+  @media (orientation: landscape) and (max-height: 540px) {
+    #app-shell { filter: blur(2px); pointer-events: none; }
+    #landscape-lock {
+      display: flex !important;
+      position: fixed; inset: 0; z-index: 9999;
+      background: #0f172a; color: #fff;
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 14px;
+    }
+  }
+
+  /* safe-area */
+  .safe-b { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-t { padding-top: env(safe-area-inset-top); }
+</style>
+</head>
+
+<body class="font-sans text-slate-800">
+
+<!-- 橫屏提示蓋板 -->
+<div id="landscape-lock" class="hidden">
+  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="#d32f2f" viewBox="0 0 24 24">
+    <path d="M16.5 3h-9A2.5 2.5 0 0 0 5 5.5v13A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5v-13A2.5 2.5 0 0 0 16.5 3zM12 18a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
+  </svg>
+  <p class="text-lg font-semibold">請將手機轉為直屏</p>
+  <p class="text-sm text-slate-400">以獲得最佳體驗</p>
+</div>
+
+<!-- App 外殼（手機直屏卡片，桌機置中） -->
+<div id="app-shell" class="mx-auto w-full max-w-md h-[100dvh] bg-white flex flex-col overflow-hidden relative shadow-2xl">
+
+  <!-- ============ 頂部 Header ============ -->
+  <header class="safe-t flex items-center justify-between px-4 h-14 bg-white border-b border-slate-200 shrink-0">
+    <!-- LOGO：可自行替換 logo.png；若檔案不存在則顯示內嵌 SVG 備援 -->
+    <div class="flex items-center gap-2">
+      <img id="app-logo" src="logo.png" alt="NW Class Logo"
+           class="w-8 h-8 rounded-full ring-2 ring-brand"
+           onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
+      <span id="app-title" class="font-bold text-lg text-slate-900">NW Class</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <!-- 通知鈴鐺（模組 4 入口） -->
+      <button id="btn-notifications" class="relative w-9 h-9 grid place-items-center rounded-full hover:bg-slate-100" aria-label="通知">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" class="text-slate-700" viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6V11a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z"/></svg>
+        <span id="notif-badge" class="hidden absolute top-1 right-1 bg-brand text-white text-[10px] font-bold rounded-full w-4 h-4 grid place-items-center">0</span>
+      </button>
+      <button id="btn-logout" class="hidden text-sm font-medium text-brand hover:underline">登出</button>
+    </div>
+  </header>
+
+  <!-- ============ 中央內容區（可滾動） ============ -->
+  <main id="main" class="flex-1 overflow-y-auto no-scrollbar bg-slate-50">
+
+    <!-- ===== 驗證頁（登入 / 註冊） ===== -->
+    <section id="view-auth" class="p-5 fade-in">
+      <div class="text-center mt-6 mb-6">
+        <div class="w-20 h-20 mx-auto rounded-full bg-brand grid place-items-center shadow-lg">
+          <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="white" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <h1 class="text-2xl font-bold mt-4 text-slate-900">NW Class</h1>
+        <p class="text-sm text-slate-500 mt-1">實體課程會員系統</p>
+      </div>
+
+      <!-- 頁籤：登入 / 註冊 -->
+      <div class="flex bg-slate-100 rounded-xl p-1 mb-5">
+        <button data-auth-tab="login" class="auth-tab flex-1 py-2 rounded-lg text-sm font-semibold bg-white text-brand shadow-sm">登入</button>
+        <button data-auth-tab="register" class="auth-tab flex-1 py-2 rounded-lg text-sm font-semibold text-slate-500">註冊</button>
+      </div>
+
+      <!-- 帳號類型切換：Email / 手機號碼 -->
+      <div class="flex gap-2 mb-4">
+        <button data-account-type="email" class="account-type-btn flex-1 py-2 rounded-lg border-2 border-brand text-brand text-sm font-semibold bg-red-50">電子郵件</button>
+        <button data-account-type="phone" class="account-type-btn flex-1 py-2 rounded-lg border-2 border-slate-200 text-slate-500 text-sm font-semibold">手機號碼</button>
+      </div>
+
+      <!-- 信箱表單 -->
+      <form id="form-email" class="space-y-3">
+        <div>
+          <label class="text-xs font-medium text-slate-500">姓名</label>
+          <input name="name" type="text" placeholder="請輸入姓名" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent" />
+        </div>
+        <div>
+          <label class="text-xs font-medium text-slate-500">電子郵件</label>
+          <input name="email" type="email" placeholder="you@example.com" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent" />
+        </div>
+        <div>
+          <label class="text-xs font-medium text-slate-500">密碼</label>
+          <input name="password" type="password" placeholder="至少 6 碼" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent" />
+        </div>
+        <div class="flex items-center gap-2 text-sm text-slate-600">
+          <input id="remember-me" type="checkbox" class="w-4 h-4 accent-brand" />
+          <label for="remember-me">記住我</label>
+        </div>
+        <button type="submit" class="pulse-btn w-full py-3 bg-brand text-white rounded-lg font-semibold shadow-md active:scale-[0.98]">
+          <span class="auth-submit-text">登入</span>
+        </button>
+      </form>
+
+      <!-- 手機表單 -->
+      <form id="form-phone" class="space-y-3 hidden">
+        <div>
+          <label class="text-xs font-medium text-slate-500">姓名</label>
+          <input name="name" type="text" placeholder="請輸入姓名" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent" />
+        </div>
+        <div>
+          <label class="text-xs font-medium text-slate-500">手機號碼</label>
+          <div class="flex gap-2 mt-1">
+            <input name="phone" type="tel" placeholder="0912345678" class="flex-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent" />
+            <button type="button" id="btn-send-code" class="px-4 bg-slate-900 text-white rounded-lg text-sm font-semibold whitespace-nowrap">發送驗證碼</button>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">需在 Firebase 主控台開啟「電話」登入並完成 reCAPTCHA 網域認證</p>
+        </div>
+        <div>
+          <label class="text-xs font-medium text-slate-500">簡訊驗證碼</label>
+          <input name="code" type="text" inputmode="numeric" placeholder="6 碼驗證碼" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent" />
+        </div>
+        <!-- Firebase 隱形 reCAPTCHA 容器 -->
+        <div id="recaptcha-container"></div>
+        <button type="submit" class="pulse-btn w-full py-3 bg-brand text-white rounded-lg font-semibold shadow-md active:scale-[0.98]">
+          <span class="auth-submit-text">登入</span>
+        </button>
+      </form>
+
+      <!-- 角色選擇（僅註冊顯示） -->
+      <div id="role-picker" class="hidden mt-5">
+        <label class="text-xs font-medium text-slate-500">選擇角色</label>
+        <div class="grid grid-cols-3 gap-2 mt-2">
+          <button data-role="student" class="role-btn py-2 rounded-lg border-2 border-brand text-brand text-sm font-semibold bg-red-50">學員</button>
+          <button data-role="instructor" class="role-btn py-2 rounded-lg border-2 border-slate-200 text-slate-500 text-sm font-semibold">講師</button>
+          <button data-role="admin" class="role-btn py-2 rounded-lg border-2 border-slate-200 text-slate-500 text-sm font-semibold">管理員</button>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-2">管理員帳號需另行在 Firestore 設定 role=admin，此處僅供介面預覽</p>
+      </div>
+
+      <p class="text-center text-xs text-slate-400 mt-6">© NW Class · Powered by Firebase</p>
+    </section>
+
+    <!-- ===== Dashboard（首頁） ===== -->
+    <section id="view-dashboard" class="hidden p-4 space-y-4 fade-in">
+      <!-- 歡迎橫幅 -->
+      <div class="bg-gradient-to-br from-brand to-brand-dark text-white rounded-2xl p-5 shadow-md">
+        <p class="text-sm opacity-90">歡迎回來</p>
+        <h2 id="dash-welcome" class="text-2xl font-bold mt-1">同學</h2>
+        <div class="flex items-center gap-2 mt-2">
+          <span id="dash-role" class="px-2 py-0.5 bg-white/20 rounded text-xs font-semibold">學員</span>
+          <span id="dash-unit" class="px-2 py-0.5 bg-white/20 rounded text-xs">—</span>
+        </div>
+      </div>
+
+      <!-- 個人資料卡片 -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <div class="flex items-center gap-3">
+          <div id="dash-avatar" class="w-14 h-14 rounded-full bg-brand text-white grid place-items-center text-xl font-bold">N</div>
+          <div class="flex-1 min-w-0">
+            <p id="dash-name" class="font-bold text-slate-900 truncate">—</p>
+            <p id="dash-contact" class="text-sm text-slate-500 truncate">—</p>
+            <p id="dash-unit2" class="text-xs text-slate-400 truncate">單位：—</p>
+          </div>
+          <button id="btn-edit-profile" class="px-3 py-1.5 border border-brand text-brand rounded-lg text-sm font-semibold">編輯</button>
+        </div>
+      </div>
+
+      <!-- 7 大模組快捷入口 -->
+      <div>
+        <h3 class="font-bold text-slate-900 mb-2">功能模組</h3>
+        <div class="grid grid-cols-4 gap-3">
+          <button class="module-btn flex flex-col items-center gap-1 py-3 rounded-xl bg-white border border-slate-200" data-goto="checkin">
+            <div class="w-10 h-10 rounded-full bg-red-50 grid place-items-center text-brand">📋</div>
+            <span class="text-xs text-slate-700">報到</span>
+          </button>
+          <button class="module-btn flex flex-col items-center gap-1 py-3 rounded-xl bg-white border border-slate-200" data-goto="vote">
+            <div class="w-10 h-10 rounded-full bg-red-50 grid place-items-center text-brand">🗳️</div>
+            <span class="text-xs text-slate-700">投票</span>
+          </button>
+          <button class="module-btn flex flex-col items-center gap-1 py-3 rounded-xl bg-white border border-slate-200" data-goto="quiz">
+            <div class="w-10 h-10 rounded-full bg-red-50 grid place-items-center text-brand">✏️</div>
+            <span class="text-xs text-slate-700">測驗</span>
+          </button>
+          <button class="module-btn flex flex-col items-center gap-1 py-3 rounded-xl bg-white border border-slate-200" data-goto="lectures">
+            <div class="w-10 h-10 rounded-full bg-red-50 grid place-items-center text-brand">📖</div>
+            <span class="text-xs text-slate-700">講義</span>
+          </button>
+          <button class="module-btn flex flex-col items-center gap-1 py-3 rounded-xl bg-white border border-slate-200" data-goto="downloads">
+            <div class="w-10 h-10 rounded-full bg-red-50 grid place-items-center text-brand">⬇️</div>
+            <span class="text-xs text-slate-700">下載</span>
+          </button>
+          <button class="module-btn flex flex-col items-center gap-1 py-3 rounded-xl bg-white border border-slate-200" data-goto="notifications">
+            <div class="w-10 h-10 rounded-full bg-red-50 grid place-items-center text-brand">🔔</div>
+            <span class="text-xs text-slate-700">通知</span>
+          </button>
+          <button class="module-btn flex flex-col items-center gap-1 py-3 rounded-xl bg-white border border-slate-200" data-goto="profile">
+            <div class="w-10 h-10 rounded-full bg-red-50 grid place-items-center text-brand">👤</div>
+            <span class="text-xs text-slate-700">我的</span>
+          </button>
+          <div class="flex flex-col items-center gap-1 py-3 rounded-xl bg-slate-50 border border-dashed border-slate-200 opacity-60">
+            <div class="w-10 h-10 rounded-full bg-slate-200 grid place-items-center text-slate-400">🔒</div>
+            <span class="text-xs text-slate-400">敬請期待</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 模組 2：報到（占位） ===== -->
+    <section id="view-checkin" class="hidden p-4 fade-in">
+      <h2 class="text-xl font-bold mb-3">報到系統</h2>
+      <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400">
+        <div class="text-5xl mb-3">📋</div>
+        <p>學員出示 QR Code，管理員掃描報到</p>
+        <p class="text-xs mt-2">Phase 2 實作：html5-qrcode 掃描 + 手動輸入</p>
+      </div>
+    </section>
+
+    <!-- ===== 模組 3：投票（占位） ===== -->
+    <section id="view-vote" class="hidden p-4 fade-in">
+      <h2 class="text-xl font-bold mb-3">即時投票</h2>
+      <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400">
+        <div class="text-5xl mb-3">🗳️</div>
+        <p>現場單選 / 多選投票，紅黑漸層進度條</p>
+        <p class="text-xs mt-2">Phase 2 實作</p>
+      </div>
+    </section>
+
+    <!-- ===== 模組 5：測驗（占位） ===== -->
+    <section id="view-quiz" class="hidden p-4 fade-in">
+      <h2 class="text-xl font-bold mb-3">隨堂測驗</h2>
+      <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400">
+        <div class="text-5xl mb-3">✏️</div>
+        <p>手機答題卡、自動閱卷與錯題解析</p>
+        <p class="text-xs mt-2">Phase 2 實作</p>
+      </div>
+    </section>
+
+    <!-- ===== 模組 6：講義（占位） ===== -->
+    <section id="view-lectures" class="hidden p-4 fade-in">
+      <h2 class="text-xl font-bold mb-3">線上講義</h2>
+      <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400">
+        <div class="text-5xl mb-3">📖</div>
+        <p>章節閱讀器、標記已完成閱讀</p>
+        <p class="text-xs mt-2">Phase 2 實作</p>
+      </div>
+    </section>
+
+    <!-- ===== 模組 7：下載（占位） ===== -->
+    <section id="view-downloads" class="hidden p-4 fade-in">
+      <h2 class="text-xl font-bold mb-3">資源下載</h2>
+      <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400">
+        <div class="text-5xl mb-3">⬇️</div>
+        <p>PDF / PPT / 範本教材一鍵下載</p>
+        <p class="text-xs mt-2">Phase 2 實作</p>
+      </div>
+    </section>
+
+    <!-- ===== 模組 4：通知（占位） ===== -->
+    <section id="view-notifications" class="hidden p-4 fade-in">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xl font-bold">通知</h2>
+        <button id="btn-mark-read" class="text-sm text-brand font-medium">全部已讀</button>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400">
+        <div class="text-5xl mb-3">🔔</div>
+        <p>目前沒有通知</p>
+        <p class="text-xs mt-2">Phase 2 實作：課前提醒、地點異動</p>
+      </div>
+    </section>
+
+    <!-- ===== 模組 1：我的 / 個人資料 ===== -->
+    <section id="view-profile" class="hidden p-4 fade-in">
+      <h2 class="text-xl font-bold mb-3">個人資料</h2>
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+        <div class="flex items-center gap-3">
+          <div id="profile-avatar" class="w-16 h-16 rounded-full bg-brand text-white grid place-items-center text-2xl font-bold">N</div>
+          <div>
+            <p id="profile-name" class="text-lg font-bold">—</p>
+            <span id="profile-role" class="inline-block px-2 py-0.5 bg-red-50 text-brand rounded text-xs font-semibold">學員</span>
+          </div>
+        </div>
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between border-b border-slate-100 pb-2">
+            <span class="text-slate-500">聯絡方式</span>
+            <span id="profile-contact" class="font-medium">—</span>
+          </div>
+          <div class="flex justify-between border-b border-slate-100 pb-2">
+            <span class="text-slate-500">單位</span>
+            <span id="profile-unit" class="font-medium">—</span>
+          </div>
+          <div class="flex justify-between border-b border-slate-100 pb-2">
+            <span class="text-slate-500">建立時間</span>
+            <span id="profile-created" class="font-medium">—</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-500">UID</span>
+            <span id="profile-uid" class="font-mono text-xs">—</span>
+          </div>
+        </div>
+        <button id="btn-edit-profile2" class="w-full py-2.5 bg-brand text-white rounded-lg font-semibold">編輯個人資料</button>
+      </div>
+
+      <!-- 角色切換（介面預覽） -->
+      <div class="mt-4 bg-white rounded-2xl border border-slate-200 p-4">
+        <h3 class="font-semibold mb-2">角色切換（預覽）</h3>
+        <div class="grid grid-cols-3 gap-2">
+          <button data-role-switch="student" class="role-switch-btn py-2 rounded-lg border border-slate-200 text-sm">學員</button>
+          <button data-role-switch="instructor" class="role-switch-btn py-2 rounded-lg border border-slate-200 text-sm">講師</button>
+          <button data-role-switch="admin" class="role-switch-btn py-2 rounded-lg border border-slate-200 text-sm">管理員</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============ 底部導覽列 ============ -->
+  <nav id="bottom-nav" class="hidden safe-t border-t border-slate-200 bg-white grid grid-cols-5 shrink-0">
+    <button data-nav="dashboard" class="nav-btn flex flex-col items-center py-2 gap-0.5 text-brand">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3l9 8h-3v9h-4v-6h-4v6H6v-9H3l9-8z"/></svg>
+      <span class="text-[11px] font-semibold">首頁</span>
+    </button>
+    <button data-nav="checkin" class="nav-btn flex flex-col items-center py-2 gap-0.5 text-slate-400">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M3 5h18v14H3V5zm2 2v10h14V7H5zm3 2h8v2H8V9z"/></svg>
+      <span class="text-[11px]">報到</span>
+    </button>
+    <button data-nav="vote" class="nav-btn flex flex-col items-center py-2 gap-0.5 text-slate-400">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M5 10h14v9H5v-9zm7-7l9 5v2H3V8l9-5z"/></svg>
+      <span class="text-[11px]">投票</span>
+    </button>
+    <button data-nav="quiz" class="nav-btn flex flex-col items-center py-2 gap-0.5 text-slate-400">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3h14a2 2 0 0 1 2 2v14l-4-3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm4 5v2h6V8H9zm0 4v2h6v-2H9z"/></svg>
+      <span class="text-[11px]">測驗</span>
+    </button>
+    <button data-nav="profile" class="nav-btn flex flex-col items-center py-2 gap-0.5 text-slate-400">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-5 0-9 3-9 6v2h18v-2c0-3-4-6-9-6z"/></svg>
+      <span class="text-[11px]">我的</span>
+    </button>
+  </nav>
+
+</div><!-- /app-shell -->
+
+<!-- ============ 編輯個人資料彈窗 ============ -->
+<div id="modal-profile" class="hidden fixed inset-0 z-50 bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-5 fade-in">
+    <h3 class="text-lg font-bold mb-4 text-center">編輯個人資料</h3>
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs text-slate-500">姓名</label>
+        <input id="edit-name" type="text" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+      </div>
+      <div>
+        <label class="text-xs text-slate-500">單位</label>
+        <input id="edit-unit" type="text" placeholder="例：資訊工程系" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+      </div>
+      <div>
+        <label class="text-xs text-slate-500">聯絡方式（唯讀）</label>
+        <input id="edit-contact" type="text" readonly class="w-full mt-1 px-3 py-2.5 border border-slate-200 bg-slate-100 rounded-lg text-slate-500" />
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button id="modal-cancel" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">取消</button>
+      <button id="modal-save" class="flex-1 py-2.5 bg-brand text-white rounded-lg font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PWA 安裝提示 Banner ============ -->
+<div id="install-banner" class="hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md bg-slate-900 text-white rounded-2xl p-4 shadow-2xl flex items-center gap-3 fade-in">
+  <div class="w-10 h-10 rounded-full bg-brand grid place-items-center shrink-0">
+    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="white" viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+  </div>
+  <div class="flex-1 min-w-0">
+    <p class="font-semibold text-sm">安裝 NW Class</p>
+    <p class="text-xs text-slate-300">加入主畫面，隨時離線使用</p>
+  </div>
+  <button id="btn-install" class="px-3 py-1.5 bg-brand rounded-lg text-sm font-semibold whitespace-nowrap">安裝</button>
+  <button id="btn-install-dismiss" class="text-slate-400 px-1" aria-label="關閉">✕</button>
+</div>
+
+<!-- ============ 提示 Toast ============ -->
+<div id="toast" class="hidden fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white text-sm px-4 py-2 rounded-lg shadow-lg"></div>
+
+<script type="module">
+/* ============================================================
+   Firebase 初始化（nw-class 專案）
+   ============================================================ */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, onAuthStateChanged, signOut,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  RecaptchaVerifier, signInWithPhoneNumber, PhoneAuthProvider, linkWithCredential
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, doc, setDoc, getDoc, updateDoc, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD1QJxc-AFkS7RkbQOLCqk1LBMydCU067s",
+  authDomain: "nw-class.firebaseapp.com",
+  projectId: "nw-class",
+  storageBucket: "nw-class.firebasestorage.app",
+  messagingSenderId: "222147006846",
+  appId: "1:222147006846:web:f197cc75aa51879967232f",
+  measurementId: "G-0E1SRMQPRE"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+/* ============================================================
+   全域狀態
+   ============================================================ */
+const state = {
+  authMode: 'login',        // login | register
+  accountType: 'email',     // email | phone
+  selectedRole: 'student',
+  currentUser: null,
+  userDoc: null,
+  confirmationResult: null, // phone OTP
+  deferredPrompt: null,
+};
+
+/* ============================================================
+   工具函式
+   ============================================================ */
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+const toast = (msg, ms = 2200) => {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.add('hidden'), ms);
+};
+const initial = (name) => (name || 'N').trim().charAt(0).toUpperCase();
+
+/* ============================================================
+   視圖切換
+   ============================================================ */
+function showView(name) {
+  $$('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
+  const el = $(`#view-${name}`);
+  if (el) el.classList.remove('hidden');
+  // bottom nav 高亮
+  $$('.nav-btn').forEach(b => {
+    const active = b.dataset.nav === name;
+    b.classList.toggle('text-brand', active);
+    b.classList.toggle('text-slate-400', !active);
+    b.querySelector('span').classList.toggle('font-semibold', active);
+  });
+  $('#main').scrollTop = 0;
+}
+
+/* ============================================================
+   驗證頁 UI 控制
+   ============================================================ */
+function setAuthMode(mode) {
+  state.authMode = mode;
+  $$('.auth-tab').forEach(b => {
+    const active = b.dataset.authTab === mode;
+    b.classList.toggle('bg-white', active);
+    b.classList.toggle('text-brand', active);
+    b.classList.toggle('shadow-sm', active);
+    b.classList.toggle('text-slate-500', !active);
+  });
+  $$('.auth-submit-text').forEach(s => s.textContent = mode === 'login' ? '登入' : '註冊並登入');
+  $('#role-picker').classList.toggle('hidden', mode !== 'register');
+  // 清空密碼欄位
+  $$('form input[name="password"]').forEach(i => i.value = '');
+}
+
+function setAccountType(type) {
+  state.accountType = type;
+  $$('.account-type-btn').forEach(b => {
+    const active = b.dataset.accountType === type;
+    b.classList.toggle('border-brand', active);
+    b.classList.toggle('text-brand', active);
+    b.classList.toggle('bg-red-50', active);
+    b.classList.toggle('border-slate-200', !active);
+    b.classList.toggle('text-slate-500', !active);
+  });
+  $('#form-email').classList.toggle('hidden', type !== 'email');
+  $('#form-phone').classList.toggle('hidden', type !== 'phone');
+}
+
+function setRole(role) {
+  state.selectedRole = role;
+  $$('.role-btn').forEach(b => {
+    const active = b.dataset.role === role;
+    b.classList.toggle('border-brand', active);
+    b.classList.toggle('text-brand', active);
+    b.classList.toggle('bg-red-50', active);
+    b.classList.toggle('border-slate-200', !active);
+    b.classList.toggle('text-slate-500', !active);
+  });
+}
+
+/* ============================================================
+   Firestore：使用者文件
+   ============================================================ */
+async function createUserDoc(uid, data) {
+  const ref = doc(db, 'users', uid);
+  await setDoc(ref, {
+    uid,
+    name: data.name || '',
+    email: data.email || '',
+    phone: data.phone || '',
+    unit: data.unit || '',
+    role: data.role || 'student',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+async function loadUserDoc(uid) {
+  const snap = await getDoc(doc(db, 'users', uid));
+  return snap.exists() ? snap.data() : null;
+}
+
+async function updateUserDoc(uid, patch) {
+  await updateDoc(doc(db, 'users', uid), { ...patch, updatedAt: serverTimestamp() });
+}
+
+/* ============================================================
+   渲染 Dashboard / Profile
+   ============================================================ */
+function renderUser() {
+  const u = state.userDoc || {};
+  const name = u.name || '同學';
+  const contact = u.email || u.phone || '—';
+  const unit = u.unit || '尚未填寫單位';
+  const roleMap = { student: '學員', instructor: '講師', admin: '管理員' };
+  const roleLabel = roleMap[u.role] || '學員';
+
+  $('#dash-welcome').textContent = name;
+  $('#dash-name').textContent = name;
+  $('#dash-contact').textContent = contact;
+  $('#dash-unit').textContent = unit;
+  $('#dash-unit2').textContent = '單位：' + unit;
+  $('#dash-role').textContent = roleLabel;
+  $('#dash-avatar').textContent = initial(name);
+
+  $('#profile-name').textContent = name;
+  $('#profile-contact').textContent = contact;
+  $('#profile-unit').textContent = unit;
+  $('#profile-role').textContent = roleLabel;
+  $('#profile-uid').textContent = state.currentUser.uid.slice(0, 12) + '…';
+  $('#profile-avatar').textContent = initial(name);
+  if (u.createdAt?.toDate) {
+    $('#profile-created').textContent = u.createdAt.toDate().toLocaleDateString();
+  }
+  // header 登出鈕
+  $('#btn-logout').classList.remove('hidden');
+  $('#bottom-nav').classList.remove('hidden');
+}
+
+/* ============================================================
+   Email 表單送出
+   ============================================================ */
+async function handleEmailSubmit(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const name = fd.get('name').trim();
+  const email = fd.get('email').trim();
+  const password = fd.get('password');
+
+  if (state.authMode === 'register') {
+    if (!name) return toast('請輸入姓名');
+    if (!email || !password) return toast('請輸入 Email 與密碼');
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await createUserDoc(cred.user.uid, { name, email, role: state.selectedRole });
+      toast('註冊成功');
+    } catch (err) {
+      toast(authErrorText(err));
+    }
+  } else {
+    if (!email || !password) return toast('請輸入 Email 與密碼');
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      toast(authErrorText(err));
+    }
+  }
+}
+
+/* ============================================================
+   Phone 表單：發送驗證碼 / 送出
+   ============================================================ */
+async function sendPhoneCode() {
+  const phone = $('#form-phone input[name="phone"]').value.trim();
+  if (!phone) return toast('請輸入手機號碼');
+  const e164 = phone.startsWith('+') ? phone : '+886' + phone.replace(/^0/, '');
+  try {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+        callback: () => {},
+      });
+    }
+    state.confirmationResult = await signInWithPhoneNumber(auth, e164, window.recaptchaVerifier);
+    toast('驗證碼已發送');
+    $('#btn-send-code').textContent = '重新發送';
+  } catch (err) {
+    toast('發送失敗：' + (err.message || err.code));
+  }
+}
+
+async function handlePhoneSubmit(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const name = fd.get('name').trim();
+  const code = fd.get('code').trim();
+  if (!state.confirmationResult) return toast('請先發送驗證碼');
+  if (!code) return toast('請輸入驗證碼');
+  try {
+    const cred = await state.confirmationResult.confirm(code);
+    // 首次登入時建立使用者文件
+    const existing = await loadUserDoc(cred.user.uid);
+    if (!existing) {
+      await createUserDoc(cred.user.uid, { name, phone: cred.user.phoneNumber, role: state.selectedRole });
+    }
+    toast('驗證成功');
+  } catch (err) {
+    toast(authErrorText(err));
+  }
+}
+
+function authErrorText(err) {
+  switch (err.code) {
+    case 'auth/email-already-in-use': return '此 Email 已被註冊';
+    case 'auth/invalid-email': return 'Email 格式錯誤';
+    case 'auth/weak-password': return '密碼至少 6 碼';
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential': return '帳號或密碼錯誤';
+    case 'auth/missing-verification-code': return '驗證碼錯誤';
+    default: return err.message || '操作失敗';
+  }
+}
+
+/* ============================================================
+   個人資料編輯彈窗
+   ============================================================ */
+function openProfileModal() {
+  const u = state.userDoc || {};
+  $('#edit-name').value = u.name || '';
+  $('#edit-unit').value = u.unit || '';
+  $('#edit-contact').value = u.email || u.phone || '';
+  $('#modal-profile').classList.remove('hidden');
+}
+function closeProfileModal() { $('#modal-profile').classList.add('hidden'); }
+
+async function saveProfile() {
+  const name = $('#edit-name').value.trim();
+  const unit = $('#edit-unit').value.trim();
+  if (!name) return toast('請輸入姓名');
+  try {
+    await updateUserDoc(state.currentUser.uid, { name, unit });
+    state.userDoc = { ...state.userDoc, name, unit };
+    renderUser();
+    closeProfileModal();
+    toast('已儲存');
+  } catch (err) {
+    toast('儲存失敗');
+  }
+}
+
+/* ============================================================
+   Auth 狀態監聽
+   ============================================================ */
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    state.currentUser = user;
+    let doc = await loadUserDoc(user.uid);
+    // 若透過手機首次登入但沒文件，補建
+    if (!doc) {
+      doc = {
+        uid: user.uid,
+        name: user.displayName || '學員',
+        email: user.email || '',
+        phone: user.phoneNumber || '',
+        unit: '',
+        role: 'student',
+      };
+      await createUserDoc(user.uid, doc);
+    }
+    state.userDoc = doc;
+    renderUser();
+    showView('dashboard');
+  } else {
+    state.currentUser = null;
+    state.userDoc = null;
+    $('#btn-logout').classList.add('hidden');
+    $('#bottom-nav').classList.add('hidden');
+    showView('auth');
+  }
+});
+
+/* ============================================================
+   PWA 安裝提示
+   ============================================================ */
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  state.deferredPrompt = e;
+  $('#install-banner').classList.remove('hidden');
+});
+$('#btn-install')?.addEventListener('click', async () => {
+  if (!state.deferredPrompt) return;
+  state.deferredPrompt.prompt();
+  await state.deferredPrompt.userChoice;
+  state.deferredPrompt = null;
+  $('#install-banner').classList.add('hidden');
+});
+$('#btn-install-dismiss')?.addEventListener('click', () => $('#install-banner').classList.add('hidden'));
+
+/* ============================================================
+   Service Worker 註冊
+   （sw.js 需與 index.html 同目錄，GitHub Pages 會正確載入）
+   ============================================================ */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js?v=1').catch(err => console.warn('SW 註冊失敗', err));
+  });
+}
+
+/* ============================================================
+   事件綁定
+   ============================================================ */
+$$('.auth-tab').forEach(b => b.addEventListener('click', () => setAuthMode(b.dataset.authTab)));
+$$('.account-type-btn').forEach(b => b.addEventListener('click', () => setAccountType(b.dataset.accountType)));
+$$('.role-btn').forEach(b => b.addEventListener('click', () => setRole(b.dataset.role)));
+
+$('#form-email').addEventListener('submit', handleEmailSubmit);
+$('#form-phone').addEventListener('submit', handlePhoneSubmit);
+$('#btn-send-code').addEventListener('click', sendPhoneCode);
+
+$('#btn-logout').addEventListener('click', async () => { await signOut(auth); toast('已登出'); });
+$$('.nav-btn').forEach(b => b.addEventListener('click', () => showView(b.dataset.nav)));
+$$('.module-btn').forEach(b => b.addEventListener('click', () => showView(b.dataset.goto)));
+$('#btn-notifications').addEventListener('click', () => showView('notifications'));
+$('#btn-mark-read').addEventListener('click', () => toast('已全部標記為已讀（Phase 2）'));
+
+$('#btn-edit-profile').addEventListener('click', openProfileModal);
+$('#btn-edit-profile2').addEventListener('click', openProfileModal);
+$('#modal-cancel').addEventListener('click', closeProfileModal);
+$('#modal-save').addEventListener('click', saveProfile);
+
+// 角色切換（預覽，會寫入 Firestore）
+$$('.role-switch-btn').forEach(b => b.addEventListener('click', async () => {
+  const role = b.dataset.roleSwitch;
+  try {
+    await updateUserDoc(state.currentUser.uid, { role });
+    state.userDoc.role = role;
+    renderUser();
+    toast('已切換為' + ({student:'學員',instructor:'講師',admin:'管理員'}[role]));
+  } catch (err) { toast('切換失敗'); }
+}));
+
+// 初始狀態
+setAuthMode('login');
+setAccountType('email');
+setRole('student');
+</script>
+</body>
+</html>
