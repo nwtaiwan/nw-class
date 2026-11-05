@@ -1,0 +1,177 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============ 輔助函式 ============
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // 取得目前登入者的 users 文件資料
+    function currentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && currentUser().role == 'admin';
+    }
+
+    function isStaff() {
+      return isSignedIn() && (currentUser().role == 'admin' || currentUser().role == 'service');
+    }
+
+    // ============ users 集合 ============
+    // 欄位：uid, name, email, phone, unit, role, createdAt, updatedAt
+    match /users/{userId} {
+      // 讀取：本人可讀自己；服務/管理員可讀全部
+      allow read: if isSignedIn() && (request.auth.uid == userId || isStaff());
+
+      // 建立：本人建立自己的文件（註冊，任一角色）；管理員可建立任意
+      allow create: if isSignedIn() && (
+        request.auth.uid == request.resource.data.uid ||
+        isAdmin()
+      );
+
+      // 更新：本人可更新自己（但不可改 role）；管理員可更新全部
+      allow update: if isSignedIn() && (
+        (request.auth.uid == userId && request.resource.data.role == resource.data.role) ||
+        isAdmin()
+      );
+
+      // 刪除：僅管理員
+      allow delete: if isAdmin();
+    }
+
+    // ============ checkins 集合（報到紀錄） ============
+    // 欄位：uid, name, scannedBy, scannedByName, checkedInAt
+    match /checkins/{checkinId} {
+      // 讀取：學員讀自己的；服務/管理員讀全部
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isStaff());
+
+      // 建立：僅服務/管理員（掃描報到）
+      allow create: if isStaff();
+
+      // 修改/刪除：服務/管理員（取消報到）
+      allow update, delete: if isStaff();
+    }
+
+    // ============ courseFiles 集合（課程檔案） ============
+    // 欄位：courseId, tabId, name, ext, size, contentType, chunkCount, allowDownload
+    match /courseFiles/{fileId} {
+      // 讀取：所有登入者（學員端需瀏覽與預覽）
+      allow read: if isSignedIn();
+
+      // 建立 / 修改 / 刪除：僅服務 / 管理員
+      allow create, update, delete: if isStaff();
+
+      // 檔案內容：Base64 分塊（不用 Storage）
+      match /chunks/{chunkId} {
+        allow read: if isSignedIn();
+        allow write: if isStaff();
+      }
+    }
+
+    // ============ settings 集合（系統設定） ============
+    // 文件：settings/system
+    match /settings/{docId} {
+      // 讀取：所有登入者
+      allow read: if isSignedIn();
+
+      // 寫入：僅服務/管理員
+      allow write: if isStaff();
+    }
+
+    // ============ courses 集合（課程） ============
+    // 欄位：name, instructor, date, location, notes, seat, seatAssignments, seatSelfPicks, createdAt, updatedAt
+    match /courses/{courseId} {
+      // 讀取：所有登入者
+      allow read: if isSignedIn();
+
+      // 寫入：僅服務/管理員
+      allow create, update, delete: if isStaff();
+
+      // 學員自選座位：僅在課程開啟 seat.allowSelfSelect 時，允許學員新增/變更/移除「自己的」自選座位
+      // seatSelfPicks 以 uid 為鍵（uid -> 座位代號），故規則可限制僅能改動自身鍵值
+      allow update: if isSignedIn()
+        && resource.data.get('seat', {}).get('allowSelfSelect', false) == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seatSelfPicks'])
+        && request.resource.data.get('seatSelfPicks', {}).diff(resource.data.get('seatSelfPicks', {})).affectedKeys().hasOnly([request.auth.uid]);
+    }
+
+    // ============ instructors 集合（講師） ============
+    // 欄位：name, specialty, phone, email, createdAt, updatedAt
+    match /instructors/{instructorId} {
+      // 讀取：所有登入者
+      allow read: if isSignedIn();
+
+      // 寫入：僅服務/管理員
+      allow create, update, delete: if isStaff();
+    }
+
+    // ============ regions 集合（區域） ============
+    // 欄位：city, district, createdAt, updatedAt
+    match /regions/{regionId} {
+      // 讀取：所有登入者
+      allow read: if isSignedIn();
+
+      // 寫入：僅服務/管理員
+      allow create, update, delete: if isStaff();
+    }
+
+    // ============ communities 集合（社區） ============
+    // 欄位：code, name, createdAt, updatedAt
+    match /communities/{communityId} {
+      // 讀取：所有登入者
+      allow read: if isSignedIn();
+
+      // 寫入：僅服務/管理員
+      allow create, update, delete: if isStaff();
+    }
+
+    // ============ titles 集合（職稱） ============
+    // 欄位：name, createdAt, updatedAt
+    match /titles/{titleId} {
+      // 讀取：所有登入者
+      allow read: if isSignedIn();
+
+      // 寫入：僅服務/管理員
+      allow create, update, delete: if isStaff();
+    }
+
+    // ============ courseActivities 集合（活動主題） ============
+    // 欄位：courseId, title, image, links[], order, createdAt, updatedAt
+    match /courseActivities/{activityId} {
+      // 讀取：所有登入者（學員端需瀏覽活動）
+      allow read: if isSignedIn();
+
+      // 寫入：僅服務/管理員
+      allow create, update, delete: if isStaff();
+    }
+
+    // ============ voteResponses 集合（投票紀錄） ============
+    // 欄位：courseId, voteId, uid, name, optionIds, createdAt, updatedAt
+    match /voteResponses/{responseId} {
+      // 讀取：所有登入者（學員端顯示即時結果）
+      allow read: if isSignedIn();
+
+      // 建立/修改：學員僅能寫入自己的投票（uid 需與登入者一致）
+      allow create, update: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+
+      // 刪除：僅服務/管理員
+      allow delete: if isStaff();
+    }
+
+    // ============ buzzRounds 集合（搶答紀錄） ============
+    // 欄位：courseId, round, uid, name, buzzedAt
+    match /buzzRounds/{roundId} {
+      // 讀取：所有登入者
+      allow read: if isSignedIn();
+
+      // 建立：學員搶答（uid 需與登入者一致）
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+
+      // 修改/刪除：僅服務/管理員（清除紀錄）
+      allow update, delete: if isStaff();
+    }
+  }
+}

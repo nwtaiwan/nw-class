@@ -1,0 +1,1711 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#d32f2f" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="NW Class" />
+<title>NW Class 管理後台</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: { brand: { DEFAULT: '#d32f2f', dark: '#b71c1c', light: '#ef5350' } },
+        fontFamily: { sans: ['-apple-system','BlinkMacSystemFont','Segoe UI','PingFang TC','Microsoft JhengHei','sans-serif'] },
+      },
+    },
+  };
+</script>
+
+<link rel="icon" type="image/png" sizes="192x192" href="logo.png" />
+<link rel="apple-touch-icon" href="logo.png" />
+<script>
+  const NW_BASE = (function(){ const p = window.location.pathname.replace(/\/[^/]*$/, '/'); return window.location.origin + p; })();
+  let nwManifestUrl = '';
+  /* PWA 應用程式名稱與系統名稱設定（settings/system.name）保持一致 */
+  function applyManifest(name) {
+    const appName = (name || 'NW Class').trim() || 'NW Class';
+    const manifest = {
+      name: appName, short_name: appName,
+      start_url: NW_BASE + "system.html", scope: NW_BASE,
+      display: "standalone", orientation: "portrait",
+      background_color: "#ffffff", theme_color: "#d32f2f", lang: "zh-Hant",
+      icons: [
+        { src: NW_BASE + "logo.png", sizes: "192x192", type: "image/png", purpose: "any" },
+        { src: NW_BASE + "logo.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }
+      ]
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
+    let link = document.querySelector('link[rel="manifest"]');
+    if (!link) { link = document.createElement('link'); link.rel = 'manifest'; document.head.appendChild(link); }
+    link.href = url;
+    if (nwManifestUrl) URL.revokeObjectURL(nwManifestUrl);
+    nwManifestUrl = url;
+    const meta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (meta) meta.setAttribute('content', appName);
+  }
+  applyManifest('NW Class');
+</script>
+
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  body { background: #f1f5f9; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+  /* PWA 一頁式：確保外殼撐滿可視高度，頁尾固定可見（100vh 作為不支援 dvh 的後備） */
+  #app-shell { height: 100vh; height: 100dvh; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to {opacity:1; transform:none;} }
+  .fade-in { animation: fadeIn .25s ease-out; }
+  #landscape-lock { display: none; }
+  @media (orientation: landscape) and (max-height: 540px) {
+    #app-shell { filter: blur(2px); pointer-events: none; }
+    #landscape-lock { display: flex !important; position: fixed; inset: 0; z-index: 9999; background: #0f172a; color: #fff; align-items: center; justify-content: center; flex-direction: column; gap: 14px; }
+  }
+  .safe-b { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-t { padding-top: env(safe-area-inset-top); }
+</style>
+</head>
+
+<body class="font-sans text-slate-800">
+
+<div id="landscape-lock" class="hidden">
+  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="#d32f2f" viewBox="0 0 24 24"><path d="M16.5 3h-9A2.5 2.5 0 0 0 5 5.5v13A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5v-13A2.5 2.5 0 0 0 16.5 3zM12 18a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+  <p class="text-lg font-semibold">請將手機轉為直屏</p>
+</div>
+
+<div id="app-shell" class="mx-auto w-full max-w-md h-[100dvh] bg-white flex flex-col overflow-hidden relative shadow-2xl">
+
+  <!-- Header -->
+  <header class="safe-t flex items-center justify-between px-4 h-14 bg-white border-b border-slate-200 shrink-0">
+    <div class="flex items-center gap-2">
+      <img id="app-logo" src="logo.png" alt="NW Class" class="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200"
+           onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
+      <span id="app-title" class="font-bold text-lg text-slate-900">NW Class</span>
+      <span class="px-1.5 py-0.5 bg-brand text-white text-[10px] rounded font-semibold">管理員</span>
+    </div>
+    <button id="btn-user-chip" class="hidden flex items-center gap-2">
+      <span id="chip-name" class="text-sm font-medium text-slate-600 max-w-[7rem] truncate"></span>
+      <img id="chip-avatar" alt="" class="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 hidden" />
+      <span id="chip-avatar-fallback" class="w-8 h-8 rounded-full bg-brand text-white grid place-items-center text-xs font-bold">N</span>
+    </button>
+  </header>
+
+  <!-- 個人資料彈窗 -->
+  <div id="modal-profile" class="hidden fixed inset-0 z-[95] bg-black/50 grid place-items-center p-4">
+    <div class="bg-white rounded-2xl w-[80vw] max-w-md h-[80vh] max-h-[80vh] fade-in flex flex-col overflow-hidden">
+      <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-6 py-8 flex flex-col items-center">
+        <div id="pf-avatar-btn" title="點擊更換大頭照" class="w-28 h-28 rounded-full bg-brand text-white grid place-items-center text-4xl font-bold shrink-0 relative cursor-pointer">
+          <span id="pf-avatar-fallback">N</span>
+          <img id="pf-avatar" alt="" class="absolute inset-0 w-full h-full object-cover rounded-full hidden" />
+          <span class="absolute bottom-0 left-0 w-8 h-8 rounded-full bg-brand text-white grid place-items-center ring-2 ring-white shadow">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 2 7.17 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3.17L15 2H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/></svg>
+          </span>
+        </div>
+        <input id="pf-avatar-file" type="file" accept="image/*" class="hidden" />
+        <p id="pf-name" class="mt-4 text-xl font-bold text-slate-900 text-center break-all">—</p>
+        <span id="pf-role" class="mt-2 px-2.5 py-0.5 bg-brand text-white text-[11px] rounded font-semibold">管理員</span>
+        <div class="w-full mt-6 space-y-3">
+          <div class="bg-slate-50 rounded-xl px-4 py-3">
+            <p class="text-[11px] text-slate-400">帳號</p>
+            <p id="pf-account" class="text-sm text-slate-700 truncate">—</p>
+          </div>
+          <div class="bg-slate-50 rounded-xl px-4 py-3">
+            <p class="text-[11px] text-slate-400">姓名</p>
+            <p id="pf-name2" class="text-sm text-slate-700 truncate">—</p>
+          </div>
+        </div>
+      </div>
+      <div class="shrink-0 flex items-center gap-2 px-6 py-4 border-t border-slate-200">
+        <div id="pf-page-switch" class="hidden shrink-0 items-center gap-1">
+          <button type="button" data-goto="system.html" title="系統管理員" class="pf-goto w-10 h-10 rounded-lg border grid place-items-center text-slate-500 border-slate-300 active:bg-slate-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+          </button>
+          <button type="button" data-goto="admin.html" title="服務" class="pf-goto w-10 h-10 rounded-lg border grid place-items-center text-slate-500 border-slate-300 active:bg-slate-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+          </button>
+          <button type="button" data-goto="index.html" title="學員" class="pf-goto w-10 h-10 rounded-lg border grid place-items-center text-slate-500 border-slate-300 active:bg-slate-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3 1 9l11 6 9-4.91V17h2V9L12 3zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/></svg>
+          </button>
+        </div>
+        <button id="pf-close" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">關閉</button>
+        <button id="pf-logout" class="flex-1 py-2.5 bg-brand text-white rounded-lg font-semibold">登出</button>
+      </div>
+    </div>
+  </div>
+
+  <main id="main" class="flex-1 min-h-0 overflow-hidden bg-slate-50 relative">
+
+    <!-- 登入頁 -->
+    <section id="view-auth" class="h-full flex flex-col px-4 py-2 fade-in">
+      <div class="text-center mb-2">
+        <img src="logo.png" alt="NW Class" class="w-16 h-16 mx-auto rounded-2xl object-cover shadow-lg"
+             onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
+        <h1 id="auth-brand-name" class="text-base font-bold mt-1.5 text-slate-900">NW Class</h1>
+        <p class="text-[11px] text-slate-500 mt-0.5">管理員後台</p>
+      </div>
+      <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+        <form id="form-email" class="space-y-2 pb-2">
+          <div>
+            <label class="text-xs font-medium text-slate-500">帳號（代號 / Email / 手機號碼）</label>
+            <input name="email" type="text" placeholder="例如 nw001 或 you@example.com" class="w-full mt-0.5 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+            <p class="text-[11px] text-slate-400 mt-0.5">代號或手機號碼會自動對應為 @nwclass.app 帳號</p>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-500">密碼</label>
+            <div class="relative">
+              <input name="password" type="password" placeholder="至少 6 碼" class="w-full mt-0.5 px-3 py-2 pr-14 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+              <button type="button" class="toggle-pwd absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium px-1">顯示</button>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-sm text-slate-600">
+            <input id="remember-me" type="checkbox" class="w-4 h-4 accent-brand" />
+            <label for="remember-me">記住我</label>
+          </div>
+          <button type="submit" class="w-full py-2.5 bg-brand text-white rounded-lg font-semibold shadow-md active:scale-[0.98]">
+            <span class="auth-submit-text">登入</span>
+          </button>
+        </form>
+      </div>
+      <p class="text-center text-[11px] text-slate-400 mt-2 shrink-0">© NW Class · 管理後台</p>
+    </section>
+
+    <!-- 學員管理 -->
+    <section id="view-students" class="hidden h-full flex flex-col p-4 gap-3 fade-in">
+      <div class="flex items-center justify-between shrink-0">
+        <h2 class="text-xl font-bold">學員管理</h2>
+        <div class="flex items-center gap-3">
+          <span id="students-count" class="text-xs text-slate-500">共 0 人</span>
+          <button id="btn-add-student" class="text-brand text-sm font-semibold">+ 新增學員</button>
+        </div>
+      </div>
+      <div id="students-list" class="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-2">
+        <p class="text-slate-400 text-center py-4">載入中…</p>
+      </div>
+    </section>
+
+    <!-- 課程管理 -->
+    <section id="view-courses" class="hidden h-full flex flex-col p-4 gap-3 fade-in">
+      <div class="flex items-center justify-between shrink-0">
+        <h2 class="text-xl font-bold">課程管理</h2>
+        <button id="btn-add-course" class="text-brand text-sm font-semibold">+ 新增課程</button>
+      </div>
+      <div id="courses-list" class="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-2">
+        <p class="text-slate-400 text-center py-4">尚無課程</p>
+      </div>
+    </section>
+
+    <!-- 系統設定 -->
+    <section id="view-settings" class="hidden h-full flex flex-col p-4 gap-3 fade-in">
+      <h2 class="text-xl font-bold shrink-0">系統設定</h2>
+      <div class="flex bg-slate-100 rounded-xl p-1 shrink-0 overflow-x-auto no-scrollbar">
+        <button data-settings-tab="general" class="settings-tab flex-1 min-w-[64px] py-1.5 rounded-lg text-sm font-semibold bg-white text-brand shadow-sm">一般</button>
+        <button data-settings-tab="accounts" class="settings-tab flex-1 min-w-[64px] py-1.5 rounded-lg text-sm font-semibold text-slate-500">帳號</button>
+        <button data-settings-tab="register" class="settings-tab flex-1 min-w-[64px] py-1.5 rounded-lg text-sm font-semibold text-slate-500">註冊</button>
+        <button data-settings-tab="courses" class="settings-tab flex-1 min-w-[64px] py-1.5 rounded-lg text-sm font-semibold text-slate-500">課程</button>
+      </div>
+
+      <div id="settings-general" class="flex-1 min-h-0 flex flex-col gap-3">
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shrink-0">
+          <label class="text-sm font-semibold text-slate-700">系統名稱</label>
+          <p class="text-[11px] text-slate-400 mt-0.5">顯示於 Header 與各頁面標題</p>
+          <input id="setting-system-name" type="text" class="w-full mt-2 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+          <button id="btn-save-system-name" class="w-full mt-3 py-2.5 bg-brand text-white rounded-lg font-semibold">儲存</button>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shrink-0">
+          <h3 class="font-semibold text-sm mb-2">目前登入者</h3>
+          <div class="flex items-center gap-3">
+            <div id="profile-avatar" class="w-12 h-12 rounded-full bg-brand text-white grid place-items-center text-lg font-bold shrink-0">N</div>
+            <div class="flex-1 min-w-0">
+              <p id="profile-name" class="font-bold truncate">—</p>
+              <p id="profile-contact" class="text-xs text-slate-500 truncate">—</p>
+            </div>
+          </div>
+        </div>
+        <div class="flex-1 min-h-0"></div>
+      </div>
+
+      <div id="settings-accounts" class="hidden flex-1 min-h-0 flex flex-col gap-3">
+        <div class="bg-white rounded-2xl border border-slate-200 p-3 shrink-0">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-semibold text-sm">服務帳號</h3>
+            <button id="btn-add-service" class="text-brand text-sm font-semibold">+ 新增</button>
+          </div>
+          <div id="service-accounts" class="space-y-1.5 max-h-36 overflow-y-auto no-scrollbar">
+            <p class="text-slate-400 text-center py-2 text-xs">尚無帳號</p>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-3 flex-1 min-h-0 flex flex-col">
+          <div class="flex items-center justify-between mb-2 shrink-0">
+            <h3 class="font-semibold text-sm">管理員帳號</h3>
+            <button id="btn-add-admin" class="text-brand text-sm font-semibold">+ 新增</button>
+          </div>
+          <div id="admin-accounts" class="space-y-1.5 flex-1 min-h-0 overflow-y-auto no-scrollbar">
+            <p class="text-slate-400 text-center py-2 text-xs">尚無帳號</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 註冊（區域/社區/職稱管理） -->
+      <div id="settings-register" class="hidden flex-1 min-h-0 flex flex-col gap-3">
+        <div class="flex gap-1.5 shrink-0">
+          <button data-reg-tab="region" class="reg-tab flex-1 py-2 rounded-lg text-xs font-semibold bg-white text-brand shadow-sm">區域</button>
+          <button data-reg-tab="community" class="reg-tab flex-1 py-2 rounded-lg text-xs font-semibold text-slate-500">社區</button>
+          <button data-reg-tab="title" class="reg-tab flex-1 py-2 rounded-lg text-xs font-semibold text-slate-500">職稱</button>
+        </div>
+
+        <!-- 區域列表 -->
+        <div id="reg-region" class="flex-1 min-h-0 flex flex-col gap-2">
+          <div class="flex items-center justify-between shrink-0">
+            <h3 class="font-semibold text-sm">區域列表</h3>
+            <button id="btn-add-region" class="text-brand text-sm font-semibold">+ 新增區域</button>
+          </div>
+          <div id="regions-list" class="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-2">
+            <p class="text-slate-400 text-center py-4">尚無區域</p>
+          </div>
+        </div>
+
+        <!-- 社區列表 -->
+        <div id="reg-community" class="hidden flex-1 min-h-0 flex flex-col gap-2">
+          <div class="flex items-center justify-between shrink-0">
+            <h3 class="font-semibold text-sm">社區列表</h3>
+            <button id="btn-add-community" class="text-brand text-sm font-semibold">+ 新增社區</button>
+          </div>
+          <div id="communities-list" class="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-2">
+            <p class="text-slate-400 text-center py-4">尚無社區</p>
+          </div>
+        </div>
+
+        <!-- 職稱列表 -->
+        <div id="reg-title" class="hidden flex-1 min-h-0 flex flex-col gap-2">
+          <div class="flex items-center justify-between shrink-0">
+            <h3 class="font-semibold text-sm">職稱列表</h3>
+            <button id="btn-add-title" class="text-brand text-sm font-semibold">+ 新增職稱</button>
+          </div>
+          <div id="titles-list" class="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-2">
+            <p class="text-slate-400 text-center py-4">尚無職稱</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 講師 -->
+      <div id="settings-courses" class="hidden flex-1 min-h-0 flex flex-col gap-3">
+        <div class="flex items-center justify-between shrink-0">
+          <h3 class="font-semibold text-sm">講師列表</h3>
+          <button id="btn-add-instructor" class="text-brand text-sm font-semibold">+ 新增講師</button>
+        </div>
+        <div id="instructors-list" class="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-2">
+          <p class="text-slate-400 text-center py-4">尚無講師</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 底部導覽：學員、課程、設定 -->
+  <nav id="bottom-nav" class="safe-b border-t border-slate-200 bg-white grid grid-cols-3 shrink-0">
+    <button data-nav="students" class="nav-btn flex flex-col items-center py-2 gap-0.5 text-brand">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+      <span class="text-[11px] font-semibold">學員</span>
+    </button>
+    <button data-nav="courses" class="nav-btn flex flex-col items-center py-2 gap-0.5 text-slate-400">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
+      <span class="text-[11px]">課程</span>
+    </button>
+    <button data-nav="settings" class="nav-btn flex flex-col items-center py-2 gap-0.5 text-slate-400">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+      <span class="text-[11px]">設定</span>
+    </button>
+  </nav>
+
+</div>
+
+<!-- 編輯帳號彈窗 -->
+<div id="modal-account" class="hidden fixed inset-0 z-50 bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-5 fade-in max-h-[90dvh] overflow-y-auto no-scrollbar">
+    <h3 id="modal-account-title" class="text-lg font-bold mb-4 text-center">新增帳號</h3>
+    <div class="space-y-3">
+      <div class="flex items-center gap-3">
+        <div class="shrink-0 relative">
+          <div class="w-16 h-16 rounded-full bg-slate-100 text-slate-400 grid place-items-center text-xl font-bold" id="acc-avatar-fallback">N</div>
+          <img id="acc-avatar-preview" alt="大頭照" class="absolute inset-0 w-16 h-16 rounded-full object-cover bg-slate-100 hidden" />
+          <button type="button" id="acc-avatar-pick" title="更換大頭照" class="absolute bottom-0 left-0 w-6 h-6 rounded-full bg-brand text-white grid place-items-center ring-2 ring-white shadow">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 24 24"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 2 7.17 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3.17L15 2H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/></svg>
+          </button>
+        </div>
+        <div class="flex-1 min-w-0">
+          <label class="text-xs text-slate-500">大頭照</label>
+          <div class="mt-1.5">
+            <button type="button" id="acc-avatar-clear" class="px-3 py-1.5 text-xs font-medium border border-slate-300 text-slate-600 rounded-lg">移除</button>
+          </div>
+          <input id="acc-avatar-file" type="file" accept="image/*" class="hidden" />
+          <p class="text-[11px] text-slate-400 mt-1">自動裁切為 256×256</p>
+        </div>
+      </div>
+      <div><label class="text-xs text-slate-500">姓名</label><input id="acc-name" type="text" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
+      <div><label class="text-xs text-slate-500">登入帳號（代號 / Email）</label><input id="acc-email" type="text" placeholder="例如 nw001 或 you@example.com" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
+      <div><label class="text-xs text-slate-500">單位</label><input id="acc-unit" type="text" placeholder="選填" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
+      <div id="acc-password-field"><label class="text-xs text-slate-500">密碼（至少 6 碼）</label><input id="acc-password" type="password" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button id="acc-cancel" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">取消</button>
+      <button id="acc-save" class="flex-1 py-2.5 bg-brand text-white rounded-lg font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新增學員彈窗 -->
+<div id="modal-student" class="hidden fixed inset-0 z-50 bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-5 fade-in max-h-[90dvh] overflow-y-auto no-scrollbar">
+    <h3 id="modal-student-title" class="text-lg font-bold mb-4 text-center">新增學員</h3>
+    <div class="space-y-3">
+      <div class="flex items-center gap-3">
+        <div class="shrink-0">
+          <img id="stu-avatar-preview" alt="大頭照" class="w-16 h-16 rounded-full object-cover bg-slate-100 hidden" />
+          <div id="stu-avatar-fallback" class="w-16 h-16 rounded-full bg-slate-100 text-slate-400 grid place-items-center text-xl font-bold">N</div>
+        </div>
+        <div class="flex-1 min-w-0">
+          <label class="text-xs text-slate-500">大頭照</label>
+          <div class="flex gap-2 mt-1.5">
+            <button type="button" id="stu-avatar-pick" class="px-3 py-1.5 text-xs font-semibold bg-brand text-white rounded-lg">上傳大頭照</button>
+            <button type="button" id="stu-avatar-clear" class="px-3 py-1.5 text-xs font-medium border border-slate-300 text-slate-600 rounded-lg">移除</button>
+          </div>
+          <input id="stu-avatar-file" type="file" accept="image/*" class="hidden" />
+          <p class="text-[11px] text-slate-400 mt-1">自動裁切為 256×256</p>
+        </div>
+      </div>
+      <div><label class="text-xs text-slate-500">姓名 <span class="text-red-500">*</span></label><input id="stu-name" type="text" placeholder="請輸入姓名" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
+      <div>
+        <label class="text-xs text-slate-500">登入帳號（代號 / Email / 手機號碼）</label>
+        <input id="stu-email" type="text" placeholder="例如 nw001 或 you@example.com" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+        <p id="stu-account-hint" class="text-[11px] text-slate-400 mt-1">代號或手機號碼會自動對應為 @nwclass.app 帳號；留空則以手機號碼為帳號</p>
+      </div>
+      <div id="stu-password-field">
+        <label class="text-xs text-slate-500">登入密碼</label>
+        <div class="relative">
+          <input id="stu-password" type="password" placeholder="至少 6 碼" class="w-full mt-1 px-3 py-2.5 pr-14 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+          <button type="button" class="toggle-pwd absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium px-1">顯示</button>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-1">自行設定，至少 6 碼；留空則預設為手機號碼</p>
+      </div>
+      <div><label class="text-xs text-slate-500">手機號碼</label><input id="stu-phone" type="tel" placeholder="可作為登入帳號" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
+      <div>
+        <label class="text-xs text-slate-500">職稱</label>
+        <select id="stu-title" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"><option value="">請選擇職稱</option></select>
+      </div>
+      <div>
+        <label class="text-xs text-slate-500">區域</label>
+        <select id="stu-region" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"><option value="">請選擇區域</option></select>
+      </div>
+      <div>
+        <label class="text-xs text-slate-500">社區名稱</label>
+        <select id="stu-community" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"><option value="">請選擇社區</option></select>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button id="stu-cancel" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">取消</button>
+      <button id="stu-save" class="flex-1 py-2.5 bg-brand text-white rounded-lg font-semibold disabled:opacity-60">建立帳號</button>
+    </div>
+  </div>
+</div>
+
+<!-- 編輯課程彈窗 -->
+<div id="modal-course" class="hidden fixed inset-0 z-50 bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-5 fade-in">
+    <h3 id="modal-course-title" class="text-lg font-bold mb-4 text-center">新增課程</h3>
+    <div class="space-y-3">
+      <div><label class="text-xs text-slate-500">課程名稱</label><input id="course-name" type="text" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
+      <div><label class="text-xs text-slate-500">講師</label><select id="course-instructor" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand"><option value="">請選擇</option></select></div>
+      <div>
+        <label class="text-xs text-slate-500">日期</label>
+        <input id="course-date" type="date" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+        <div class="grid grid-cols-2 gap-2 mt-2">
+          <div>
+            <label class="text-[11px] text-slate-400">開始時間</label>
+            <input id="course-start-time" type="time" class="w-full mt-0.5 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-400">結束時間</label>
+            <input id="course-end-time" type="time" class="w-full mt-0.5 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+          </div>
+        </div>
+      </div>
+      <div><label class="text-xs text-slate-500">地點</label><input id="course-location" type="text" placeholder="選填" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
+      <div><label class="text-xs text-slate-500">備註</label><textarea id="course-notes" rows="2" class="w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand resize-none"></textarea></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button id="course-cancel" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">取消</button>
+      <button id="course-save" class="flex-1 py-2.5 bg-brand text-white rounded-lg font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 講師彈窗 -->
+<div id="modal-instructor" class="hidden fixed inset-0 z-50 bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-5 fade-in">
+    <h3 id="modal-instructor-title" class="text-lg font-bold mb-4 text-center">新增講師</h3>
+    <div class="space-y-3">
+      <div><label class="text-xs text-slate-500">姓名 <span class="text-red-500">*</span></label><input id="ins-name" type="text" placeholder="請輸入講師姓名" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
+      <div><label class="text-xs text-slate-500">專長</label><input id="ins-specialty" type="text" placeholder="例：急救、AED" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
+      <div><label class="text-xs text-slate-500">手機</label><input id="ins-phone" type="text" placeholder="選填" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
+      <div><label class="text-xs text-slate-500">Email</label><input id="ins-email" type="email" placeholder="選填" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button id="ins-cancel" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">取消</button>
+      <button id="ins-save" class="flex-1 py-2.5 bg-brand text-white rounded-lg font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 區域彈窗 -->
+<div id="modal-region" class="hidden fixed inset-0 z-50 bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-5 fade-in">
+    <h3 id="modal-region-title" class="text-lg font-bold mb-4 text-center">新增區域</h3>
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs text-slate-500">縣市 <span class="text-red-500">*</span></label>
+        <select id="reg-city" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+          <option value="">請選擇縣市</option>
+          <option value="台北市">台北市</option>
+          <option value="新北市">新北市</option>
+          <option value="桃園市">桃園市</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-slate-500">行政區 <span class="text-red-500">*</span></label>
+        <input id="reg-district" type="text" placeholder="請輸入行政區" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button id="reg-cancel" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">取消</button>
+      <button id="reg-save" class="flex-1 py-2.5 bg-brand text-white rounded-lg font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 社區彈窗 -->
+<div id="modal-community" class="hidden fixed inset-0 z-50 bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-5 fade-in">
+    <h3 id="modal-community-title" class="text-lg font-bold mb-4 text-center">新增社區</h3>
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs text-slate-500">社區代號 <span class="text-red-500">*</span></label>
+        <input id="com-code" type="text" placeholder="請輸入社區代號" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+      </div>
+      <div>
+        <label class="text-xs text-slate-500">社區名稱 <span class="text-red-500">*</span></label>
+        <input id="com-name" type="text" placeholder="請輸入社區名稱" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button id="com-cancel" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">取消</button>
+      <button id="com-save" class="flex-1 py-2.5 bg-brand text-white rounded-lg font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 職稱彈窗 -->
+<div id="modal-title" class="hidden fixed inset-0 z-50 bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-5 fade-in">
+    <h3 id="modal-title-title" class="text-lg font-bold mb-4 text-center">新增職稱</h3>
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs text-slate-500">職稱名稱 <span class="text-red-500">*</span></label>
+        <input id="tt-name" type="text" placeholder="請輸入職稱（如：總幹事/經理、公司幹部、其他）" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button id="tt-cancel" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">取消</button>
+      <button id="tt-save" class="flex-1 py-2.5 bg-brand text-white rounded-lg font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 學員課程指派彈窗 -->
+<div id="modal-student-courses" class="hidden fixed inset-0 z-50 bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-5 fade-in max-h-[90dvh] flex flex-col">
+    <h3 class="text-lg font-bold mb-1 text-center">指派課程</h3>
+    <p id="sc-student-name" class="text-xs text-slate-400 text-center mb-3"></p>
+    <div id="sc-list" class="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-2"></div>
+    <div class="flex gap-2 mt-4">
+      <button id="sc-cancel" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">取消</button>
+      <button id="sc-save" class="flex-1 py-2.5 bg-brand text-white rounded-lg font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 確認刪除彈窗 -->
+<div id="modal-confirm" class="hidden fixed inset-0 z-50 bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-sm p-5 fade-in text-center">
+    <p id="confirm-text" class="text-slate-800 mb-5">確定要刪除嗎？</p>
+    <div class="flex gap-2">
+      <button id="confirm-cancel" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">取消</button>
+      <button id="confirm-ok" class="flex-1 py-2.5 bg-red-600 text-white rounded-lg font-semibold">刪除</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="hidden fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white text-sm px-4 py-2 rounded-lg shadow-lg"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, serverTimestamp, deleteDoc, collection, addDoc, query, where, orderBy, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const PAGE_ROLE = 'admin';
+const ADMIN_EMAIL = 'istage.eason@gmail.com';
+const REDIRECT_MAP = { student: 'index.html', service: 'admin.html', admin: 'system.html' };
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD1QJxc-AFkS7RkbQOLCqk1LBMydCU067s",
+  authDomain: "nw-class.firebaseapp.com",
+  projectId: "nw-class",
+  storageBucket: "nw-class.firebasestorage.app",
+  messagingSenderId: "222147006846",
+  appId: "1:222147006846:web:f197cc75aa51879967232f",
+  measurementId: "G-0E1SRMQPRE"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// 次要 App 實例：建立其他使用者帳號時不會影響目前管理員的登入狀態
+let secondaryAuth = null;
+function getSecondaryAuth() {
+  if (!secondaryAuth) secondaryAuth = getAuth(initializeApp(firebaseConfig, 'nw-secondary'));
+  return secondaryAuth;
+}
+
+const state = {
+  currentUser: null, userDoc: null,
+  systemName: 'NW Class',
+  settingsTab: 'general',
+  editingAccount: null, editingCourseId: null, editingInstructorId: null,
+  editingRegionId: null, editingCommunityId: null, editingTitleId: null,
+  editingStudentUid: null,
+  studentAvatar: '',
+  accountAvatar: '',
+  assignStudentUid: null,
+  confirmCallback: null,
+  unsubStudents: null, unsubService: null, unsubAdmin: null, unsubCourses: null, unsubInstructors: null, unsubSettings: null,
+  unsubRegions: null, unsubCommunities: null, unsubTitles: null,
+};
+
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+const toast = (msg, ms = 2200) => { const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), ms); };
+const initial = (name) => (name || 'N').trim().charAt(0).toUpperCase();
+
+function cleanupListener(key) { if (state[key]) { try { state[key](); } catch(e){} state[key] = null; } }
+
+function showView(name) {
+  if (name !== 'students') cleanupListener('unsubStudents');
+  if (name !== 'courses') cleanupListener('unsubCourses');
+  if (name !== 'settings') { cleanupListener('unsubService'); cleanupListener('unsubAdmin'); }
+  $$('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
+  const el = $(`#view-${name}`);
+  if (el) el.classList.remove('hidden');
+  $('#bottom-nav').classList.toggle('hidden', name === 'auth');
+  $$('.nav-btn').forEach(b => {
+    const active = b.dataset.nav === name;
+    b.classList.toggle('text-brand', active);
+    b.classList.toggle('text-slate-400', !active);
+    b.querySelector('span').classList.toggle('font-semibold', active);
+  });
+  if (name === 'students' && state.currentUser) loadStudents();
+  if (name === 'courses' && state.currentUser) loadCourses();
+  if (name === 'settings' && state.currentUser) {
+    switchSettingsTab(state.settingsTab);
+    if (state.settingsTab === 'accounts') loadAccounts();
+  }
+}
+
+async function createUserDoc(uid, data) {
+  await setDoc(doc(db, 'users', uid), {
+    uid, name: data.name || '', email: data.email || '',
+    phone: data.phone || '', title: data.title || '',
+    region: data.region || '', community: data.community || '',
+    avatar: data.avatar || '', unit: '',
+    role: data.role || 'student', createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+async function loadUserDoc(uid) { const snap = await getDoc(doc(db, 'users', uid)); return snap.exists() ? snap.data() : null; }
+async function updateUserDoc(uid, patch) { await updateDoc(doc(db, 'users', uid), { ...patch, updatedAt: serverTimestamp() }); }
+
+function renderUser() {
+  const u = state.userDoc || {};
+  const name = u.name || '管理員';
+  const roleText = u.role === 'admin' ? '系統管理員' : (u.role === 'service' ? '服務人員' : '學員');
+  $('#profile-name').textContent = name;
+  $('#profile-contact').textContent = u.email || u.loginCode || '—';
+  $('#profile-avatar').textContent = initial(name);
+  $('#chip-name').textContent = name;
+  const chipImg = $('#chip-avatar'), chipFb = $('#chip-avatar-fallback');
+  if (u.avatar) {
+    chipImg.src = u.avatar; chipImg.classList.remove('hidden'); chipFb.classList.add('hidden');
+  } else {
+    chipImg.classList.add('hidden'); chipImg.removeAttribute('src');
+    chipFb.textContent = initial(name); chipFb.classList.remove('hidden');
+  }
+  // 個人資料彈窗
+  $('#pf-name').textContent = name;
+  $('#pf-name2').textContent = name;
+  $('#pf-account').textContent = u.email || u.loginCode || '—';
+  $('#pf-role').textContent = roleText;
+  const pfImg = $('#pf-avatar'), pfFb = $('#pf-avatar-fallback');
+  if (u.avatar) {
+    pfImg.src = u.avatar; pfImg.classList.remove('hidden'); pfFb.classList.add('hidden');
+  } else {
+    pfImg.classList.add('hidden'); pfImg.removeAttribute('src');
+    pfFb.textContent = initial(name); pfFb.classList.remove('hidden');
+  }
+  renderPageSwitch();
+  $('#btn-user-chip').classList.remove('hidden');
+}
+
+/* ===== 頁面切換（系統管理員專用） ===== */
+function renderPageSwitch() {
+  const sw = $('#pf-page-switch');
+  if (!sw) return;
+  const isAdmin = !!(state.userDoc && state.userDoc.role === 'admin');
+  sw.classList.toggle('hidden', !isAdmin);
+  sw.classList.toggle('flex', isAdmin);
+  if (!isAdmin) return;
+  const cur = location.pathname.split('/').pop() || 'index.html';
+  $$('#pf-page-switch [data-goto]').forEach(b => {
+    const on = b.dataset.goto === cur;
+    b.className = 'pf-goto w-10 h-10 rounded-lg border grid place-items-center ' +
+      (on ? 'bg-brand text-white border-brand' : 'text-slate-500 border-slate-300 active:bg-slate-100');
+  });
+}
+
+function authErrorText(err) {
+  switch (err.code) {
+    case 'auth/email-already-in-use': return '此 Email 已被註冊';
+    case 'auth/invalid-email': return 'Email 格式錯誤';
+    case 'auth/weak-password': return '密碼至少 6 碼';
+    case 'auth/user-not-found': case 'auth/wrong-password': case 'auth/invalid-credential': return '帳號或密碼錯誤';
+    default: return err.message || '操作失敗';
+  }
+}
+
+/* ===== 登入帳號（代號）轉換 ===== */
+const LOGIN_DOMAIN = 'nwclass.app';
+// 輸入代號或手機號碼時，自動補上固定網域成為實際 Firebase 帳號
+function toLoginEmail(input) {
+  const v = String(input || '').trim();
+  if (!v) return '';
+  if (v.includes('@')) return v.toLowerCase();
+  const local = /^[0-9\s\-()+]+$/.test(v) ? v.replace(/\D/g, '') : v.toLowerCase().replace(/[^a-z0-9._-]/g, '');
+  return local ? `${local}@${LOGIN_DOMAIN}` : '';
+}
+
+async function handleEmailSubmit(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const account = (fd.get('email') || '').trim();
+  const password = fd.get('password');
+  if (!account || !password) return toast('請輸入帳號與密碼');
+  const loginEmail = toLoginEmail(account);
+  if (!loginEmail) return toast('帳號格式錯誤');
+  try { await signInWithEmailAndPassword(auth, loginEmail, password); }
+  catch (err) { toast(authErrorText(err)); }
+}
+
+/* ===== 系統名稱（即時監聽） ===== */
+function loadSystemName() {
+  cleanupListener('unsubSettings');
+  state.unsubSettings = onSnapshot(doc(db, 'settings', 'system'), (snap) => {
+    if (snap.exists() && snap.data().name) state.systemName = snap.data().name;
+    applySystemName();
+  }, () => {});
+}
+function applySystemName() {
+  $('#app-title').textContent = state.systemName;
+  $('#auth-brand-name').textContent = state.systemName;
+  const input = $('#setting-system-name');
+  if (input) input.value = state.systemName;
+  document.title = state.systemName + ' 管理後台';
+  applyManifest(state.systemName);
+}
+async function saveSystemName() {
+  const name = $('#setting-system-name').value.trim();
+  if (!name) return toast('系統名稱不可為空');
+  state.systemName = name;
+  applySystemName();
+  try {
+    await setDoc(doc(db, 'settings', 'system'), { name, updatedAt: serverTimestamp() }, { merge: true });
+    toast('已儲存系統名稱');
+  } catch { toast('儲存失敗'); }
+}
+
+function switchSettingsTab(tab) {
+  state.settingsTab = tab;
+  $$('.settings-tab').forEach(b => {
+    const active = b.dataset.settingsTab === tab;
+    b.classList.toggle('bg-white', active); b.classList.toggle('text-brand', active);
+    b.classList.toggle('shadow-sm', active); b.classList.toggle('text-slate-500', !active);
+  });
+  $('#settings-general').classList.toggle('hidden', tab !== 'general');
+  $('#settings-accounts').classList.toggle('hidden', tab !== 'accounts');
+  $('#settings-register').classList.toggle('hidden', tab !== 'register');
+  $('#settings-courses').classList.toggle('hidden', tab !== 'courses');
+  if (tab !== 'accounts') { cleanupListener('unsubService'); cleanupListener('unsubAdmin'); }
+  if (tab === 'accounts') loadAccounts();
+  if (tab !== 'courses') cleanupListener('unsubInstructors');
+  if (tab === 'courses') loadInstructors();
+  if (tab !== 'register') { cleanupListener('unsubRegions'); cleanupListener('unsubCommunities'); cleanupListener('unsubTitles'); }
+  if (tab === 'register') switchRegTab('region');
+}
+
+/* ===== 學員管理（即時監聽） ===== */
+async function loadStudents() {
+  const list = $('#students-list');
+  list.innerHTML = '<p class="text-slate-400 text-center py-4">載入中…</p>';
+  cleanupListener('unsubStudents');
+
+  // 取得社區代號對照（社區名稱 → 代號），供排序使用
+  const codeMap = {};
+  try {
+    const comSnap = await getDocs(collection(db, 'communities'));
+    comSnap.docs.forEach(d => {
+      const c = d.data() || {};
+      const name = String(c.name || '').trim();
+      if (name) codeMap[name] = String(c.code || '').trim();
+    });
+  } catch (err) { console.warn('[loadStudents] communities', err); }
+  const sortKey = (u) => {
+    const code = codeMap[u.community];
+    return code ? code : '\uffff' + (u.community || '');
+  };
+
+  state.unsubStudents = onSnapshot(query(collection(db, 'users'), where('role', '==', 'student')), (snap) => {
+    const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(sortKey(a)).localeCompare(String(sortKey(b)), 'zh-Hant', { numeric: true })
+        || String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hant'));
+    $('#students-count').textContent = `共 ${rows.length} 人`;
+    if (rows.length === 0) { list.innerHTML = '<p class="text-slate-400 text-center py-4">尚無學員</p>'; return; }
+    list.innerHTML = rows.map(u => {
+      const uid = u.uid || u.id;
+      const info = [u.title, u.region, u.community].filter(Boolean).join(' · ') || u.unit || '無單位';
+      const loginLabel = u.email || u.loginCode || '';
+      const showPhone = !!u.phone && String(u.phone).trim() !== String(loginLabel).trim();
+      return `
+      <div class="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-3">
+        ${u.avatar
+          ? `<img src="${u.avatar}" alt="" class="w-10 h-10 rounded-full object-cover shrink-0" />`
+          : `<div class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0">${initial(u.name || '學')}</div>`}
+        <div class="flex-1 min-w-0">
+          <p class="font-semibold truncate">${u.name || '未命名'}</p>
+          <p class="text-xs text-slate-500 truncate">${loginLabel || u.phone || '—'}${u.loginType === 'code' ? '（代號登入）' : ''}</p>
+          ${showPhone ? `<a href="tel:${String(u.phone).replace(/[^\d+]/g, '')}" class="block text-xs text-brand underline truncate">📱 ${u.phone}</a>` : ''}
+          <p class="text-[11px] text-slate-400 truncate">${info}</p>
+        </div>
+        <div class="flex shrink-0 items-center gap-1">
+          <button data-stu-course="${uid}" data-stu-name="${(u.name || '').replace(/"/g, '&quot;')}" title="課程" class="stu-course w-8 h-8 grid place-items-center rounded-lg text-slate-500 hover:bg-slate-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          </button>
+          <button data-stu-edit="${uid}" title="編輯" class="stu-edit w-8 h-8 grid place-items-center rounded-lg text-blue-600 hover:bg-blue-50">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button data-stu-del="${uid}" data-stu-name="${(u.name || '').replace(/"/g, '&quot;')}" title="刪除" class="stu-del w-8 h-8 grid place-items-center rounded-lg text-red-500 hover:bg-red-50">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+  }, (err) => {
+    console.error('[loadStudents]', err);
+    list.innerHTML = `<p class="text-red-500 text-center py-4 text-sm">載入失敗：${err.code || err.message}</p>`;
+  });
+}
+
+/* ===== 新增學員（含登入帳號） ===== */
+function fillSelect(el, values, placeholder) {
+  el.innerHTML = `<option value="">${placeholder}</option>` + values.map(v => {
+    const isObj = v && typeof v === 'object';
+    const value = isObj ? v.value : v;
+    const label = isObj ? v.label : v;
+    return `<option value="${value}">${label}</option>`;
+  }).join('');
+}
+async function loadStudentOptions() {
+  const [titles, regions, communities] = await Promise.all([
+    getDocs(collection(db, 'titles')), getDocs(collection(db, 'regions')), getDocs(collection(db, 'communities')),
+  ]);
+  fillSelect($('#stu-title'), titles.docs.map(d => d.data().name).filter(Boolean).sort((a, b) => a.localeCompare(b, 'zh-Hant')), '請選擇職稱');
+  fillSelect($('#stu-region'), regions.docs.map(d => `${d.data().city || ''}${d.data().district || ''}`).filter(Boolean).sort((a, b) => a.localeCompare(b, 'zh-Hant')), '請選擇區域');
+  const communityOpts = communities.docs.map(d => {
+    const c = d.data() || {};
+    return { code: String(c.code || '').trim(), name: String(c.name || '').trim() };
+  }).filter(o => o.name)
+    .sort((a, b) => String(a.code).localeCompare(String(b.code), 'zh-Hant', { numeric: true }) || a.name.localeCompare(b.name, 'zh-Hant'))
+    .map(o => ({ value: o.name, label: o.code ? `${o.code} ${o.name}` : o.name }));
+  fillSelect($('#stu-community'), communityOpts, '請選擇社區');
+}
+async function openStudentModal(data = null) {
+  const isEdit = !!data;
+  state.editingStudentUid = data?.uid || data?.id || null;
+  state.studentAvatar = data?.avatar || '';
+  $('#modal-student-title').textContent = isEdit ? '編輯學員' : '新增學員';
+  $('#stu-name').value = data?.name || '';
+  $('#stu-email').value = data?.email || '';
+  $('#stu-phone').value = data?.phone || '';
+  $('#stu-password').value = '';
+  $('#stu-password-field').classList.toggle('hidden', isEdit);
+  $('#stu-email').readOnly = false;
+  $('#stu-email').classList.remove('bg-slate-100', 'text-slate-500');
+  $('#stu-account-hint').textContent = isEdit
+    ? '可修改顯示帳號；登入帳號維持建立時的設定'
+    : '代號或手機號碼會自動對應為 @nwclass.app 帳號；留空則以手機號碼為帳號';
+  $('#stu-save').textContent = isEdit ? '儲存變更' : '建立帳號';
+  ['#stu-title', '#stu-region', '#stu-community'].forEach(s => fillSelect($(s), [], '載入中…'));
+  renderStudentAvatar();
+  $('#modal-student').classList.remove('hidden');
+  try {
+    await loadStudentOptions();
+    setSelectValue($('#stu-title'), data?.title);
+    setSelectValue($('#stu-region'), data?.region);
+    setSelectValue($('#stu-community'), data?.community);
+  } catch (err) {
+    console.error('[loadStudentOptions]', err);
+    toast('選項載入失敗，可稍後再試');
+    fillSelect($('#stu-title'), [], '請選擇職稱');
+    fillSelect($('#stu-region'), [], '請選擇區域');
+    fillSelect($('#stu-community'), [], '請選擇社區');
+    setSelectValue($('#stu-title'), data?.title);
+    setSelectValue($('#stu-region'), data?.region);
+    setSelectValue($('#stu-community'), data?.community);
+  }
+}
+function setSelectValue(el, value) {
+  if (value && !Array.from(el.options).some(o => o.value === value)) {
+    el.insertAdjacentHTML('beforeend', `<option value="${value}">${value}</option>`);
+  }
+  el.value = value || '';
+}
+const digitsOf = (s) => String(s || '').replace(/\D/g, '');
+
+/* ===== 大頭照 ===== */
+function renderStudentAvatar() {
+  const has = !!state.studentAvatar;
+  const img = $('#stu-avatar-preview'), fb = $('#stu-avatar-fallback');
+  if (has) {
+    img.src = state.studentAvatar; img.classList.remove('hidden');
+    fb.classList.add('hidden');
+  } else {
+    img.classList.add('hidden'); img.removeAttribute('src');
+    fb.textContent = initial($('#stu-name').value.trim() || '學');
+    fb.classList.remove('hidden');
+  }
+}
+function renderAccountAvatar() {
+  const has = !!state.accountAvatar;
+  const img = $('#acc-avatar-preview'), fb = $('#acc-avatar-fallback');
+  if (has) {
+    img.src = state.accountAvatar; img.classList.remove('hidden');
+    fb.classList.add('hidden');
+  } else {
+    img.classList.add('hidden'); img.removeAttribute('src');
+    fb.textContent = initial($('#acc-name').value.trim() || 'N');
+    fb.classList.remove('hidden');
+  }
+}
+function compressImage(file, maxSize = 256, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('讀取檔案失敗'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('圖片載入失敗'));
+      img.onload = () => {
+        const side = Math.min(img.width, img.height);
+        const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = maxSize; canvas.height = maxSize;
+        canvas.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, maxSize, maxSize);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function saveStudent() {
+  const name = $('#stu-name').value.trim();
+  const email = $('#stu-email').value.trim();
+  const phone = $('#stu-phone').value.trim();
+  const studentUid = state.editingStudentUid;
+  if (!name) return toast('請輸入姓名');
+  // 含 @ 才視為 Email，否則視為代號不需格式檢查
+  if (email.includes('@') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast('Email 格式錯誤');
+  if (!studentUid && !toLoginEmail(email || phone)) return toast('帳號或手機號碼請至少填寫一個');
+  const btn = $('#stu-save');
+  btn.disabled = true; btn.textContent = '處理中…';
+  try {
+    const profile = {
+      name, email, phone,
+      title: $('#stu-title').value, region: $('#stu-region').value,
+      community: $('#stu-community').value,
+      avatar: state.studentAvatar || '',
+    };
+    if (studentUid) {
+      await updateDoc(doc(db, 'users', studentUid), { ...profile, updatedAt: serverTimestamp() });
+      toast('已更新學員資料');
+    } else {
+      // 登入帳號：可填代號、Email 或手機號碼；留空則以手機號碼為帳號
+      const account = email || phone;
+      const authEmail = toLoginEmail(account);
+      if (!authEmail) { toast('帳號或手機號碼請至少填寫一個'); return; }
+      const isEmail = account.includes('@');
+      // 密碼可自設；留空則預設為手機號碼
+      let password = $('#stu-password').value;
+      if (!password) {
+        if (!phone) { toast('請輸入密碼（未填手機號碼時不可留空）'); return; }
+        password = digitsOf(phone);
+      }
+      if (password.length < 6) { toast('密碼至少 6 碼'); return; }
+      // 以次要 App 建立登入帳號，避免蓋掉管理員自己的登入狀態
+      const cred = await createUserWithEmailAndPassword(getSecondaryAuth(), authEmail, password);
+      try { await signOut(getSecondaryAuth()); } catch {}
+      await setDoc(doc(db, 'users', cred.user.uid), {
+        uid: cred.user.uid, ...profile,
+        email: isEmail ? account : '', loginType: isEmail ? 'email' : 'code',
+        loginCode: isEmail ? '' : account, authEmail,
+        unit: '', role: 'student',
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      });
+      toast(`已建立學員帳號（登入帳號：${account}）`);
+    }
+    $('#modal-student').classList.add('hidden');
+  } catch (err) {
+    console.error('[saveStudent]', err);
+    toast(authErrorText(err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = state.editingStudentUid ? '儲存變更' : '建立帳號';
+  }
+}
+function deleteStudent(uid, name) {
+  if (!uid) return toast('缺少學員 ID，無法刪除');
+  showConfirm(`確定要刪除學員「${name || '此學員'}」嗎？`, async () => {
+    try {
+      await deleteDoc(doc(db, 'users', uid));
+      toast('已刪除學員資料');
+    } catch (err) { console.error('[deleteStudent]', err); toast('刪除失敗'); }
+  });
+}
+
+/* ===== 學員課程指派 ===== */
+async function openStudentCourses(uid, name) {
+  state.assignStudentUid = uid;
+  $('#sc-student-name').textContent = name ? `學員：${name}` : '';
+  const listEl = $('#sc-list');
+  listEl.innerHTML = '<p class="text-slate-400 text-center py-4">載入中…</p>';
+  $('#modal-student-courses').classList.remove('hidden');
+  try {
+    const [courseSnap, userSnap] = await Promise.all([
+      getDocs(collection(db, 'courses')),
+      getDoc(doc(db, 'users', uid)),
+    ]);
+    const assigned = new Set((userSnap.exists() ? userSnap.data().courses : []) || []);
+    const courses = sortCoursesByDate(courseSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    if (courses.length === 0) {
+      listEl.innerHTML = '<p class="text-slate-400 text-center py-4">尚無課程</p>';
+      return;
+    }
+    listEl.innerHTML = courses.map(c => `
+      <label class="flex items-center gap-3 border border-slate-200 rounded-xl p-3 cursor-pointer">
+        <input type="checkbox" class="sc-course w-4 h-4 accent-brand shrink-0" value="${c.id}" ${assigned.has(c.id) ? 'checked' : ''} />
+        <div class="flex-1 min-w-0">
+          <p class="font-semibold text-sm truncate">${c.name || '未命名課程'}</p>
+          <p class="text-xs text-slate-500 truncate">${formatDisplayDate(c.date)}${courseTimeText(c)}${c.instructor ? ' · ' + c.instructor : ''}</p>
+        </div>
+      </label>`).join('');
+  } catch (err) {
+    console.error('[openStudentCourses]', err);
+    listEl.innerHTML = '<p class="text-red-500 text-center py-4 text-sm">載入失敗</p>';
+  }
+}
+async function saveStudentCourses() {
+  const uid = state.assignStudentUid;
+  if (!uid) return;
+  const ids = Array.from($$('.sc-course')).filter(c => c.checked).map(c => c.value);
+  try {
+    await updateDoc(doc(db, 'users', uid), { courses: ids, updatedAt: serverTimestamp() });
+    $('#modal-student-courses').classList.add('hidden');
+    state.assignStudentUid = null;
+    toast('已更新課程');
+  } catch (err) { console.error('[saveStudentCourses]', err); toast('儲存失敗'); }
+}
+
+/* ===== 帳號管理（即時監聽） ===== */
+function loadAccounts() {
+  const serviceEl = $('#service-accounts'), adminEl = $('#admin-accounts');
+  serviceEl.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入中…</p>';
+  adminEl.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入中…</p>';
+  cleanupListener('unsubService'); cleanupListener('unsubAdmin');
+  state.unsubService = onSnapshot(query(collection(db, 'users'), where('role', '==', 'service')),
+    (snap) => renderAccountList(serviceEl, snap.docs.map(d => d.data()), 'service'),
+    () => { serviceEl.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入失敗</p>'; });
+  state.unsubAdmin = onSnapshot(query(collection(db, 'users'), where('role', '==', 'admin')),
+    (snap) => renderAccountList(adminEl, snap.docs.map(d => d.data()), 'admin'),
+    () => { adminEl.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入失敗</p>'; });
+}
+function renderAccountList(container, users, role) {
+  if (users.length === 0) { container.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">尚無帳號</p>'; return; }
+  container.innerHTML = users.map(u => `
+    <div class="flex items-center gap-2 bg-slate-50 rounded-lg p-2">
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold truncate">${u.name || '未命名'}</p>
+        <p class="text-[11px] text-slate-500 truncate">${u.email || u.loginCode || '—'}</p>
+      </div>
+      <button data-acc-edit="${u.uid}" data-acc-role="${role}" class="acc-edit text-xs text-blue-600 px-2 py-1">編輯</button>
+      <button data-acc-del="${u.uid}" data-acc-name="${(u.name||'').replace(/"/g,'&quot;')}" class="acc-del text-xs text-red-500 px-2 py-1">刪除</button>
+    </div>`).join('');
+}
+function openAccountModal(role, userData = null) {
+  state.editingAccount = userData ? { uid: userData.uid, role } : null;
+  $('#modal-account-title').textContent = userData ? '編輯帳號' : `新增${role === 'service' ? '服務' : '管理員'}帳號`;
+  $('#acc-name').value = userData?.name || '';
+  $('#acc-email').value = userData?.email || '';
+  $('#acc-unit').value = userData?.unit || '';
+  $('#acc-password').value = '';
+  $('#acc-password-field').classList.toggle('hidden', !!userData);
+  state.accountAvatar = userData?.avatar || '';
+  $('#acc-avatar-file').value = '';
+  renderAccountAvatar();
+  $('#modal-account').classList.remove('hidden');
+}
+async function saveAccount() {
+  const name = $('#acc-name').value.trim(), account = $('#acc-email').value.trim();
+  const unit = $('#acc-unit').value.trim(), password = $('#acc-password').value;
+  const editing = state.editingAccount;
+  const role = editing ? editing.role : state._accTargetRole;
+  if (!name || !account) return toast('姓名與登入帳號必填');
+  const authEmail = toLoginEmail(account);
+  if (!editing && !authEmail) return toast('帳號格式錯誤');
+  try {
+    if (editing) {
+      await updateDoc(doc(db, 'users', editing.uid), { name, email: account, unit, avatar: state.accountAvatar || '', updatedAt: serverTimestamp() });
+      toast('已更新');
+    } else {
+      if (!password || password.length < 6) return toast('密碼至少 6 碼');
+      const cred = await createUserWithEmailAndPassword(getSecondaryAuth(), authEmail, password);
+      try { await signOut(getSecondaryAuth()); } catch {}
+      await setDoc(doc(db, 'users', cred.user.uid), {
+        uid: cred.user.uid, name, email: account.includes('@') ? account : '', unit, role,
+        avatar: state.accountAvatar || '',
+        loginType: account.includes('@') ? 'email' : 'code',
+        loginCode: account.includes('@') ? '' : account, authEmail,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      });
+      toast('已建立帳號');
+    }
+    $('#modal-account').classList.add('hidden');
+    loadAccounts();
+  } catch (err) { toast(err.message || '操作失敗'); }
+}
+async function deleteAccount(uid, name) {
+  showConfirm(`確定要刪除「${name || '此帳號'}」嗎？`, async () => {
+    try { await deleteDoc(doc(db, 'users', uid)); toast('已刪除帳號'); loadAccounts(); }
+    catch { toast('刪除失敗'); }
+  });
+}
+
+/* ===== 課程管理（即時監聽） ===== */
+function loadCourses(container) {
+  const list = container ? document.querySelector(container) : $('#courses-list');
+  if (!list) return;
+  list.innerHTML = '<p class="text-slate-400 text-center py-4">載入中…</p>';
+  cleanupListener('unsubCourses');
+  state.unsubCourses = onSnapshot(collection(db, 'courses'), (snap) => {
+    const rows = sortCoursesByDate(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    if (rows.length === 0) { list.innerHTML = '<p class="text-slate-400 text-center py-4">尚無課程</p>'; return; }
+    list.innerHTML = rows.map(c => `
+      <div class="bg-white border border-slate-200 rounded-xl p-3">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold truncate">${c.name || '未命名課程'}</p>
+            <p class="text-xs text-slate-500 mt-0.5">${formatDisplayDate(c.date)}${courseTimeText(c)}${c.instructor ? ' · ' + c.instructor : ''}</p>
+            ${c.location ? `<p class="text-xs text-slate-400 mt-0.5">📍 ${c.location}</p>` : ''}
+            ${c.notes ? `<p class="text-[11px] text-slate-400 mt-1">${c.notes}</p>` : ''}
+          </div>
+          <div class="flex shrink-0 gap-1">
+            <button data-course-edit="${c.id}" class="course-edit text-xs text-blue-600 px-2 py-1">編輯</button>
+            <button data-course-del="${c.id}" data-course-name="${(c.name||'').replace(/"/g,'&quot;')}" class="course-del text-xs text-red-500 px-2 py-1">刪除</button>
+          </div>
+        </div>
+      </div>`).join('');
+  }, () => { list.innerHTML = '<p class="text-slate-400 text-center py-4">載入失敗</p>'; });
+}
+/* ===== 課程時間顯示與排序（日期時間近至遠） ===== */
+function formatDisplayDate(value) {
+  const v = String(value || '').trim();
+  if (!v) return '未排程';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const t = new Date(v);
+  if (!isNaN(t.getTime())) {
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  }
+  return v.replace(/\//g, '-');
+}
+function formatDisplayTime(value) {
+  const v = String(value || '').trim();
+  if (!v) return '';
+  const parts = v.split(':');
+  if (parts.length >= 2) {
+    return `${String(parts[0] || '0').padStart(2, '0')}:${String(parts[1] || '0').padStart(2, '0')}:${String(parts[2] || '0').padStart(2, '0')}`;
+  }
+  return v;
+}
+function courseTimeText(c) {
+  const s = c.startTime, e = c.endTime;
+  if (!s && !e) return '';
+  return ` ${s ? formatDisplayTime(s) : ''}${e ? '-' + formatDisplayTime(e) : ''}`;
+}
+function courseSortKey(c) {
+  return `${c.date || '9999-99-99'} ${c.startTime || '99:99'}`;
+}
+function sortCoursesByDate(courses) {
+  return courses.slice().sort((a, b) => courseSortKey(a).localeCompare(courseSortKey(b)));
+}
+
+/* ===== 講師下拉選單（來源：instructors 集合） ===== */
+async function fillInstructorSelect(selected = '') {
+  const sel = $('#course-instructor');
+  sel.innerHTML = '<option value="">請選擇</option>';
+  let names = [];
+  try {
+    const snap = await getDocs(collection(db, 'instructors'));
+    names = Array.from(new Set(snap.docs.map(d => String(d.data().name || '').trim()).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  } catch {}
+  sel.innerHTML = '<option value="">請選擇</option>' + names.map(n => `<option value="${n}">${n}</option>`).join('');
+  if (selected && !names.includes(selected)) {
+    sel.insertAdjacentHTML('beforeend', `<option value="${selected}">${selected}</option>`);
+  }
+  sel.value = selected || '';
+}
+
+function openCourseModal(courseData = null) {
+  state.editingCourseId = courseData?.id || null;
+  $('#modal-course-title').textContent = courseData ? '編輯課程' : '新增課程';
+  $('#course-name').value = courseData?.name || '';
+  $('#course-date').value = courseData?.date || '';
+  $('#course-start-time').value = courseData?.startTime || '';
+  $('#course-end-time').value = courseData?.endTime || '';
+  $('#course-location').value = courseData?.location || '';
+  $('#course-notes').value = courseData?.notes || '';
+  fillInstructorSelect(courseData?.instructor || '');
+  $('#modal-course').classList.remove('hidden');
+}
+async function saveCourse() {
+  const name = $('#course-name').value.trim();
+  if (!name) return toast('課程名稱必填');
+  const data = {
+    name, instructor: $('#course-instructor').value.trim(), date: $('#course-date').value,
+    startTime: $('#course-start-time').value, endTime: $('#course-end-time').value,
+    location: $('#course-location').value.trim(), notes: $('#course-notes').value.trim(),
+    updatedAt: serverTimestamp(),
+  };
+  try {
+    if (state.editingCourseId) {
+      await updateDoc(doc(db, 'courses', state.editingCourseId), data);
+      toast('已更新');
+    } else {
+      await addDoc(collection(db, 'courses'), { ...data, createdAt: serverTimestamp() });
+      toast('已建立課程');
+    }
+    $('#modal-course').classList.add('hidden');
+    loadCourses();
+  } catch { toast('儲存失敗'); }
+}
+async function deleteCourse(id, name) {
+  showConfirm(`確定要刪除課程「${name || ''}」嗎？`, async () => {
+    try {
+      await deleteDoc(doc(db, 'courses', id)); toast('已刪除');
+      loadCourses();
+    }
+    catch { toast('刪除失敗'); }
+  });
+}
+function showConfirm(text, callback) {
+  $('#confirm-text').textContent = text;
+  state.confirmCallback = callback;
+  $('#modal-confirm').classList.remove('hidden');
+}
+
+/* ===== 講師管理（即時監聽） ===== */
+function loadInstructors() {
+  const list = $('#instructors-list');
+  if (!list) return;
+  list.innerHTML = '<p class="text-slate-400 text-center py-4">載入中…</p>';
+  cleanupListener('unsubInstructors');
+  state.unsubInstructors = onSnapshot(query(collection(db, 'instructors'), orderBy('name')), (snap) => {
+    const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (rows.length === 0) { list.innerHTML = '<p class="text-slate-400 text-center py-4">尚無講師</p>'; return; }
+    list.innerHTML = rows.map(i => `
+      <div class="bg-white border border-slate-200 rounded-xl p-3">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold truncate">${i.name || '未命名講師'}</p>
+            ${i.specialty ? `<p class="text-xs text-slate-500 mt-0.5">${i.specialty}</p>` : ''}
+            ${i.phone ? `<p class="text-xs text-slate-400 mt-0.5">📞 ${i.phone}</p>` : ''}
+            ${i.email ? `<p class="text-xs text-slate-400 mt-0.5 truncate">✉️ ${i.email}</p>` : ''}
+          </div>
+          <div class="flex shrink-0 gap-1">
+            <button data-ins-edit="${i.id}" class="ins-edit text-xs text-blue-600 px-2 py-1">編輯</button>
+            <button data-ins-del="${i.id}" data-ins-name="${(i.name||'').replace(/"/g,'&quot;')}" class="ins-del text-xs text-red-500 px-2 py-1">刪除</button>
+          </div>
+        </div>
+      </div>`).join('');
+  }, () => { list.innerHTML = '<p class="text-slate-400 text-center py-4">載入失敗</p>'; });
+}
+function openInstructorModal(data = null) {
+  state.editingInstructorId = data?.id || null;
+  $('#modal-instructor-title').textContent = data ? '編輯講師' : '新增講師';
+  $('#ins-name').value = data?.name || '';
+  $('#ins-specialty').value = data?.specialty || '';
+  $('#ins-phone').value = data?.phone || '';
+  $('#ins-email').value = data?.email || '';
+  $('#modal-instructor').classList.remove('hidden');
+}
+async function saveInstructor() {
+  const name = $('#ins-name').value.trim();
+  if (!name) return toast('講師姓名必填');
+  const data = {
+    name,
+    specialty: $('#ins-specialty').value.trim(),
+    phone: $('#ins-phone').value.trim(),
+    email: $('#ins-email').value.trim(),
+    updatedAt: serverTimestamp(),
+  };
+  try {
+    if (state.editingInstructorId) {
+      await updateDoc(doc(db, 'instructors', state.editingInstructorId), data);
+      toast('已更新');
+    } else {
+      await addDoc(collection(db, 'instructors'), { ...data, createdAt: serverTimestamp() });
+      toast('已建立講師');
+    }
+    $('#modal-instructor').classList.add('hidden');
+    loadInstructors();
+  } catch (err) { toast(err.message || '儲存失敗'); }
+}
+async function deleteInstructor(id, name) {
+  showConfirm(`確定要刪除講師「${name || ''}」嗎？`, async () => {
+    try {
+      await deleteDoc(doc(db, 'instructors', id));
+      toast('已刪除');
+      loadInstructors();
+    } catch { toast('刪除失敗'); }
+  });
+}
+
+/* ===== 區域預設資料 ===== */
+const DEFAULT_REGIONS = [
+  { city: '台北市', districts: ['中正區', '大同區', '中山區', '松山區', '大安區', '萬華區', '信義區', '士林區', '北投區', '內湖區', '南港區', '文山區'] },
+  { city: '新北市', districts: ['板橋區', '三重區', '中和區', '永和區', '新莊區', '新店區', '樹林區', '鶯歌區', '三峽區', '淡水區', '汐止區', '瑞芳區', '土城區', '蘆洲區', '五股區', '泰山區', '林口區', '八里區', '深坑區', '石碇區', '坪林區', '三芝區', '石門區', '金山區', '萬里區', '烏來區', '平溪區', '雙溪區', '貢寮區'] },
+  { city: '桃園市', districts: ['桃園區', '中壢區', '平鎮區', '八德區', '楊梅區', '蘆竹區', '大園區', '龜山區', '大溪區', '龍潭區', '新屋區', '觀音區', '復興區'] },
+];
+let regionsSeeded = false;
+async function seedRegions() {
+  if (regionsSeeded) return;
+  regionsSeeded = true;
+  const batch = writeBatch(db);
+  for (const c of DEFAULT_REGIONS) {
+    for (const d of c.districts) {
+      const ref = doc(collection(db, 'regions'));
+      batch.set(ref, { city: c.city, district: d, createdAt: serverTimestamp() });
+    }
+  }
+  await batch.commit();
+}
+
+/* ===== 區域 CRUD ===== */
+function loadRegions() {
+  const list = $('#regions-list');
+  if (state.unsubRegions) state.unsubRegions();
+  state.unsubRegions = onSnapshot(collection(db, 'regions'), (snap) => {
+    if (snap.empty) {
+      list.innerHTML = '<p class="text-slate-400 text-center py-4">載入預設區域中…</p>';
+      seedRegions();
+      return;
+    }
+    const docs = snap.docs.slice().sort((a, b) => {
+      const ra = a.data(), rb = b.data();
+      return (ra.city || '').localeCompare(rb.city || '') || (ra.district || '').localeCompare(rb.district || '');
+    });
+    list.innerHTML = docs.map(d => {
+      const r = d.data();
+      return `<div class="bg-white border border-slate-200 rounded-xl p-3">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold truncate">${r.district || ''}</p>
+            <p class="text-xs text-slate-500 mt-0.5">${r.city || ''}</p>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <button class="reg-edit text-blue-600 text-xs font-semibold" data-id="${d.id}">編輯</button>
+            <button class="reg-del text-red-500 text-xs font-semibold" data-id="${d.id}" data-name="${r.city || ''}${r.district || ''}">刪除</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    $$('.reg-edit').forEach(b => b.addEventListener('click', () => {
+      const d = snap.docs.find(d => d.id === b.dataset.id);
+      if (d) openRegionModal({ id: d.id, ...d.data() });
+    }));
+    $$('.reg-del').forEach(b => b.addEventListener('click', () => deleteRegion(b.dataset.id, b.dataset.name)));
+  }, () => { list.innerHTML = '<p class="text-red-500 text-center py-4 text-sm">載入失敗</p>'; });
+}
+function openRegionModal(data) {
+  state.editingRegionId = data?.id || null;
+  $('#modal-region-title').textContent = data ? '編輯區域' : '新增區域';
+  $('#reg-city').value = data?.city || '';
+  $('#reg-district').value = data?.district || '';
+  $('#modal-region').classList.remove('hidden');
+}
+async function saveRegion() {
+  const city = $('#reg-city').value.trim();
+  const district = $('#reg-district').value.trim();
+  if (!city || !district) { toast('請填寫縣市與行政區'); return; }
+  try {
+    if (state.editingRegionId) {
+      await updateDoc(doc(db, 'regions', state.editingRegionId), { city, district, updatedAt: serverTimestamp() });
+      toast('已更新');
+    } else {
+      await addDoc(collection(db, 'regions'), { city, district, createdAt: serverTimestamp() });
+      toast('已建立區域');
+    }
+    $('#modal-region').classList.add('hidden');
+    loadRegions();
+  } catch (err) { toast(err.message || '儲存失敗'); }
+}
+async function deleteRegion(id, name) {
+  showConfirm(`確定要刪除區域「${name || ''}」嗎？`, async () => {
+    try {
+      await deleteDoc(doc(db, 'regions', id));
+      toast('已刪除');
+      loadRegions();
+    } catch { toast('刪除失敗'); }
+  });
+}
+
+/* ===== 社區 CRUD ===== */
+function loadCommunities() {
+  const list = $('#communities-list');
+  if (state.unsubCommunities) state.unsubCommunities();
+  state.unsubCommunities = onSnapshot(collection(db, 'communities'), (snap) => {
+    if (snap.empty) { list.innerHTML = '<p class="text-slate-400 text-center py-4">尚無社區</p>'; return; }
+    const docs = snap.docs.slice().sort((a, b) => (a.data().code || '').localeCompare(b.data().code || ''));
+    list.innerHTML = docs.map(d => {
+      const c = d.data();
+      return `<div class="bg-white border border-slate-200 rounded-xl p-3">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold truncate">${c.name || ''}</p>
+            <p class="text-xs text-slate-500 mt-0.5">代號：${c.code || ''}</p>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <button class="com-edit text-blue-600 text-xs font-semibold" data-id="${d.id}">編輯</button>
+            <button class="com-del text-red-500 text-xs font-semibold" data-id="${d.id}" data-name="${c.name || ''}">刪除</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    $$('.com-edit').forEach(b => b.addEventListener('click', () => {
+      const d = snap.docs.find(d => d.id === b.dataset.id);
+      if (d) openCommunityModal({ id: d.id, ...d.data() });
+    }));
+    $$('.com-del').forEach(b => b.addEventListener('click', () => deleteCommunity(b.dataset.id, b.dataset.name)));
+  }, () => { list.innerHTML = '<p class="text-red-500 text-center py-4 text-sm">載入失敗</p>'; });
+}
+function openCommunityModal(data) {
+  state.editingCommunityId = data?.id || null;
+  $('#modal-community-title').textContent = data ? '編輯社區' : '新增社區';
+  $('#com-code').value = data?.code || '';
+  $('#com-name').value = data?.name || '';
+  $('#modal-community').classList.remove('hidden');
+}
+async function saveCommunity() {
+  const code = $('#com-code').value.trim();
+  const name = $('#com-name').value.trim();
+  if (!code || !name) { toast('請填寫社區代號與名稱'); return; }
+  try {
+    if (state.editingCommunityId) {
+      await updateDoc(doc(db, 'communities', state.editingCommunityId), { code, name, updatedAt: serverTimestamp() });
+      toast('已更新');
+    } else {
+      await addDoc(collection(db, 'communities'), { code, name, createdAt: serverTimestamp() });
+      toast('已建立社區');
+    }
+    $('#modal-community').classList.add('hidden');
+    loadCommunities();
+  } catch (err) { toast(err.message || '儲存失敗'); }
+}
+async function deleteCommunity(id, name) {
+  showConfirm(`確定要刪除社區「${name || ''}」嗎？`, async () => {
+    try {
+      await deleteDoc(doc(db, 'communities', id));
+      toast('已刪除');
+      loadCommunities();
+    } catch { toast('刪除失敗'); }
+  });
+}
+
+/* ===== 職稱 CRUD ===== */
+function loadTitles() {
+  const list = $('#titles-list');
+  if (state.unsubTitles) state.unsubTitles();
+  state.unsubTitles = onSnapshot(collection(db, 'titles'), (snap) => {
+    if (snap.empty) { list.innerHTML = '<p class="text-slate-400 text-center py-4">尚無職稱</p>'; return; }
+    const docs = snap.docs.slice().sort((a, b) => (a.data().name || '').localeCompare(b.data().name || ''));
+    list.innerHTML = docs.map(d => {
+      const t = d.data();
+      return `<div class="bg-white border border-slate-200 rounded-xl p-3">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold truncate">${t.name || ''}</p>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <button class="tt-edit text-blue-600 text-xs font-semibold" data-id="${d.id}">編輯</button>
+            <button class="tt-del text-red-500 text-xs font-semibold" data-id="${d.id}" data-name="${t.name || ''}">刪除</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    $$('.tt-edit').forEach(b => b.addEventListener('click', () => {
+      const d = snap.docs.find(d => d.id === b.dataset.id);
+      if (d) openTitleModal({ id: d.id, ...d.data() });
+    }));
+    $$('.tt-del').forEach(b => b.addEventListener('click', () => deleteTitle(b.dataset.id, b.dataset.name)));
+  }, () => { list.innerHTML = '<p class="text-red-500 text-center py-4 text-sm">載入失敗</p>'; });
+}
+function openTitleModal(data) {
+  state.editingTitleId = data?.id || null;
+  $('#modal-title-title').textContent = data ? '編輯職稱' : '新增職稱';
+  $('#tt-name').value = data?.name || '';
+  $('#modal-title').classList.remove('hidden');
+}
+async function saveTitle() {
+  const name = $('#tt-name').value.trim();
+  if (!name) { toast('請輸入職稱'); return; }
+  try {
+    if (state.editingTitleId) {
+      await updateDoc(doc(db, 'titles', state.editingTitleId), { name, updatedAt: serverTimestamp() });
+      toast('已更新');
+    } else {
+      await addDoc(collection(db, 'titles'), { name, createdAt: serverTimestamp() });
+      toast('已建立職稱');
+    }
+    $('#modal-title').classList.add('hidden');
+    loadTitles();
+  } catch (err) { toast(err.message || '儲存失敗'); }
+}
+async function deleteTitle(id, name) {
+  showConfirm(`確定要刪除職稱「${name || ''}」嗎？`, async () => {
+    try {
+      await deleteDoc(doc(db, 'titles', id));
+      toast('已刪除');
+      loadTitles();
+    } catch { toast('刪除失敗'); }
+  });
+}
+
+/* ===== 註冊子分頁切換 ===== */
+function switchRegTab(tab) {
+  $$('.reg-tab').forEach(t => {
+    if (t.dataset.regTab === tab) { t.classList.add('bg-white', 'text-brand', 'shadow-sm'); t.classList.remove('text-slate-500'); }
+    else { t.classList.remove('bg-white', 'text-brand', 'shadow-sm'); t.classList.add('text-slate-500'); }
+  });
+  $('#reg-region').classList.toggle('hidden', tab !== 'region');
+  $('#reg-community').classList.toggle('hidden', tab !== 'community');
+  $('#reg-title').classList.toggle('hidden', tab !== 'title');
+  if (tab === 'region') loadRegions();
+  if (tab === 'community') loadCommunities();
+  if (tab === 'title') loadTitles();
+}
+
+/* ===== Auth 狀態監聽 ===== */
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    state.currentUser = user;
+    const cachedRole = localStorage.getItem('nw_role');
+    let doc = { uid: user.uid, name: user.displayName || '管理員', email: user.email || '', phone: '', unit: '', role: cachedRole || 'admin' };
+    let firestoreOk = false;
+    try {
+      const existing = await loadUserDoc(user.uid);
+      if (existing) { doc = existing; firestoreOk = true; }
+      else { await createUserDoc(user.uid, doc); firestoreOk = true; }
+    } catch { console.warn('Firestore 讀取失敗，使用本機快取角色'); }
+    if (!firestoreOk) {
+      if (cachedRole) doc.role = cachedRole;
+    } else {
+      localStorage.setItem('nw_role', doc.role || 'student');
+    }
+    state.userDoc = doc;
+    // 角色不符則導向對應頁面
+    let role = doc.role || 'student';
+    if ((user.email || '').toLowerCase() === ADMIN_EMAIL) {
+      role = 'admin';
+      if (!doc.name || doc.name === '學員') doc.name = '系統管理員';
+    }
+    if (role !== doc.role) { doc.role = role; localStorage.setItem('nw_role', role); }
+    if (role !== PAGE_ROLE) {
+      window.location.href = REDIRECT_MAP[role] || 'index.html';
+      return;
+    }
+    renderUser();
+    loadSystemName();
+    showView('students');
+  } else {
+    state.currentUser = null; state.userDoc = null;
+    cleanupListener('unsubSettings'); cleanupListener('unsubStudents');
+    cleanupListener('unsubService'); cleanupListener('unsubAdmin'); cleanupListener('unsubCourses');
+    $('#btn-user-chip').classList.add('hidden');
+    $('#modal-profile').classList.add('hidden');
+    showView('auth');
+  }
+});
+
+/* ===== 事件綁定 ===== */
+$('#form-email').addEventListener('submit', handleEmailSubmit);
+$('#btn-user-chip').addEventListener('click', () => $('#modal-profile').classList.remove('hidden'));
+$('#pf-close').addEventListener('click', () => $('#modal-profile').classList.add('hidden'));
+$('#pf-logout').addEventListener('click', async () => {
+  $('#modal-profile').classList.add('hidden');
+  await signOut(auth); toast('已登出');
+});
+$('#pf-avatar-btn').addEventListener('click', () => $('#pf-avatar-file').click());
+$('#pf-avatar-file').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (!state.currentUser) return toast('尚未登入');
+  try {
+    const dataUrl = await compressImage(file);
+    await setDoc(doc(db, 'users', state.currentUser.uid), { avatar: dataUrl, updatedAt: serverTimestamp() }, { merge: true });
+    state.userDoc = { ...(state.userDoc || {}), avatar: dataUrl };
+    renderUser();
+    toast('大頭照已更新');
+  } catch (err) { console.error('[pf-avatar]', err); toast('上傳失敗'); }
+  e.target.value = '';
+});
+$$('.pf-goto').forEach(b => b.addEventListener('click', () => { location.href = b.dataset.goto; }));
+$$('.nav-btn').forEach(b => b.addEventListener('click', () => showView(b.dataset.nav)));
+
+$$('.toggle-pwd').forEach(b => b.addEventListener('click', () => {
+  const input = b.previousElementSibling;
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  b.textContent = show ? '隱藏' : '顯示';
+}));
+
+$$('.settings-tab').forEach(b => b.addEventListener('click', () => switchSettingsTab(b.dataset.settingsTab)));
+$('#btn-save-system-name').addEventListener('click', saveSystemName);
+
+$('#btn-add-service').addEventListener('click', () => { state._accTargetRole = 'service'; openAccountModal('service'); });
+$('#btn-add-admin').addEventListener('click', () => { state._accTargetRole = 'admin'; openAccountModal('admin'); });
+$('#acc-cancel').addEventListener('click', () => $('#modal-account').classList.add('hidden'));
+$('#acc-save').addEventListener('click', saveAccount);
+$('#acc-avatar-pick').addEventListener('click', () => $('#acc-avatar-file').click());
+$('#acc-avatar-clear').addEventListener('click', () => {
+  state.accountAvatar = ''; $('#acc-avatar-file').value = ''; renderAccountAvatar();
+});
+$('#acc-avatar-file').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try { state.accountAvatar = await compressImage(file); renderAccountAvatar(); }
+  catch { toast('圖片處理失敗'); }
+  e.target.value = '';
+});
+$('#acc-name').addEventListener('input', () => { if (!state.accountAvatar) renderAccountAvatar(); });
+
+document.addEventListener('click', (e) => {
+  const sCourse = e.target.closest('.stu-course');
+  if (sCourse) { openStudentCourses(sCourse.dataset.stuCourse, sCourse.dataset.stuName); return; }
+  const sEdit = e.target.closest('.stu-edit');
+  if (sEdit) {
+    getDoc(doc(db, 'users', sEdit.dataset.stuEdit)).then(snap => {
+      if (snap.exists()) openStudentModal({ id: snap.id, ...snap.data() });
+      else toast('找不到學員資料');
+    }).catch(() => toast('讀取學員失敗'));
+    return;
+  }
+  const sDel = e.target.closest('.stu-del');
+  if (sDel) { deleteStudent(sDel.dataset.stuDel, sDel.dataset.stuName); return; }
+  const editBtn = e.target.closest('.acc-edit');
+  if (editBtn) {
+    const uid = editBtn.dataset.accEdit, role = editBtn.dataset.accRole;
+    getDoc(doc(db, 'users', uid)).then(snap => openAccountModal(role, snap.exists() ? snap.data() : { uid }));
+    return;
+  }
+  const delBtn = e.target.closest('.acc-del');
+  if (delBtn) { deleteAccount(delBtn.dataset.accDel, delBtn.dataset.accName); return; }
+  const cEdit = e.target.closest('.course-edit');
+  if (cEdit) {
+    getDoc(doc(db, 'courses', cEdit.dataset.courseEdit)).then(snap => { if (snap.exists()) openCourseModal({ id: snap.id, ...snap.data() }); });
+    return;
+  }
+  const cDel = e.target.closest('.course-del');
+  if (cDel) { deleteCourse(cDel.dataset.courseDel, cDel.dataset.courseName); return; }
+  const iEdit = e.target.closest('.ins-edit');
+  if (iEdit) {
+    getDoc(doc(db, 'instructors', iEdit.dataset.insEdit)).then(snap => { if (snap.exists()) openInstructorModal({ id: snap.id, ...snap.data() }); });
+    return;
+  }
+  const iDel = e.target.closest('.ins-del');
+  if (iDel) { deleteInstructor(iDel.dataset.insDel, iDel.dataset.insName); return; }
+});
+
+$('#btn-add-student').addEventListener('click', openStudentModal);
+$('#stu-cancel').addEventListener('click', () => $('#modal-student').classList.add('hidden'));
+$('#stu-save').addEventListener('click', saveStudent);
+$('#stu-avatar-pick').addEventListener('click', () => $('#stu-avatar-file').click());
+$('#stu-avatar-clear').addEventListener('click', () => {
+  state.studentAvatar = ''; $('#stu-avatar-file').value = ''; renderStudentAvatar();
+});
+$('#stu-avatar-file').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try { state.studentAvatar = await compressImage(file); renderStudentAvatar(); }
+  catch { toast('圖片處理失敗'); }
+  e.target.value = '';
+});
+$('#stu-name').addEventListener('input', () => { if (!state.studentAvatar) renderStudentAvatar(); });
+$('#sc-cancel').addEventListener('click', () => { state.assignStudentUid = null; $('#modal-student-courses').classList.add('hidden'); });
+$('#sc-save').addEventListener('click', saveStudentCourses);
+
+$('#btn-add-course').addEventListener('click', () => openCourseModal());
+$('#btn-add-instructor').addEventListener('click', () => openInstructorModal());
+$('#course-cancel').addEventListener('click', () => $('#modal-course').classList.add('hidden'));
+$('#course-save').addEventListener('click', saveCourse);
+$('#ins-cancel').addEventListener('click', () => $('#modal-instructor').classList.add('hidden'));
+$('#ins-save').addEventListener('click', saveInstructor);
+
+/* ===== 註冊子分頁：區域/社區/職稱事件 ===== */
+$$('.reg-tab').forEach(b => b.addEventListener('click', () => switchRegTab(b.dataset.regTab)));
+$('#btn-add-region').addEventListener('click', () => openRegionModal());
+$('#reg-cancel').addEventListener('click', () => $('#modal-region').classList.add('hidden'));
+$('#reg-save').addEventListener('click', saveRegion);
+$('#btn-add-community').addEventListener('click', () => openCommunityModal());
+$('#com-cancel').addEventListener('click', () => $('#modal-community').classList.add('hidden'));
+$('#com-save').addEventListener('click', saveCommunity);
+$('#btn-add-title').addEventListener('click', () => openTitleModal());
+$('#tt-cancel').addEventListener('click', () => $('#modal-title').classList.add('hidden'));
+$('#tt-save').addEventListener('click', saveTitle);
+
+$('#confirm-cancel').addEventListener('click', () => { state.confirmCallback = null; $('#modal-confirm').classList.add('hidden'); });
+$('#confirm-ok').addEventListener('click', () => {
+  const cb = state.confirmCallback; state.confirmCallback = null;
+  $('#modal-confirm').classList.add('hidden');
+  if (cb) cb();
+});
+</script>
+</body>
+</html>

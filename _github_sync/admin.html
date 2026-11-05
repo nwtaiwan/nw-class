@@ -1,0 +1,3204 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#d32f2f" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="NW Class" />
+<title>NW Class 服務端</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: { brand: { DEFAULT: '#d32f2f', dark: '#b71c1c', light: '#ef5350' } },
+        fontFamily: { sans: ['-apple-system','BlinkMacSystemFont','Segoe UI','PingFang TC','Microsoft JhengHei','sans-serif'] },
+      },
+    },
+  };
+</script>
+
+<link rel="icon" type="image/png" sizes="192x192" href="logo.png" />
+<link rel="apple-touch-icon" href="logo.png" />
+
+<script>
+  const NW_BASE = (function(){ const p = window.location.pathname.replace(/\/[^/]*$/, '/'); return window.location.origin + p; })();
+  let nwManifestUrl = '';
+  /* PWA 應用程式名稱與系統名稱設定（settings/system.name）保持一致 */
+  function applyManifest(name) {
+    const appName = (name || 'NW Class').trim() || 'NW Class';
+    const manifest = {
+      name: appName, short_name: appName,
+      start_url: NW_BASE + "admin.html", scope: NW_BASE,
+      display: "standalone", orientation: "landscape",
+      background_color: "#ffffff", theme_color: "#d32f2f", lang: "zh-Hant",
+      icons: [
+        { src: NW_BASE + "logo.png", sizes: "192x192", type: "image/png", purpose: "any" },
+        { src: NW_BASE + "logo.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }
+      ]
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
+    let link = document.querySelector('link[rel="manifest"]');
+    if (!link) { link = document.createElement('link'); link.rel = 'manifest'; document.head.appendChild(link); }
+    link.href = url;
+    if (nwManifestUrl) URL.revokeObjectURL(nwManifestUrl);
+    nwManifestUrl = url;
+    const meta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (meta) meta.setAttribute('content', appName);
+  }
+  applyManifest('NW Class');
+</script>
+
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  body { background: #f1f5f9; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+  /* PWA 一頁式：確保外殼撐滿可視高度，頁尾固定可見（100vh 作為不支援 dvh 的後備） */
+  #app-shell { height: 100vh; height: 100dvh; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to {opacity:1; transform:none;} }
+  .fade-in { animation: fadeIn .25s ease-out; }
+  .safe-b { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-t { padding-top: env(safe-area-inset-top); }
+  #reader { position: relative; width: 100%; height: 100%; margin-inline: auto; background: transparent !important; }
+  #reader.reader-idle {
+    background: #0f172a !important;
+  }
+  #reader.reader-idle::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 72px 72px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9zm3 14.5A4.5 4.5 0 1 1 12 8a4.5 4.5 0 0 1 0 9zm0-1.8a2.7 2.7 0 1 0 0-5.4 2.7 2.7 0 0 0 0 5.4z'/%3E%3C/svg%3E");
+    opacity: 0.95;
+    pointer-events: none;
+  }
+  #reader > div,
+  #reader section,
+  #reader video,
+  #reader canvas {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    display: block !important;
+    object-fit: cover !important;
+    background: transparent !important;
+  }
+  #file-preview-body table { border-collapse: collapse; font-size: 12px; }
+  #file-preview-body td, #file-preview-body th { border: 1px solid #e2e8f0; padding: 4px 6px; }
+  #file-preview-body img { max-width: 100%; }
+</style>
+</head>
+
+<body class="font-sans text-slate-800">
+
+<div id="app-shell" class="w-full h-[100dvh] bg-white flex flex-col overflow-hidden">
+
+  <!-- Header -->
+  <header class="safe-t flex items-center justify-between px-4 md:px-6 h-14 bg-white border-b border-slate-200 shrink-0">
+    <div class="flex items-center gap-2">
+      <img id="app-logo" src="logo.png" alt="NW Class" class="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200"
+           onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
+      <span id="app-title" class="font-bold text-lg text-slate-900">NW Class</span>
+      <span class="px-1.5 py-0.5 bg-slate-700 text-white text-[12px] rounded font-semibold">服務</span>
+    </div>
+    <button id="btn-user-chip" class="hidden flex items-center gap-2">
+      <span id="chip-name" class="text-sm font-medium text-slate-600 max-w-[7rem] truncate"></span>
+      <img id="chip-avatar" alt="" class="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 hidden" />
+      <span id="chip-avatar-fallback" class="w-8 h-8 rounded-full bg-brand text-white grid place-items-center text-xs font-bold">N</span>
+    </button>
+  </header>
+
+  <!-- 個人資料彈窗 -->
+  <div id="modal-profile" class="hidden fixed inset-0 z-[95] bg-black/50 grid place-items-center p-4">
+    <div class="bg-white rounded-2xl w-[80vw] max-w-md h-[80vh] max-h-[80vh] fade-in flex flex-col overflow-hidden">
+      <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-6 py-8 flex flex-col items-center">
+        <div class="w-28 h-28 rounded-full bg-brand text-white grid place-items-center text-4xl font-bold overflow-hidden shrink-0 relative">
+          <span id="pf-avatar-fallback">N</span>
+          <img id="pf-avatar" alt="" class="absolute inset-0 w-full h-full object-cover hidden" />
+        </div>
+        <p id="pf-name" class="mt-4 text-xl font-bold text-slate-900 text-center break-all">—</p>
+        <span id="pf-role" class="mt-2 px-2.5 py-0.5 bg-brand text-white text-[11px] rounded font-semibold">服務人員</span>
+        <div class="w-full mt-6 space-y-3">
+          <div class="bg-slate-50 rounded-xl px-4 py-3">
+            <p class="text-[11px] text-slate-400">帳號</p>
+            <p id="pf-account" class="text-sm text-slate-700 truncate">—</p>
+          </div>
+          <div class="bg-slate-50 rounded-xl px-4 py-3">
+            <p class="text-[11px] text-slate-400">姓名</p>
+            <p id="pf-name2" class="text-sm text-slate-700 truncate">—</p>
+          </div>
+        </div>
+      </div>
+      <div class="shrink-0 flex items-center gap-2 px-6 py-4 border-t border-slate-200">
+        <div id="pf-page-switch" class="hidden shrink-0 items-center gap-1">
+          <button type="button" data-goto="system.html" title="系統管理員" class="pf-goto w-10 h-10 rounded-lg border grid place-items-center text-slate-500 border-slate-300 active:bg-slate-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+          </button>
+          <button type="button" data-goto="admin.html" title="服務" class="pf-goto w-10 h-10 rounded-lg border grid place-items-center text-slate-500 border-slate-300 active:bg-slate-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+          </button>
+          <button type="button" data-goto="index.html" title="學員" class="pf-goto w-10 h-10 rounded-lg border grid place-items-center text-slate-500 border-slate-300 active:bg-slate-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3 1 9l11 6 9-4.91V17h2V9L12 3zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/></svg>
+          </button>
+        </div>
+        <button id="pf-close" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">關閉</button>
+        <button id="pf-logout" class="flex-1 py-2.5 bg-brand text-white rounded-lg font-semibold">登出</button>
+      </div>
+    </div>
+  </div>
+
+  <main id="main" class="flex-1 min-h-0 overflow-hidden bg-slate-50 relative">
+
+    <!-- 登入頁 -->
+    <section id="view-auth" class="h-full flex flex-col items-center justify-center px-4 py-2 fade-in">
+      <div class="w-full max-w-sm">
+        <div class="text-center mb-4">
+          <img src="logo.png" alt="NW Class" class="w-16 h-16 mx-auto rounded-2xl object-cover shadow-lg"
+               onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
+          <h1 id="auth-brand-name" class="text-base font-bold mt-1.5 text-slate-900">NW Class</h1>
+          <p class="text-[11px] text-slate-500 mt-0.5">服務端</p>
+        </div>
+        <form id="form-email" class="space-y-2">
+          <div>
+            <label class="text-xs font-medium text-slate-500">帳號（代號 / Email / 手機號碼）</label>
+            <input name="email" type="text" placeholder="例如 nw001 或 you@example.com" class="w-full mt-0.5 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+            <p class="text-[11px] text-slate-400 mt-0.5">代號或手機號碼會自動對應為 @nwclass.app 帳號</p>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-500">密碼</label>
+            <div class="relative">
+              <input name="password" type="password" placeholder="至少 6 碼" class="w-full mt-0.5 px-3 py-2 pr-14 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+              <button type="button" class="toggle-pwd absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium px-1">顯示</button>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-sm text-slate-600">
+            <input id="remember-me" type="checkbox" class="w-4 h-4 accent-brand" />
+            <label for="remember-me">記住我</label>
+          </div>
+          <button type="submit" class="w-full py-2.5 bg-brand text-white rounded-lg font-semibold shadow-md active:scale-[0.98]">
+            <span class="auth-submit-text">登入</span>
+          </button>
+        </form>
+        <p class="text-center text-[11px] text-slate-400 mt-4">© NW Class · 服務端</p>
+      </div>
+    </section>
+
+    <!-- 選擇課程 -->
+    <section id="view-course-select" class="hidden h-full flex flex-col fade-in">
+      <div class="shrink-0 px-4 md:px-6 h-16 flex flex-col justify-center border-b border-slate-200 bg-white">
+        <h2 class="text-base font-bold text-slate-900">選擇課程</h2>
+        <p class="text-[11px] text-slate-500">請選擇要服務的課程</p>
+      </div>
+      <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 md:p-6">
+        <div id="course-select-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <p class="text-slate-400 text-center py-6 text-xs col-span-full">載入中…</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 課程內容 -->
+    <section id="view-course" class="hidden h-full flex flex-col fade-in">
+      <div class="shrink-0 flex items-center gap-3 px-4 md:px-6 h-16 border-b border-slate-200 bg-white">
+        <button id="btn-back-courses" class="shrink-0 w-9 h-9 rounded-lg border border-slate-300 grid place-items-center text-slate-500 active:bg-slate-100" title="返回課程">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        </button>
+        <div class="flex-1 min-w-0">
+          <p id="course-view-name" class="text-base font-bold text-slate-900 truncate">課程</p>
+          <p id="course-view-meta" class="text-[11px] text-slate-500 truncate"></p>
+        </div>
+        <p id="course-view-now" class="shrink-0 text-2xl font-bold text-slate-500 text-right tabular-nums">—</p>
+      </div>
+      <div class="flex-1 min-h-0 overflow-hidden p-4 md:p-4">
+        <div id="course-tab-panel" class="h-full text-slate-400 text-sm"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 課程功能分頁（Footer） -->
+  <nav id="course-nav" class="hidden safe-b border-t border-slate-200 bg-white shrink-0">
+    <div id="course-nav-list" class="flex items-stretch"></div>
+  </nav>
+
+</div>
+
+<!-- 取消報到確認 -->
+<div id="modal-cancel-checkin" class="hidden fixed inset-0 z-[96] bg-black/40 grid place-items-center p-4">
+  <div class="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 fade-in">
+    <p class="text-base font-bold text-slate-900 text-center">取消報到</p>
+    <p id="cancel-checkin-message" class="mt-2 text-sm text-slate-500 text-center">是否要取消報到？</p>
+    <div class="mt-5 grid grid-cols-2 gap-2">
+      <button id="cancel-checkin-close" class="py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">否</button>
+      <button id="cancel-checkin-confirm" class="py-2.5 rounded-lg bg-red-500 text-white font-semibold">是，取消報到</button>
+    </div>
+  </div>
+</div>
+
+<!-- 座位設定 -->
+<div id="modal-seat-setting" class="hidden fixed inset-0 z-[96] bg-black/40 grid place-items-center p-4">
+  <div class="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 fade-in">
+    <p class="text-base font-bold text-slate-900 text-center">座位設定</p>
+    <div class="mt-4 grid grid-cols-2 gap-3">
+      <label class="block">
+        <span class="text-xs text-slate-500">排數（A~Z）</span>
+        <input id="seat-rows" type="number" min="1" max="26" value="5" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-500">列數（01~99）</span>
+        <input id="seat-cols" type="number" min="1" max="99" value="8" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      </label>
+    </div>
+    <p class="mt-2 text-[11px] text-slate-400">最靠近講台為 A 排，由左邊開始為 01 列。</p>
+    <label class="block mt-3">
+      <span class="text-xs text-slate-500">走道（在第幾列之後，以逗號分隔）</span>
+      <input id="seat-aisles" type="text" placeholder="例：3, 6" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+    </label>
+    <p class="mt-1 text-[11px] text-slate-400">留空則不顯示走道。</p>
+    <label class="mt-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2.5 cursor-pointer">
+      <span class="min-w-0">
+        <span class="block text-sm text-slate-600">學員自選座位</span>
+        <span class="block text-[11px] text-slate-400">開啟後，學員可於學員端自行點選空位</span>
+      </span>
+      <input id="seat-self-select" type="checkbox" class="shrink-0 w-5 h-5 accent-brand" />
+    </label>
+    <div class="mt-5 grid grid-cols-2 gap-2">
+      <button id="seat-setting-close" class="py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">取消</button>
+      <button id="seat-setting-confirm" class="py-2.5 rounded-lg bg-brand text-white font-semibold">確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- 場次設定 -->
+<div id="modal-session-setting" class="hidden fixed inset-0 z-[96] bg-black/40 grid place-items-center p-4">
+  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 fade-in flex flex-col max-h-[85vh]">
+    <p class="text-base font-bold text-slate-900 text-center">場次設定</p>
+    <p class="mt-1 text-[11px] text-slate-400 text-center">課程中間有休息時間時，休息後需重新報到；可新增多個場次，報到頁以按鍵切換。</p>
+    <div id="session-list" class="mt-3 flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-2"></div>
+    <button id="session-add" class="mt-3 py-2 rounded-lg border border-dashed border-slate-300 text-slate-600 text-sm font-semibold">＋ 新增場次</button>
+    <div class="mt-4 grid grid-cols-2 gap-2">
+      <button id="session-setting-close" class="py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">取消</button>
+      <button id="session-setting-confirm" class="py-2.5 rounded-lg bg-brand text-white font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 課表時間表編輯 -->
+<div id="modal-schedule-edit" class="hidden fixed inset-0 z-[96] bg-black/40 grid place-items-center p-4">
+  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 fade-in flex flex-col max-h-[85vh]">
+    <p id="schedule-edit-heading" class="text-base font-bold text-slate-900 text-center">新增時間表項目</p>
+    <label class="block mt-4">
+      <span class="text-xs text-slate-500">場次（非必填）</span>
+      <select id="schedule-edit-session" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"></select>
+    </label>
+    <div class="mt-3 grid grid-cols-2 gap-3">
+      <label class="block">
+        <span class="text-xs text-slate-500">開始時間</span>
+        <input id="schedule-edit-start" type="time" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-500">結束時間</span>
+        <input id="schedule-edit-end" type="time" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      </label>
+    </div>
+    <label class="block mt-3">
+      <span class="text-xs text-slate-500">內容</span>
+      <input id="schedule-edit-content" type="text" placeholder="例：報到與開場" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+    </label>
+    <label class="block mt-3">
+      <span class="text-xs text-slate-500">講師（非必填）</span>
+      <input id="schedule-edit-instructor" type="text" placeholder="例：王小明" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+    </label>
+    <label class="block mt-3">
+      <span class="text-xs text-slate-500">備註（非必填）</span>
+      <input id="schedule-edit-note" type="text" placeholder="例：請自備筆電" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+    </label>
+    <div class="mt-4 grid grid-cols-2 gap-2">
+      <button id="schedule-edit-close" class="py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">取消</button>
+      <button id="schedule-edit-confirm" class="py-2.5 rounded-lg bg-brand text-white font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 活動主題編輯 -->
+<div id="modal-activity-edit" class="hidden fixed inset-0 z-[96] bg-black/40 grid place-items-center p-4">
+  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 fade-in flex flex-col max-h-[85vh]">
+    <p id="activity-edit-heading" class="text-base font-bold text-slate-900 text-center">新增主題</p>
+    <div class="mt-3 flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-3">
+      <label class="block">
+        <span class="text-xs text-slate-500">主題名稱</span>
+        <input id="activity-edit-title" type="text" placeholder="例：開幕活動" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      </label>
+      <div>
+        <span class="text-xs text-slate-500">主題圖片（2:3）</span>
+        <div class="mt-1 flex items-center gap-3">
+          <button type="button" id="activity-edit-image-pick" class="w-40 shrink-0 aspect-[2/3] rounded-lg border border-dashed border-slate-300 bg-slate-50 overflow-hidden grid place-items-center">
+            <span id="activity-edit-image-preview" class="w-full h-full grid place-items-center"></span>
+          </button>
+          <button type="button" id="activity-edit-image-remove" class="hidden px-2.5 py-1 rounded-lg border border-red-300 text-red-500 text-xs font-semibold">移除圖片</button>
+        </div>
+      </div>
+      <div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-500">連結按鈕</span>
+          <button type="button" id="activity-link-add" class="px-2 py-1 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">＋ 新增連結</button>
+        </div>
+        <div id="activity-links" class="mt-2 space-y-2"></div>
+      </div>
+    </div>
+    <div class="mt-4 grid grid-cols-2 gap-2">
+      <button id="activity-edit-close" class="py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">取消</button>
+      <button id="activity-edit-confirm" class="py-2.5 rounded-lg bg-brand text-white font-semibold">儲存</button>
+    </div>
+    <input id="activity-edit-image-input" type="file" accept="image/*" class="hidden" />
+    <input id="activity-link-image-input" type="file" accept="image/*" class="hidden" />
+  </div>
+</div>
+
+<!-- 座位指派 -->
+<div id="modal-seat-assign" class="hidden fixed inset-0 z-[97] bg-black/40 grid place-items-center p-4">
+  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 fade-in flex flex-col max-h-[85vh]">
+    <p class="text-base font-bold text-slate-900 text-center">指派座位</p>
+    <p class="mt-1 text-xs text-slate-500 text-center">座位 <span id="seat-assign-code" class="font-semibold text-brand">—</span></p>
+    <input id="seat-assign-search" type="text" placeholder="搜尋學員姓名或社區代號" class="mt-3 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+    <div id="seat-assign-list" class="mt-3 flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-1.5"></div>
+    <div class="mt-4 grid grid-cols-3 gap-2">
+      <button id="seat-assign-clear" class="py-2.5 rounded-lg border border-red-300 text-red-500 font-semibold text-sm">清除</button>
+      <button id="seat-assign-close" class="col-span-2 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- 搶答紀錄 -->
+<div id="modal-buzz-log" class="hidden fixed inset-0 z-[97] bg-black/40 grid place-items-center p-4">
+  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 fade-in flex flex-col max-h-[85vh]">
+    <p class="text-base font-bold text-slate-900 text-center">搶答紀錄</p>
+    <p class="mt-1 text-xs text-slate-500 text-center">可個別清除單筆搶答紀錄</p>
+    <div id="buzz-log-list" class="mt-3 flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-1.5"></div>
+    <div class="mt-4 grid grid-cols-2 gap-2">
+      <button id="buzz-log-clear-all" class="py-2.5 rounded-lg border border-red-300 text-red-500 font-semibold text-sm">全部清除</button>
+      <button id="buzz-log-close" class="py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- 投票設定 -->
+<div id="modal-vote-edit" class="hidden fixed inset-0 z-[96] bg-black/40 grid place-items-center p-4">
+  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 fade-in flex flex-col max-h-[85vh]">
+    <p class="text-base font-bold text-slate-900 text-center">投票設定</p>
+    <div class="mt-3 flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-3">
+      <label class="block">
+        <span class="text-xs text-slate-500">題目</span>
+        <input id="vote-question" type="text" placeholder="請輸入投票題目" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      </label>
+      <div>
+        <span class="text-xs text-slate-500">類型</span>
+        <div class="mt-1 grid grid-cols-2 gap-2">
+          <button data-vote-type="single" class="vote-type-btn py-2 rounded-lg border text-sm font-semibold">單選</button>
+          <button data-vote-type="multi" class="vote-type-btn py-2 rounded-lg border text-sm font-semibold">多選</button>
+        </div>
+      </div>
+      <div>
+        <span class="text-xs text-slate-500">選項</span>
+        <div id="vote-options" class="mt-1 space-y-2"></div>
+        <button id="vote-option-add" class="mt-2 w-full py-2 rounded-lg border border-dashed border-slate-300 text-slate-600 text-sm font-semibold">＋ 新增選項</button>
+      </div>
+      <div class="flex items-center justify-between gap-3 pt-1">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-slate-700">開放投票</p>
+          <p class="text-[11px] text-slate-400">關閉後學員無法投票</p>
+        </div>
+        <button id="vote-toggle-open" class="relative w-12 h-7 rounded-full transition shrink-0"><span class="absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all"></span></button>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-slate-700">顯示結果給學員</p>
+          <p class="text-[11px] text-slate-400">開啟後學員投票後可看到票數</p>
+        </div>
+        <button id="vote-toggle-results" class="relative w-12 h-7 rounded-full transition shrink-0"><span class="absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all"></span></button>
+      </div>
+    </div>
+    <div class="mt-4 grid grid-cols-2 gap-2">
+      <button id="vote-edit-close" class="py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">取消</button>
+      <button id="vote-edit-confirm" class="py-2.5 rounded-lg bg-brand text-white font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 檔案預覽 -->
+<div id="modal-file-preview" class="hidden fixed inset-0 z-[98] bg-black/50 grid place-items-center p-4">
+  <div class="w-full max-w-3xl bg-white rounded-2xl shadow-xl flex flex-col max-h-[90vh] overflow-hidden">
+    <div class="shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
+      <p id="file-preview-name" class="text-sm font-semibold text-slate-800 truncate">預覽</p>
+      <button id="file-preview-close" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">關閉</button>
+    </div>
+    <div id="file-preview-body" class="flex-1 min-h-0 overflow-auto no-scrollbar bg-slate-50"><div id="file-preview-zoom" class="origin-top-left will-change-transform"></div></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="hidden fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white text-sm px-4 py-2 rounded-lg shadow-lg"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="./vendor/pdf.min.js"></script>
+<script>if (window.pdfjsLib) { window.pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdf.worker.min.js', document.baseURI).href; }</script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, deleteField, serverTimestamp, collection, addDoc, query, where, onSnapshot, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const PAGE_ROLE = 'service';
+const REDIRECT_MAP = { student: 'index.html', service: 'admin.html', admin: 'system.html' };
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD1QJxc-AFkS7RkbQOLCqk1LBMydCU067s",
+  authDomain: "nw-class.firebaseapp.com",
+  projectId: "nw-class",
+  storageBucket: "nw-class.firebasestorage.app",
+  messagingSenderId: "222147006846",
+  appId: "1:222147006846:web:f197cc75aa51879967232f",
+  measurementId: "G-0E1SRMQPRE"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const state = {
+  currentUser: null, userDoc: null,
+  systemName: 'NW Class',
+  scanner: null, scanning: false,
+  courseClockTimer: null,
+  unsubRecent: null,
+  unsubCourseStudents: null,
+  cameraDevices: [],
+  activeCameraId: '',
+  communityCodeMap: {},
+  courseStudents: [],
+  checkedInMap: {},
+  processingCheckin: false,
+  scanLockUntil: 0,
+  pendingCancelCheckinUid: '',
+  pendingSeatCode: '',
+  activeSessionId: '',
+  checkinsBySession: {},
+  unsubVoteResponses: null,
+  voteResponses: {},
+  unsubCourseDoc: null,
+  unsubSeatCourse: null,
+  unsubBuzz: null,
+  buzzRounds: {},
+  buzzWinnerUid: '',
+  unsubCourseFiles: null,
+  courseFiles: [],
+  unsubActivities: null,
+  activities: [],
+  activeTabId: '',
+  courseMap: {}, activeCourse: null,
+};
+
+const COURSE_FILE_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx';
+const COURSE_FILE_LABELS = {
+  pdf: 'PDF',
+  doc: 'WORD',
+  docx: 'WORD',
+  xls: 'EXCEL',
+  xlsx: 'EXCEL',
+  ppt: 'POWERPOINT',
+  pptx: 'POWERPOINT',
+};
+// 檔案以 Base64 分塊存於 Firestore（不用 Storage）：courseFiles/{id}/chunks/{index}
+const COURSE_FILE_CHUNK_SIZE = 600 * 1024;
+const COURSE_FILE_MAX_SIZE = 20 * 1024 * 1024;
+const COURSE_FILE_PREVIEW_EXTS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx']);
+
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+const initial = (name) => (name || 'N').trim().charAt(0).toUpperCase();
+const escAttr = (s) => String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+function toast(msg, ms = 2200, kind = 'dark') {
+  const t = $('#toast');
+  const kindClass = {
+    dark: 'bg-slate-900 text-white',
+    success: 'bg-emerald-500 text-white',
+    warning: 'bg-orange-500 text-white',
+    danger: 'bg-red-500 text-white',
+  }[kind] || 'bg-slate-900 text-white';
+  t.textContent = msg;
+  t.className = `fixed top-20 left-1/2 -translate-x-1/2 z-[100] text-sm px-4 py-2 rounded-lg shadow-lg ${kindClass}`;
+  t.classList.remove('hidden');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.add('hidden'), ms);
+}
+
+function cleanupListener(key) { if (state[key]) { try { state[key](); } catch(e){} state[key] = null; } }
+function formatNowText(date = new Date()) {
+  return {
+    day: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+    hm: `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`,
+    ss: String(date.getSeconds()).padStart(2, '0'),
+  };
+}
+function updateCourseHeaderNow() {
+  const el = $('#course-view-now');
+  if (!el) return;
+  const now = formatNowText();
+  el.innerHTML = `${now.day} ${now.hm}:<span class="text-red-500">${now.ss}</span>`;
+}
+function startCourseClock() {
+  updateCourseHeaderNow();
+  if (state.courseClockTimer) return;
+  state.courseClockTimer = setInterval(updateCourseHeaderNow, 1000);
+}
+function stopCourseClock() {
+  if (state.courseClockTimer) clearInterval(state.courseClockTimer);
+  state.courseClockTimer = null;
+}
+
+function showView(name) {
+  if (name !== 'checkin') cleanupListener('unsubRecent');
+  if (name !== 'checkin') cleanupListener('unsubCourseStudents');
+  if (name !== 'checkin' && state.scanner) stopScanner();
+  $$('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
+  const el = $(`#view-${name}`);
+  if (el) el.classList.remove('hidden');
+  $('#course-nav').classList.toggle('hidden', name !== 'course');
+  if (name === 'course') startCourseClock();
+  else stopCourseClock();
+  if (name === 'course-select' && state.currentUser) loadCourseSelect();
+}
+
+async function createUserDoc(uid, data) {
+  await setDoc(doc(db, 'users', uid), {
+    uid, name: data.name || '', email: data.email || '',
+    phone: data.phone || '', title: data.title || '',
+    region: data.region || '', community: data.community || '',
+    avatar: data.avatar || '', unit: '',
+    role: data.role || 'student', createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+async function loadUserDoc(uid) { const snap = await getDoc(doc(db, 'users', uid)); return snap.exists() ? snap.data() : null; }
+async function updateUserDoc(uid, patch) { await updateDoc(doc(db, 'users', uid), { ...patch, updatedAt: serverTimestamp() }); }
+
+function applySystemName() {
+  $('#app-title').textContent = state.systemName;
+  $('#auth-brand-name').textContent = state.systemName;
+  document.title = state.systemName + ' 服務端';
+  applyManifest(state.systemName);
+}
+
+function loadSystemName() {
+  onSnapshot(doc(db, 'settings', 'system'), (snap) => {
+    if (snap.exists() && snap.data().name) { state.systemName = snap.data().name; applySystemName(); }
+  }, () => {});
+}
+
+function renderUser() {
+  const u = state.userDoc || {};
+  const name = u.name || '服務人員';
+  const account = u.email || u.loginCode || state.currentUser?.email || '—';
+  const roleText = u.role === 'admin' ? '系統管理員' : (u.role === 'service' ? '服務人員' : '學員');
+  // Header 使用者 chip
+  $('#chip-name').textContent = name;
+  const chipImg = $('#chip-avatar'), chipFb = $('#chip-avatar-fallback');
+  if (u.avatar) {
+    chipImg.src = u.avatar; chipImg.classList.remove('hidden'); chipFb.classList.add('hidden');
+  } else {
+    chipImg.classList.add('hidden'); chipImg.removeAttribute('src');
+    chipFb.textContent = initial(name); chipFb.classList.remove('hidden');
+  }
+  // 個人資料彈窗
+  $('#pf-name').textContent = name;
+  $('#pf-name2').textContent = name;
+  $('#pf-account').textContent = account;
+  $('#pf-role').textContent = roleText;
+  const pfImg = $('#pf-avatar'), pfFb = $('#pf-avatar-fallback');
+  if (u.avatar) {
+    pfImg.src = u.avatar; pfImg.classList.remove('hidden'); pfFb.classList.add('hidden');
+  } else {
+    pfImg.classList.add('hidden'); pfImg.removeAttribute('src');
+    pfFb.textContent = initial(name); pfFb.classList.remove('hidden');
+  }
+  renderPageSwitch();
+  $('#btn-user-chip').classList.remove('hidden');
+}
+
+/* ===== 頁面切換（系統管理員專用） ===== */
+function renderPageSwitch() {
+  const sw = $('#pf-page-switch');
+  if (!sw) return;
+  const isAdmin = !!(state.userDoc && state.userDoc.role === 'admin');
+  sw.classList.toggle('hidden', !isAdmin);
+  sw.classList.toggle('flex', isAdmin);
+  if (!isAdmin) return;
+  const cur = location.pathname.split('/').pop() || 'index.html';
+  $$('#pf-page-switch [data-goto]').forEach(b => {
+    const on = b.dataset.goto === cur;
+    b.className = 'pf-goto w-10 h-10 rounded-lg border grid place-items-center ' +
+      (on ? 'bg-brand text-white border-brand' : 'text-slate-500 border-slate-300 active:bg-slate-100');
+  });
+}
+
+function authErrorText(err) {
+  switch (err.code) {
+    case 'auth/email-already-in-use': return '此 Email 已被註冊';
+    case 'auth/invalid-email': return 'Email 格式錯誤';
+    case 'auth/weak-password': return '密碼至少 6 碼';
+    case 'auth/user-not-found': case 'auth/wrong-password': case 'auth/invalid-credential': return '帳號或密碼錯誤';
+    default: return err.message || '操作失敗';
+  }
+}
+
+/* ===== 登入帳號（代號）轉換 ===== */
+const LOGIN_DOMAIN = 'nwclass.app';
+// 輸入代號或手機號碼時，自動補上固定網域成為實際 Firebase 帳號
+function toLoginEmail(input) {
+  const v = String(input || '').trim();
+  if (!v) return '';
+  if (v.includes('@')) return v.toLowerCase();
+  const local = /^[0-9\s\-()+]+$/.test(v) ? v.replace(/\D/g, '') : v.toLowerCase().replace(/[^a-z0-9._-]/g, '');
+  return local ? `${local}@${LOGIN_DOMAIN}` : '';
+}
+
+async function handleEmailSubmit(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const account = (fd.get('email') || '').trim();
+  const password = fd.get('password');
+  if (!account || !password) return toast('請輸入帳號與密碼');
+  const loginEmail = toLoginEmail(account);
+  if (!loginEmail) return toast('帳號格式錯誤');
+  try { await signInWithEmailAndPassword(auth, loginEmail, password); }
+  catch (err) { toast(authErrorText(err)); }
+}
+
+/* ===== 課程分頁（固定功能清單） ===== */
+const DEFAULT_TABS = [
+  { id: 'checkin', label: '報到', enabled: true, order: 0 },
+  { id: 'seat', label: '座位', enabled: true, order: 1 },
+  { id: 'schedule', label: '課表', enabled: true, order: 2 },
+  { id: 'vote', label: '投票', enabled: true, order: 3 },
+  { id: 'qa', label: '搶答', enabled: true, order: 4 },
+  { id: 'handouts', label: '講義', enabled: true, order: 5 },
+  { id: 'download', label: '活動', enabled: true, order: 6 },
+  { id: 'settings', label: '設定', enabled: true, order: 7 },
+];
+const TAB_ICONS = {
+  checkin: '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>',
+  seat: '<path d="M7 11V7a3 3 0 1 1 6 0v4h1a2 2 0 0 1 2 2v4h-2v-2H6v2H4v-4a2 2 0 0 1 2-2h1zm2 0h2V7a1 1 0 1 0-2 0v4zm9-3h2a2 2 0 0 1 2 2v7h-2v-2h-2v2h-2v-7a2 2 0 0 1 2-2z"/>',
+  schedule: '<path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/>',
+  vote: '<path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>',
+  qa: '<path d="M11 21H9.8l1.28-6H7.7c-.62 0-.96-.72-.57-1.2L13 3h1.2l-1.28 6h3.38c.62 0 .96.72.57 1.2L11 21z"/>',
+  handouts: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>',
+  download: '<path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z"/>',
+  settings: '<path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>',
+  default: '<path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>',
+};
+const iconOf = (id) => TAB_ICONS[id] || TAB_ICONS.default;
+function courseTabs(c) {
+  const list = Array.isArray(c.tabs) ? c.tabs : [];
+  const existing = new Map(list.map((t, i) => [t.id, { ...t, order: Number.isFinite(t.order) ? t.order : i }]));
+  const mergedDefaults = DEFAULT_TABS.map((t, i) => ({
+    ...t,
+    ...(existing.get(t.id) || {}),
+    order: Number.isFinite(existing.get(t.id)?.order) ? existing.get(t.id).order : (t.order ?? i),
+  }));
+  const customs = list.filter(t => t && t.id && !DEFAULT_TABS.some(base => base.id === t.id));
+  /* 服務端一律顯示所有分頁；是否在學員端顯示由「設定」分頁控制 */
+  return mergedDefaults.concat(customs)
+    .map(t => (t.id === 'qa' && t.label === '問答') ? { ...t, label: '搶答' } : t)
+    .slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+/* ===== 課程排序（日期時間近至遠） ===== */
+function courseSortKey(c) {
+  return `${c.date || '9999-99-99'} ${c.startTime || '99:99'}`;
+}
+function sortCoursesByDate(courses) {
+  return courses.slice().sort((a, b) => courseSortKey(a).localeCompare(courseSortKey(b)));
+}
+function courseTimeText(c) {
+  const s = c.startTime || '', e = c.endTime || '';
+  if (s && e) return `${formatDisplayTime(s)}~${formatDisplayTime(e)}`;
+  return s ? formatDisplayTime(s) : '';
+}
+function formatDisplayDate(value) {
+  const v = String(value || '').trim();
+  if (!v) return '未排程';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const t = new Date(v);
+  if (!isNaN(t.getTime())) {
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  }
+  return v.replace(/\//g, '-');
+}
+function formatDisplayTime(value) {
+  const v = String(value || '').trim();
+  if (!v) return '';
+  const parts = v.split(':');
+  if (parts.length >= 2) {
+    return `${String(parts[0] || '0').padStart(2, '0')}:${String(parts[1] || '0').padStart(2, '0')}:${String(parts[2] || '0').padStart(2, '0')}`;
+  }
+  return v;
+}
+function communityCodeOf(u) {
+  return String(state.communityCodeMap[u.community] || '').trim();
+}
+function communitySortKey(u) {
+  const code = communityCodeOf(u);
+  return code ? code : '\uffff' + String(u.community || '');
+}
+function formatCheckinTime(value) {
+  const t = value?.toDate ? value.toDate() : new Date(value);
+  return isNaN(t.getTime()) ? '—' : `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}:${String(t.getSeconds()).padStart(2, '0')}`;
+}
+async function loadCommunityCodeMap() {
+  try {
+    const snap = await getDocs(collection(db, 'communities'));
+    const map = {};
+    snap.docs.forEach(d => {
+      const c = d.data() || {};
+      const name = String(c.name || '').trim();
+      if (name) map[name] = String(c.code || '').trim();
+    });
+    state.communityCodeMap = map;
+  } catch {
+    state.communityCodeMap = {};
+  }
+}
+function renderAttendanceSummary() {
+  const box = $('#attendance-summary');
+  if (!box) return;
+  const expected = state.courseStudents.length;
+  const actual = Object.keys(state.checkedInMap).length;
+  const absent = Math.max(expected - actual, 0);
+  box.innerHTML = `
+    <div class="rounded-xl bg-slate-50 border border-slate-200 px-3 py-3 text-center">
+      <p class="text-[13px] text-slate-400">應到</p>
+      <p class="mt-1 text-xl font-bold text-slate-900">${expected}</p>
+    </div>
+    <div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-3 text-center">
+      <p class="text-[13px] text-emerald-600">實到</p>
+      <p class="mt-1 text-xl font-bold text-emerald-700">${actual}</p>
+    </div>
+    <div class="rounded-xl bg-amber-50 border border-amber-200 px-3 py-3 text-center">
+      <p class="text-[13px] text-amber-600">未到</p>
+      <p class="mt-1 text-xl font-bold text-amber-700">${absent}</p>
+    </div>`;
+}
+function renderCourseStudents() {
+  const list = $('#course-students-list');
+  const count = $('#course-students-count');
+  if (!list || !count) return;
+  count.textContent = `共 ${state.courseStudents.length} 人`;
+  if (!state.courseStudents.length) {
+    list.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">此課程尚無學員</p>';
+    renderAttendanceSummary();
+    return;
+  }
+  list.innerHTML = state.courseStudents.map(u => {
+    const uid = u.uid || u.id;
+    const checked = !!state.checkedInMap[uid];
+    const checkin = state.checkedInMap[uid];
+    const code = communityCodeOf(u);
+    const communityText = [code, u.community || u.unit || '—'].filter(Boolean).join(' ');
+    return `
+      <div class="flex items-center gap-3 rounded-xl px-3 py-2 border ${checked ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-100'}">
+        ${u.avatar
+          ? `<img src="${u.avatar}" alt="" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 shrink-0" />`
+          : `<div class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0">${initial(u.name || '學')}</div>`}
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold truncate">${u.name || '未命名學員'}</p>
+          <p class="text-[11px] text-slate-500 truncate">${u.email || u.phone || u.loginCode || '—'}</p>
+          <p class="text-[11px] text-slate-400 truncate">${communityText}</p>
+        </div>
+        <div class="shrink-0 flex flex-col items-end gap-1">
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${checked ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}">${checked ? `已報到 ${formatCheckinTime(checkin.checkedInAt)}` : '未到'}</span>
+          ${checked
+            ? `<button data-cancel-checkin="${uid}" class="px-2.5 py-1 rounded-lg bg-red-500 text-white text-[11px] font-semibold">取消報到</button>`
+            : `<button data-manual-checkin="${uid}" class="px-2.5 py-1 rounded-lg bg-brand text-white text-[11px] font-semibold">手動報到</button>`}
+        </div>
+      </div>`;
+  }).join('');
+  renderAttendanceSummary();
+  renderSeatMap();
+}
+function playFeedbackTone(kind) {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = playFeedbackTone._ctx || new Ctx();
+    playFeedbackTone._ctx = ctx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = kind === 'success' ? 880 : (kind === 'warning' ? 620 : 320);
+    gain.gain.value = 0.08;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const now = ctx.currentTime;
+    osc.start(now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    osc.stop(now + 0.22);
+  } catch {}
+}
+function speakFeedback(text) {
+  try {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'zh-TW';
+    utter.rate = 1.02;
+    window.speechSynthesis.speak(utter);
+  } catch {}
+}
+function showCheckinStatus(text, kind, ms) {
+  const el = $('#checkin-status');
+  const hold = Number(ms) || 2200;
+  if (el) {
+    el.textContent = text;
+    el.className = `mt-3 py-2.5 rounded-lg text-center text-sm font-semibold ${
+      kind === 'success' ? 'bg-emerald-500 text-white'
+      : kind === 'warning' ? 'bg-orange-500 text-white'
+      : 'bg-red-500 text-white'
+    }`;
+    el.classList.remove('hidden');
+    clearTimeout(showCheckinStatus._t);
+    showCheckinStatus._t = setTimeout(() => el.classList.add('hidden'), hold);
+  }
+  toast(text, Math.min(hold, 4000), kind);
+  playFeedbackTone(kind);
+  speakFeedback(text);
+}
+function normalizeCheckinUid(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return '';
+  try {
+    if (/^[\[{]/.test(text)) {
+      const data = JSON.parse(text);
+      return String(data.uid || data.studentUid || data.userId || '').trim();
+    }
+  } catch {}
+  try {
+    if (/^https?:\/\//i.test(text)) {
+      const url = new URL(text);
+      return String(url.searchParams.get('uid') || url.searchParams.get('studentUid') || url.searchParams.get('userId') || '').trim();
+    }
+  } catch {}
+  const m = text.match(/(?:uid|studentUid|userId)[:=]([A-Za-z0-9_-]{8,128})/i);
+  if (m) return m[1];
+  if (/^[A-Za-z0-9_-]{20,128}$/.test(text)) return text;
+  return '';
+}
+
+/* ===== 選擇課程（服務端：顯示全部課程） ===== */
+async function loadCourseSelect() {
+  const list = $('#course-select-list');
+  list.innerHTML = '<p class="text-slate-400 text-center py-6 text-xs col-span-full">載入中…</p>';
+  try {
+    const rows = sortCoursesByDate((await getDocs(collection(db, 'courses'))).docs.map(d => ({ id: d.id, ...d.data() })));
+    state.courseMap = {};
+    rows.forEach(c => { state.courseMap[c.id] = c; });
+    if (!rows.length) { list.innerHTML = '<p class="text-slate-400 text-center py-6 text-xs col-span-full">尚無課程</p>'; return; }
+    list.innerHTML = rows.map(c => `
+      <button data-course-open="${c.id}" class="text-left bg-white border border-slate-200 rounded-xl p-4 active:bg-slate-50 flex flex-col gap-1">
+        <p class="font-semibold text-sm truncate">${c.name || '未命名課程'}</p>
+        <p class="text-xs text-slate-500 truncate">${formatDisplayDate(c.date)}${courseTimeText(c) ? ' ' + courseTimeText(c) : ''}</p>
+        <p class="text-[11px] text-slate-400 truncate">講師：${c.instructor || '未指定'}${c.location ? ' · 地點：' + c.location : ''}</p>
+      </button>`).join('');
+  } catch { list.innerHTML = '<p class="text-slate-400 text-center py-6 text-xs col-span-full">載入失敗</p>'; }
+}
+
+/* ===== 進入課程：Footer 依課程設定產生分頁按鈕 ===== */
+function showCourse(course) {
+  state.activeCourse = course;
+  $('#course-view-name').textContent = course.name || '未命名課程';
+  $('#course-view-meta').textContent = [formatDisplayDate(course.date), courseTimeText(course), course.instructor].filter(Boolean).join(' · ');
+  renderCourseNav(course);
+  showView('course');
+  watchCourseDoc(course.id);
+  const tabs = courseTabs(course);
+  if (tabs.length) selectTab(tabs[0].id, tabs);
+  else $('#course-tab-panel').innerHTML = '<div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400 text-sm">此課程尚未設定功能</div>';
+}
+
+/* 課程文件即時同步：座位、場次、指派等變更會即時反映（跨裝置／跨登入者） */
+function watchCourseDoc(courseId) {
+  cleanupListener('unsubCourseDoc');
+  state.unsubCourseDoc = onSnapshot(doc(db, 'courses', courseId), (snap) => {
+    if (!snap.exists()) return;
+    const data = { id: snap.id, ...snap.data() };
+    if (!state.activeCourse || state.activeCourse.id !== data.id) return;
+    state.activeCourse = data;
+    if (state.courseMap[data.id]) state.courseMap[data.id] = data;
+    const nameEl = $('#course-view-name');
+    if (nameEl) nameEl.textContent = data.name || '未命名課程';
+    const metaEl = $('#course-view-meta');
+    if (metaEl) metaEl.textContent = [formatDisplayDate(data.date), courseTimeText(data), data.instructor].filter(Boolean).join(' · ');
+    renderCourseNav(data);
+    applyTabHighlight(state.activeTabId);
+    initActiveSession();
+    renderSeatMap();
+    renderSessionBar();
+    renderAttendanceSummary();
+    renderCourseStudents();
+    renderBuzzControls();
+    renderBuzzWinner();
+  }, () => {});
+}
+
+function renderCourseNav(course) {
+  const tabs = courseTabs(course);
+  const nav = $('#course-nav-list');
+  nav.innerHTML = tabs.map(t => `
+    <button data-course-tab="${t.id}" data-tab-label="${escAttr(t.label || '功能')}" class="course-nav-btn flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 text-slate-400">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24">${iconOf(t.id)}</svg>
+      <span class="text-[13px] truncate w-full text-center">${t.label || '功能'}</span>
+    </button>`).join('');
+}
+
+function applyTabHighlight(id) {
+  $$('.course-nav-btn').forEach(b => {
+    const on = b.dataset.courseTab === id;
+    b.classList.toggle('text-brand', on);
+    b.classList.toggle('text-slate-400', !on);
+    const sp = b.querySelector('span');
+    if (sp) sp.classList.toggle('font-semibold', on);
+  });
+}
+
+function selectTab(id, tabs) {
+  tabs = tabs || courseTabs(state.activeCourse || {});
+  state.activeTabId = id;
+  applyTabHighlight(id);
+  const tab = tabs.find(t => t.id === id) || {};
+  renderTabContent(id, tab.label || '功能');
+}
+
+function renderTabContent(id, label) {
+  const panel = $('#course-tab-panel');
+  /* 切換分頁會重建 #reader，必須先釋放相機並清掉掃描實例，否則「開始掃描」會失效 */
+  if (state.scanner) stopScanner();
+  if (id !== 'vote') cleanupListener('unsubVoteResponses');
+  if (id !== 'seat') cleanupListener('unsubSeatCourse');
+  if (id !== 'qa') { cleanupListener('unsubBuzz'); state.buzzWinnerUid = ''; closeBuzzLog(); }
+  if (id !== 'handouts') { cleanupListener('unsubCourseFiles'); state.courseFiles = []; closeCourseFilePreview(); }
+  if (id !== 'download') { cleanupListener('unsubActivities'); state.activities = []; closeActivityEdit(); }
+  if (id === 'checkin') {
+    panel.innerHTML = `
+      <div class="h-full flex flex-row gap-4 overflow-hidden max-md:flex-col max-md:overflow-y-auto max-md:gap-3">
+        <div class="flex-1 min-w-0 min-h-0 bg-white rounded-2xl border border-slate-200 p-4 flex flex-col gap-2 overflow-hidden max-md:flex-none max-md:w-full max-md:h-[68vh]">
+          <div class="shrink-0 flex items-start gap-2">
+            <div id="session-bar" class="flex-1 min-w-0 flex flex-wrap gap-1.5"></div>
+            <button id="btn-session-setting" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">場次設定</button>
+          </div>
+          <p id="checkin-session-hint" class="text-sm text-slate-500">掃描學員 QR Code 完成報到</p>
+          <div class="shrink-0">
+            <label class="text-xs text-slate-400 mb-1 block">鏡頭</label>
+            <div class="flex items-center gap-2">
+              <select id="camera-select" class="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                <option value="">後鏡頭（預設）</option>
+              </select>
+              <button id="btn-start-scan" class="shrink-0 px-4 py-2.5 bg-brand text-white rounded-lg font-semibold">開始掃描</button>
+              <button id="btn-stop-scan" class="hidden shrink-0 px-4 py-2.5 bg-slate-700 text-white rounded-lg font-semibold">停止掃描</button>
+            </div>
+          </div>
+          <div class="flex-1 min-h-0 flex flex-col gap-2">
+            <div id="reader" class="reader-idle rounded-xl overflow-hidden w-full flex-1 min-h-0"></div>
+            <div id="checkin-status" class="hidden shrink-0 py-2.5 rounded-lg text-center text-sm font-semibold"></div>
+          </div>
+        </div>
+        <div class="w-[22rem] 2xl:w-[24rem] shrink-0 flex flex-col gap-4 min-h-0 max-md:w-full max-md:shrink-0 max-md:min-h-0 max-md:gap-3">
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 shrink-0">
+            <h3 class="font-semibold text-sm mb-2">報到資訊 <span id="attendance-session-label" class="text-[13px] font-normal text-slate-400"></span></h3>
+            <div id="attendance-summary" class="grid grid-cols-3 gap-2">
+              <p class="text-slate-400 text-center py-2 text-xs col-span-full">載入中…</p>
+            </div>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 flex-1 min-h-0 flex flex-col overflow-hidden max-md:flex-none max-md:max-h-[55vh]">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <h3 class="font-semibold text-sm">參加學員</h3>
+              <span id="course-students-count" class="text-[13px] text-slate-500">共 0 人</span>
+            </div>
+            <div id="course-students-list" class="space-y-2 flex-1 min-h-0 overflow-y-auto no-scrollbar">
+              <p class="text-slate-400 text-center py-2 text-xs">載入中…</p>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    wireCheckin();
+    initActiveSession();
+    renderSessionBar();
+    loadCameraOptions();
+    loadRecentCheckins();
+    loadCourseStudents();
+    return;
+  }
+  if (id === 'seat') {
+    panel.innerHTML = `
+      <div class="h-full bg-white rounded-2xl border border-slate-200 flex flex-col overflow-hidden">
+        <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
+          <div class="min-w-0">
+            <p class="text-base font-semibold text-slate-700">座位表</p>
+            <p id="seat-meta" class="text-[13px] text-slate-400 truncate">尚未設定</p>
+          </div>
+          <button id="btn-seat-setting" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">設定</button>
+        </div>
+        <div class="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-slate-100 bg-slate-50/60">
+          <span class="shrink-0 text-[11px] text-slate-400">場次</span>
+          <div id="session-bar" class="flex-1 min-w-0 flex flex-wrap gap-1.5"></div>
+        </div>
+        <div id="seat-map" class="flex-1 min-h-0 overflow-auto no-scrollbar p-4"></div>
+      </div>`;
+    $('#btn-seat-setting').addEventListener('click', openSeatSetting);
+    $('#seat-map').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-seat]');
+      if (b) openSeatAssign(b.dataset.seat);
+    });
+    $('#session-bar').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-session-id]');
+      if (b) selectSession(b.dataset.sessionId);
+    });
+    initActiveSession();
+    renderSessionBar();
+    renderSeatMap();
+    loadRecentCheckins();
+    loadCourseStudents();
+    /* 座位分頁專屬即時同步：學員端自選／取消座位時，課程文件的 seatSelfPicks 變更會即時反映 */
+    if (state.activeCourse) {
+      state.unsubSeatCourse = onSnapshot(doc(db, 'courses', state.activeCourse.id), (snap) => {
+        if (!snap.exists()) return;
+        state.activeCourse = { id: snap.id, ...snap.data() };
+        if (state.courseMap[snap.id]) state.courseMap[snap.id] = state.activeCourse;
+        renderSeatMap();
+      }, () => {});
+    }
+    return;
+  }
+  if (id === 'qa') {
+    panel.innerHTML = `
+      <div class="h-full bg-white rounded-2xl border border-slate-200 flex flex-col overflow-hidden">
+        <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-slate-700">搶答</p>
+            <p id="buzz-meta" class="text-[11px] text-slate-400 truncate">—</p>
+          </div>
+          <div class="shrink-0 flex items-center gap-2">
+            <button id="buzz-log" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">紀錄 <span id="buzz-log-count">0</span></button>
+            <button id="buzz-toggle" class="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 text-slate-600">開放搶答</button>
+            <button id="buzz-clear" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">清除</button>
+          </div>
+        </div>
+        <div class="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60 min-w-0">
+          <span class="shrink-0 text-[11px] text-slate-400">目前搶答</span>
+          <div id="buzz-winner" class="flex-1 min-w-0 text-sm font-semibold text-slate-500">等待搶答…</div>
+        </div>
+        <div id="seat-map" class="flex-1 min-h-0 overflow-auto no-scrollbar p-4"></div>
+      </div>`;
+    $('#buzz-log').addEventListener('click', openBuzzLog);
+    $('#buzz-toggle').addEventListener('click', toggleBuzzOpen);
+    $('#buzz-clear').addEventListener('click', clearBuzz);
+    initActiveSession();
+    renderBuzzControls();
+    renderSeatMap();
+    loadRecentCheckins();
+    loadCourseStudents();
+    loadBuzz();
+    return;
+  }
+  if (id === 'schedule') {
+    renderCourseSchedule(panel);
+    return;
+  }
+  if (id === 'vote') {
+    panel.innerHTML = `
+      <div class="h-full bg-white rounded-2xl border border-slate-200 flex flex-col overflow-hidden">
+        <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-slate-700">投票</p>
+            <p class="text-[11px] text-slate-400 truncate">即時顯示票數統計</p>
+          </div>
+          <button id="btn-vote-add" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">＋ 新增投票</button>
+        </div>
+        <div id="vote-list" class="flex-1 min-h-0 overflow-auto no-scrollbar p-4 space-y-4"></div>
+      </div>`;
+    $('#btn-vote-add').addEventListener('click', () => openVoteEdit(''));
+    $('#vote-list').addEventListener('click', (e) => {
+      const edit = e.target.closest('[data-vote-edit]');
+      if (edit) return openVoteEdit(edit.dataset.voteEdit);
+      const del = e.target.closest('[data-vote-del]');
+      if (del) return deleteVote(del.dataset.voteDel);
+      const tgl = e.target.closest('[data-vote-toggle]');
+      if (tgl) return toggleVoteOpen(tgl.dataset.voteToggle);
+      const up = e.target.closest('[data-vote-move-up]');
+      if (up) return moveVote(Number(up.dataset.voteMoveUp), -1);
+      const down = e.target.closest('[data-vote-move-down]');
+      if (down) return moveVote(Number(down.dataset.voteMoveDown), 1);
+    });
+    loadVotes();
+    return;
+  }
+  if (id === 'handouts') {
+    renderCourseFilesAdminTab(id, label);
+    return;
+  }
+  if (id === 'download') {
+    renderActivityAdminTab();
+    return;
+  }
+  if (id === 'settings') {
+    renderSettingsAdminTab();
+    return;
+  }
+  panel.innerHTML = `
+    <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center">
+      <div class="w-14 h-14 mx-auto rounded-full bg-slate-100 grid place-items-center mb-3">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="#94a3b8" viewBox="0 0 24 24">${iconOf(id)}</svg>
+      </div>
+      <p class="text-slate-500 font-semibold">${label}</p>
+      <p class="text-xs text-slate-400 mt-1">功能即將推出</p>
+    </div>`;
+}
+
+/* ===== 課表（課程資訊卡 + 時間表） ===== */
+function courseSchedule(c) {
+  const list = Array.isArray(c?.schedule) ? c.schedule : [];
+  return list
+    .filter(s => s && (s.title || s.start || s.end || s.session || s.instructor || s.note))
+    .map((s, i) => ({
+      id: String(s.id || ('t' + (i + 1))),
+      session: String(s.session || ''),
+      start: String(s.start || ''),
+      end: String(s.end || ''),
+      title: String(s.title || ''),
+      instructor: String(s.instructor || ''),
+      note: String(s.note || ''),
+    }));
+}
+function scheduleTimeText(s) {
+  const a = formatDisplayTime(s?.start), b = formatDisplayTime(s?.end);
+  if (a && b) return `${a}~${b}`;
+  return a || b || '未設定時間';
+}
+function refreshSchedulePanel() {
+  if (state.activeTabId === 'schedule') renderCourseSchedule($('#course-tab-panel'));
+}
+function renderCourseSchedule(panel) {
+  if (!panel) return;
+  const c = state.activeCourse || {};
+  const sessions = (Array.isArray(c.sessions) ? c.sessions : []).filter(s => s && s.label);
+  const items = courseSchedule(c);
+  panel.innerHTML = `
+    <div class="h-full overflow-auto no-scrollbar">
+      <div class="max-w-3xl mx-auto space-y-4">
+        <div class="bg-white rounded-2xl border border-slate-200 p-5">
+          <p class="text-lg font-bold text-slate-800 break-words">${escAttr(c.name || '未命名課程')}</p>
+          <div class="mt-4 grid grid-cols-[4.5rem_1fr] gap-y-2.5 text-sm">
+            <span class="text-slate-400">日期</span><span class="text-slate-700">${escAttr(formatDisplayDate(c.date))}</span>
+            <span class="text-slate-400">時間</span><span class="text-slate-700">${escAttr(courseTimeText(c) || '未設定')}</span>
+            <span class="text-slate-400">講師</span><span class="text-slate-700">${escAttr(c.instructor || '未指定')}</span>
+            <span class="text-slate-400">地點</span><span class="text-slate-700">${escAttr(c.location || '未設定')}</span>
+          </div>
+          <div class="mt-5 pt-4 border-t border-slate-100">
+            <p class="text-xs text-slate-400 mb-2">課程場次</p>
+            ${sessions.length
+              ? `<div class="flex flex-wrap gap-1.5">${sessions.map((s, i) => `<span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-xs">${i + 1}. ${escAttr(s.label)}</span>`).join('')}</div>`
+              : '<p class="text-sm text-slate-400">尚未設定場次</p>'}
+          </div>
+        </div>
+        <div id="schedule-card" class="bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <p class="font-semibold text-sm text-slate-700">課程時間表</p>
+            <button id="btn-schedule-add" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">＋ 新增</button>
+          </div>
+          ${items.length
+            ? `<div class="divide-y divide-slate-100">${items.map(s => `
+                <div class="flex items-start gap-2 py-2">
+                  <span class="w-36 shrink-0 text-sm text-slate-600 tabular-nums">${escAttr(scheduleTimeText(s))}</span>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm text-slate-800 break-words">${escAttr(s.title || '—')}</p>
+                    ${(s.session || s.instructor || s.note) ? `<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400">
+                      ${s.session ? `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${escAttr(s.session)}</span>` : ''}
+                      ${s.instructor ? `<span>講師：${escAttr(s.instructor)}</span>` : ''}
+                      ${s.note ? `<span>備註：${escAttr(s.note)}</span>` : ''}
+                    </div>` : ''}
+                  </div>
+                  <button data-schedule-edit="${escAttr(s.id)}" class="w-8 h-8 shrink-0 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="編輯">✎</button>
+                  <button data-schedule-del="${escAttr(s.id)}" class="w-8 h-8 shrink-0 rounded-lg border border-red-200 text-red-500 grid place-items-center" title="刪除">✕</button>
+                </div>`).join('')}</div>`
+            : '<p class="text-sm text-slate-400">尚未設定時間表</p>'}
+        </div>
+      </div>
+    </div>`;
+  $('#schedule-card').addEventListener('click', (e) => {
+    if (e.target.closest('#btn-schedule-add')) return openScheduleEdit('');
+    const ed = e.target.closest('[data-schedule-edit]');
+    if (ed) return openScheduleEdit(ed.dataset.scheduleEdit);
+    const dl = e.target.closest('[data-schedule-del]');
+    if (dl) return deleteScheduleItem(dl.dataset.scheduleDel);
+  });
+}
+
+let scheduleEditId = '';
+function openScheduleEdit(id) {
+  if (!state.activeCourse) return;
+  scheduleEditId = id || '';
+  const item = courseSchedule(state.activeCourse).find(s => s.id === scheduleEditId);
+  $('#schedule-edit-heading').textContent = item ? '編輯時間表項目' : '新增時間表項目';
+  const sel = $('#schedule-edit-session');
+  const labels = (Array.isArray(state.activeCourse.sessions) ? state.activeCourse.sessions : [])
+    .filter(s => s && s.label).map(s => String(s.label));
+  if (item?.session && !labels.includes(item.session)) labels.push(item.session);
+  sel.innerHTML = ['<option value="">（不指定）</option>']
+    .concat(labels.map(l => `<option value="${escAttr(l)}">${escAttr(l)}</option>`)).join('');
+  sel.value = item?.session || '';
+  $('#schedule-edit-start').value = item?.start || '';
+  $('#schedule-edit-end').value = item?.end || '';
+  $('#schedule-edit-content').value = item?.title || '';
+  $('#schedule-edit-instructor').value = item?.instructor || '';
+  $('#schedule-edit-note').value = item?.note || '';
+  $('#modal-schedule-edit').classList.remove('hidden');
+}
+function closeScheduleEdit() {
+  scheduleEditId = '';
+  $('#modal-schedule-edit').classList.add('hidden');
+}
+async function saveSchedule(list) {
+  await setDoc(doc(db, 'courses', state.activeCourse.id), { schedule: list, updatedAt: serverTimestamp() }, { merge: true });
+  state.activeCourse.schedule = list;
+  if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].schedule = list;
+}
+async function confirmScheduleEdit() {
+  if (!state.activeCourse) return;
+  const session = $('#schedule-edit-session').value.trim();
+  const start = $('#schedule-edit-start').value;
+  const end = $('#schedule-edit-end').value;
+  const title = $('#schedule-edit-content').value.trim();
+  const instructor = $('#schedule-edit-instructor').value.trim();
+  const note = $('#schedule-edit-note').value.trim();
+  if (!start && !end && !title) return toast('請輸入時間或內容');
+  const list = courseSchedule(state.activeCourse);
+  const entry = { id: scheduleEditId || ('t' + Date.now().toString(36)), session, start, end, title, instructor, note };
+  const idx = list.findIndex(s => s.id === entry.id);
+  if (idx >= 0) list[idx] = entry; else list.push(entry);
+  list.sort((a, b) => (a.start || '99:99').localeCompare(b.start || '99:99'));
+  try {
+    await saveSchedule(list);
+    closeScheduleEdit();
+    refreshSchedulePanel();
+    toast('時間表已更新', 2000, 'success');
+  } catch (err) {
+    toast('儲存失敗：' + (err.message || ''), 2200, 'danger');
+  }
+}
+async function deleteScheduleItem(id) {
+  if (!state.activeCourse) return;
+  const list = courseSchedule(state.activeCourse).filter(s => s.id !== id);
+  try {
+    await saveSchedule(list);
+    refreshSchedulePanel();
+    toast('已刪除時間表項目', 1800, 'success');
+  } catch { toast('刪除失敗', 2000, 'danger'); }
+}
+
+function courseFileExt(name) {
+  const m = String(name || '').toLowerCase().match(/\.([a-z0-9]+)$/);
+  return m ? m[1] : '';
+}
+function courseFileTypeLabel(file) {
+  return COURSE_FILE_LABELS[file?.ext] || '檔案';
+}
+function courseFileSizeText(size) {
+  const n = Number(size || 0);
+  if (!Number.isFinite(n) || n <= 0) return '—';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+function courseFileTimeText(ts) {
+  const d = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
+  if (!d || isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+}
+function courseFileOrderValue(f) {
+  return Number.isFinite(f?.order) ? f.order : (f?.createdAt?.toMillis?.() || 0);
+}
+function courseFilesOfTab(tabId) {
+  return (state.courseFiles || [])
+    .filter(f => f.tabId === tabId)
+    .slice()
+    .sort((a, b) => (courseFileOrderValue(a) - courseFileOrderValue(b))
+      || ((b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0)));
+}
+function canPreviewCourseFile(file) {
+  return COURSE_FILE_PREVIEW_EXTS.has(file?.ext);
+}
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const i = result.indexOf(',');
+      resolve(i >= 0 ? result.slice(i + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error || new Error('讀取檔案失敗'));
+    reader.readAsDataURL(file);
+  });
+}
+function base64ToBlob(base64, type) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: type || 'application/octet-stream' });
+}
+async function fetchCourseFileBlob(file) {
+  const snap = await getDocs(collection(db, 'courseFiles', file.id, 'chunks'));
+  const parts = snap.docs.map(d => d.data()).sort((a, b) => (a.index || 0) - (b.index || 0));
+  if (!parts.length) throw new Error('找不到檔案內容');
+  return base64ToBlob(parts.map(p => p.base64 || '').join(''), file.contentType);
+}
+let previewRenderToken = 0;
+/* ===== 預覽內容兩指縮放（PWA / 平板手勢無法使用瀏覽器縮放，改以 transform 自製） ===== */
+const previewZoom = { scale: 1, tx: 0, ty: 0 };
+function applyPreviewZoom() {
+  const el = $('#file-preview-zoom'), body = $('#file-preview-body');
+  if (!el) return;
+  const { scale, tx, ty } = previewZoom;
+  el.style.transform = (scale === 1 && !tx && !ty) ? '' : `translate(${tx}px, ${ty}px) scale(${scale})`;
+  if (body) body.style.touchAction = scale > 1 ? 'none' : 'pan-x pan-y';
+}
+function resetPreviewZoom() {
+  const body = $('#file-preview-body');
+  if (body) { body.scrollTop = 0; body.scrollLeft = 0; }
+  previewZoom.scale = 1; previewZoom.tx = 0; previewZoom.ty = 0;
+  applyPreviewZoom();
+}
+function clampPreviewPan() {
+  const body = $('#file-preview-body'), el = $('#file-preview-zoom');
+  if (!body || !el) return;
+  const s = previewZoom.scale;
+  const minTx = Math.min(0, body.clientWidth - el.offsetWidth * s);
+  const minTy = Math.min(0, body.clientHeight - el.offsetHeight * s);
+  previewZoom.tx = Math.max(minTx, Math.min(0, previewZoom.tx));
+  previewZoom.ty = Math.max(minTy, Math.min(0, previewZoom.ty));
+}
+function setupPreviewZoom() {
+  const body = $('#file-preview-body');
+  if (!body || body.dataset.zoomBound) return;
+  body.dataset.zoomBound = '1';
+  let mode = '', startDist = 1, startScale = 1, midX = 0, midY = 0, panX = 0, panY = 0;
+  let rectLeft = 0, rectTop = 0;
+  const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  body.addEventListener('touchstart', (e) => {
+    if (e.touches.length >= 2) {
+      const rect = body.getBoundingClientRect();
+      rectLeft = rect.left; rectTop = rect.top;
+      mode = 'pinch';
+      startDist = dist(e.touches[0], e.touches[1]) || 1;
+      startScale = previewZoom.scale;
+      midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rectLeft;
+      midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rectTop;
+      /* 將目前原生捲動位移併入 transform，縮放時錨點才不會位移 */
+      previewZoom.tx -= body.scrollLeft;
+      previewZoom.ty -= body.scrollTop;
+      body.scrollLeft = 0; body.scrollTop = 0;
+      panX = previewZoom.tx; panY = previewZoom.ty;
+    } else if (e.touches.length === 1 && previewZoom.scale > 1) {
+      mode = 'pan';
+      panX = e.touches[0].clientX - previewZoom.tx;
+      panY = e.touches[0].clientY - previewZoom.ty;
+    } else {
+      mode = '';
+    }
+  }, { passive: true });
+  body.addEventListener('touchmove', (e) => {
+    if (mode === 'pinch' && e.touches.length >= 2) {
+      e.preventDefault();
+      const s = Math.max(1, Math.min(5, startScale * (dist(e.touches[0], e.touches[1]) / startDist)));
+      const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rectLeft;
+      const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rectTop;
+      previewZoom.tx = cx - (midX - panX) / startScale * s;
+      previewZoom.ty = cy - (midY - panY) / startScale * s;
+      previewZoom.scale = s;
+      clampPreviewPan(); applyPreviewZoom();
+    } else if (mode === 'pan' && e.touches.length === 1 && previewZoom.scale > 1) {
+      e.preventDefault();
+      previewZoom.tx = e.touches[0].clientX - panX;
+      previewZoom.ty = e.touches[0].clientY - panY;
+      clampPreviewPan(); applyPreviewZoom();
+    }
+  }, { passive: false });
+  body.addEventListener('touchend', (e) => {
+    if (e.touches.length >= 2) { mode = 'pinch'; return; }
+    if (e.touches.length === 1 && mode === 'pinch') {
+      mode = 'pan';
+      panX = e.touches[0].clientX - previewZoom.tx;
+      panY = e.touches[0].clientY - previewZoom.ty;
+      return;
+    }
+    mode = '';
+    if (previewZoom.scale <= 1.02) resetPreviewZoom();
+    else { clampPreviewPan(); applyPreviewZoom(); }
+  }, { passive: true });
+}
+function closeCourseFilePreview() {
+  previewRenderToken++;
+  $('#modal-file-preview')?.classList.add('hidden');
+  resetPreviewZoom();
+  const content = $('#file-preview-zoom');
+  if (content) content.innerHTML = '';
+}
+async function openCourseFilePreview(file) {
+  if (!file) return;
+  const body = $('#file-preview-body');
+  const content = $('#file-preview-zoom');
+  if (!body || !content) return;
+  $('#file-preview-name').textContent = file.name || '預覽';
+  $('#modal-file-preview').classList.remove('hidden');
+  resetPreviewZoom();
+  content.innerHTML = '<div class="h-64 grid place-items-center text-slate-400 text-sm">載入中…</div>';
+  const token = ++previewRenderToken;
+  try {
+    const blob = await fetchCourseFileBlob(file);
+    if (token !== previewRenderToken) return;
+    await renderCourseFilePreview(body, content, blob, file, token);
+  } catch (e) {
+    if (token !== previewRenderToken) return;
+    content.innerHTML = `<div class="h-64 grid place-items-center text-slate-400 text-sm">預覽失敗：${escAttr(e.message || '')}</div>`;
+  }
+}
+/* PDF 以 pdf.js 繪製為 Canvas，兼容平板／手機（iOS Safari、Android 無法內嵌 blob iframe） */
+async function renderPdfPreview(body, content, blob, token) {
+  const lib = window.pdfjsLib;
+  if (!lib) throw new Error('預覽元件載入失敗');
+  const pdf = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+  if (token !== previewRenderToken) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'p-3 space-y-3 bg-slate-100';
+  content.innerHTML = '';
+  content.appendChild(wrap);
+  const maxWidth = Math.max(240, (body.clientWidth || window.innerWidth) - 24);
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const page = await pdf.getPage(n);
+    const base = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: Math.min(2.5, maxWidth / base.width) });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    canvas.className = 'block mx-auto max-w-full h-auto bg-white rounded-lg shadow-sm';
+    wrap.appendChild(canvas);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    if (token !== previewRenderToken) return;
+  }
+}
+async function renderCourseFilePreview(body, content, blob, file, token) {
+  if (file.ext === 'pdf') {
+    await renderPdfPreview(body, content, blob, token);
+    return;
+  }
+  if (file.ext === 'docx') {
+    if (!window.mammoth) { content.innerHTML = '<div class="h-64 grid place-items-center text-slate-400 text-sm">預覽元件載入失敗</div>'; return; }
+    const { value } = await window.mammoth.convertToHtml({ arrayBuffer: await blob.arrayBuffer() });
+    content.innerHTML = `<div class="p-6 bg-white text-sm leading-relaxed text-slate-700">${value || '<p class="text-slate-400">無內容</p>'}</div>`;
+    return;
+  }
+  if (file.ext === 'xls' || file.ext === 'xlsx') {
+    if (!window.XLSX) { content.innerHTML = '<div class="h-64 grid place-items-center text-slate-400 text-sm">預覽元件載入失敗</div>'; return; }
+    const wb = window.XLSX.read(new Uint8Array(await blob.arrayBuffer()), { type: 'array' });
+    content.innerHTML = wb.SheetNames.map(n => `
+      <div class="p-4 bg-white border-b border-slate-100">
+        <p class="text-xs font-semibold text-slate-500 mb-2">${escAttr(n)}</p>
+        <div class="overflow-auto no-scrollbar">${window.XLSX.utils.sheet_to_html(wb.Sheets[n])}</div>
+      </div>`).join('');
+    return;
+  }
+  content.innerHTML = `<div class="h-64 grid place-items-center text-center p-6"><div><p class="text-slate-600 font-semibold">此格式不支援線上預覽</p><p class="text-xs text-slate-400 mt-1">請下載後開啟</p></div></div>`;
+}
+async function triggerCourseFileDownload(file) {
+  if (!file) return;
+  toast('準備下載…', 1200);
+  try {
+    const url = URL.createObjectURL(await fetchCourseFileBlob(file));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name || 'file';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  } catch {
+    toast('下載失敗', 2000, 'danger');
+  }
+}
+function renderCourseFilesAdminTab(tabId, label) {
+  const panel = $('#course-tab-panel');
+  panel.innerHTML = `
+    <div class="h-full bg-white rounded-2xl border border-slate-200 flex flex-col overflow-hidden">
+      <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-slate-700">${escAttr(label)}</p>
+          <p class="text-[11px] text-slate-400 truncate">支援 PDF / Word / Excel / PowerPoint，單檔上限 20MB；學員端可預覽，下載權限可逐檔設定</p>
+        </div>
+        <button id="btn-file-upload" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">＋ 上傳檔案</button>
+      </div>
+      <input id="course-file-input" type="file" class="hidden" accept="${COURSE_FILE_ACCEPT}" multiple />
+      <div id="course-file-list" class="flex-1 min-h-0 overflow-auto no-scrollbar p-4 space-y-3">
+        <p class="text-slate-400 text-center py-6 text-sm">載入中…</p>
+      </div>
+    </div>`;
+  $('#btn-file-upload').addEventListener('click', () => $('#course-file-input').click());
+  $('#course-file-input').addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    await uploadCourseFiles(tabId, files);
+  });
+  $('#course-file-list').addEventListener('click', (e) => {
+    const preview = e.target.closest('[data-file-preview]');
+    if (preview) return openCourseFilePreview(state.courseFiles.find(f => f.id === preview.dataset.filePreview));
+    const download = e.target.closest('[data-file-download]');
+    if (download) return triggerCourseFileDownload(state.courseFiles.find(f => f.id === download.dataset.fileDownload));
+    const toggle = e.target.closest('[data-file-toggle]');
+    if (toggle) return toggleCourseFileDownload(toggle.dataset.fileToggle);
+    const del = e.target.closest('[data-file-del]');
+    if (del) return deleteCourseFile(del.dataset.fileDel);
+    const up = e.target.closest('[data-file-move-up]');
+    if (up) return moveCourseFile(up.dataset.fileMoveUp, -1);
+    const down = e.target.closest('[data-file-move-down]');
+    if (down) return moveCourseFile(down.dataset.fileMoveDown, 1);
+  });
+  loadCourseFilesAdmin(tabId);
+}
+function renderCourseFilesAdminList(tabId) {
+  const list = $('#course-file-list');
+  if (!list) return;
+  const files = courseFilesOfTab(tabId);
+  if (!files.length) {
+    list.innerHTML = '<div class="h-full min-h-[12rem] rounded-2xl border border-dashed border-slate-200 bg-slate-50 grid place-items-center text-center p-6"><div><p class="text-slate-500 font-semibold">尚未上傳檔案</p><p class="text-xs text-slate-400 mt-1">可上傳 PDF / Word / Excel / PowerPoint 檔</p></div></div>';
+    return;
+  }
+  list.innerHTML = files.map((file, idx) => `
+    <div class="rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[11px]">${courseFileTypeLabel(file)}</span>
+            <span class="px-1.5 py-0.5 rounded text-[11px] ${file.allowDownload ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}">${file.allowDownload ? '可下載' : '僅預覽'}</span>
+          </div>
+          <p class="mt-2 text-sm font-semibold text-slate-800 break-all">${escAttr(file.name || '未命名檔案')}</p>
+          <p class="mt-1 text-[11px] text-slate-400 break-all">${escAttr([courseFileSizeText(file.size), courseFileTimeText(file.createdAt), file.uploadedByName || ''].filter(Boolean).join(' · '))}</p>
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-1.5 min-w-0">
+          ${idx > 0 ? `<button data-file-move-up="${file.id}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="上移">↑</button>` : ''}
+          ${idx < files.length - 1 ? `<button data-file-move-down="${file.id}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="下移">↓</button>` : ''}
+          <button data-file-preview="${file.id}" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold ${canPreviewCourseFile(file) ? '' : 'opacity-50 pointer-events-none'}">預覽</button>
+          <button data-file-download="${file.id}" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">下載</button>
+          <button data-file-toggle="${file.id}" class="px-3 py-1.5 rounded-lg text-xs font-semibold ${file.allowDownload ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'}">${file.allowDownload ? '關閉下載' : '開放下載'}</button>
+          <button data-file-del="${file.id}" class="shrink-0 px-2.5 py-1 h-8 rounded-lg border border-red-300 text-red-500 text-xs font-semibold">刪除</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+function loadCourseFilesAdmin(tabId) {
+  cleanupListener('unsubCourseFiles');
+  state.courseFiles = [];
+  renderCourseFilesAdminList(tabId);
+  if (!state.activeCourse) return;
+  state.unsubCourseFiles = onSnapshot(query(collection(db, 'courseFiles'), where('courseId', '==', state.activeCourse.id)), (snap) => {
+    state.courseFiles = snap.docs.map(d => ({ id: d.id, ...d.data(), ext: d.data().ext || courseFileExt(d.data().name) }));
+    renderCourseFilesAdminList(tabId);
+  }, () => {
+    const list = $('#course-file-list');
+    if (list) list.innerHTML = '<p class="text-slate-400 text-center py-6 text-sm">檔案載入失敗</p>';
+  });
+}
+async function uploadCourseFiles(tabId, files) {
+  if (!state.activeCourse || !files.length) return;
+  const btn = $('#btn-file-upload');
+  let success = 0;
+  try {
+    for (const file of files) {
+      const ext = courseFileExt(file.name);
+      if (!COURSE_FILE_LABELS[ext]) {
+        toast(`不支援的檔案格式：${file.name}`, 2400, 'warning');
+        continue;
+      }
+      if (file.size > COURSE_FILE_MAX_SIZE) {
+        toast(`${file.name} 超過 ${Math.round(COURSE_FILE_MAX_SIZE / 1024 / 1024)}MB 上限`, 2400, 'warning');
+        continue;
+      }
+      try {
+        if (btn) { btn.disabled = true; btn.textContent = '上傳中…'; }
+        await uploadCourseFileToFirestore(tabId, file, (done, total) => {
+          if (btn) btn.textContent = `上傳中 ${done}/${total}`;
+        });
+        success += 1;
+      } catch (e) {
+        console.warn('uploadCourseFiles failed', e);
+        toast(`上傳失敗：${file.name}`, 2400, 'danger');
+      }
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '＋ 上傳檔案'; }
+  }
+  if (success) toast(`已上傳 ${success} 個檔案`, 1800, 'success');
+}
+async function uploadCourseFileToFirestore(tabId, file, onProgress) {
+  const fileRef = doc(collection(db, 'courseFiles'));
+  const base64 = await readFileAsBase64(file);
+  const chunks = [];
+  for (let i = 0; i < base64.length; i += COURSE_FILE_CHUNK_SIZE) {
+    chunks.push(base64.slice(i, i + COURSE_FILE_CHUNK_SIZE));
+  }
+  if (!chunks.length) chunks.push('');
+  for (let i = 0; i < chunks.length; i++) {
+    await setDoc(doc(db, 'courseFiles', fileRef.id, 'chunks', String(i).padStart(4, '0')), {
+      index: i,
+      base64: chunks[i],
+    });
+    if (onProgress) onProgress(i + 1, chunks.length);
+  }
+  const tabMaxOrder = (state.courseFiles || [])
+    .filter(f => f.tabId === tabId)
+    .reduce((m, f) => Math.max(m, courseFileOrderValue(f)), 0);
+  await setDoc(fileRef, {
+    courseId: state.activeCourse.id,
+    tabId,
+    name: file.name || 'file',
+    ext: courseFileExt(file.name),
+    size: Number(file.size || 0),
+    contentType: file.type || '',
+    storage: 'firestore',
+    chunkCount: chunks.length,
+    order: tabMaxOrder + 1,
+    allowDownload: tabId === 'download',
+    uploadedBy: state.currentUser?.uid || '',
+    uploadedByName: state.userDoc?.name || '',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return fileRef.id;
+}
+async function toggleCourseFileDownload(fileId) {
+  const file = state.courseFiles.find(f => f.id === fileId);
+  if (!file) return;
+  try {
+    await updateDoc(doc(db, 'courseFiles', fileId), { allowDownload: !file.allowDownload, updatedAt: serverTimestamp() });
+    toast(file.allowDownload ? '已關閉學員下載' : '已開放學員下載', 1800, 'success');
+  } catch {
+    toast('更新下載權限失敗', 2000, 'danger');
+  }
+}
+async function moveCourseFile(fileId, dir) {
+  const file = state.courseFiles.find(f => f.id === fileId);
+  if (!file) return;
+  const list = courseFilesOfTab(file.tabId);
+  const i = list.findIndex(f => f.id === fileId);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  const a = list[i], b = list[j];
+  try {
+    await Promise.all([
+      updateDoc(doc(db, 'courseFiles', a.id), { order: courseFileOrderValue(b), updatedAt: serverTimestamp() }),
+      updateDoc(doc(db, 'courseFiles', b.id), { order: courseFileOrderValue(a), updatedAt: serverTimestamp() }),
+    ]);
+  } catch { toast('調整順序失敗', 2000, 'danger'); }
+}
+async function deleteCourseFile(fileId) {
+  if (!fileId) return;
+  try {
+    const snap = await getDocs(collection(db, 'courseFiles', fileId, 'chunks'));
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    await deleteDoc(doc(db, 'courseFiles', fileId));
+    toast('檔案已刪除', 1800, 'success');
+  } catch {
+    toast('刪除檔案失敗', 2000, 'danger');
+  }
+}
+
+/* ===== 活動（主題 + 連結按鈕） ===== */
+const ACTIVITY_BANNER = { aspect: 2 / 3, maxW: 800, quality: 0.72, type: 'image/jpeg' };
+const ACTIVITY_ICON = { aspect: 1, maxW: 128, quality: 0.85, type: 'image/png' };
+
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('圖片載入失敗')); };
+    img.src = url;
+  });
+}
+/* 前端置中裁切為指定比例後縮圖，輸出 data URL（Base64 存入 Firestore） */
+async function compressImageToDataUrl(file, cfg) {
+  const { aspect, maxW, quality, type } = cfg;
+  const img = await loadImageFromFile(file);
+  const srcAspect = img.width / img.height;
+  let sw, sh;
+  if (srcAspect > aspect) { sh = img.height; sw = sh * aspect; }
+  else { sw = img.width; sh = sw / aspect; }
+  const sx = (img.width - sw) / 2, sy = (img.height - sh) / 2;
+  const w = Math.max(1, Math.round(Math.min(maxW, sw)));
+  const h = Math.max(1, Math.round(w / aspect));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (type === 'image/jpeg') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); }
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+  return canvas.toDataURL(type, quality);
+}
+function normalizeActivity(a) {
+  return {
+    id: String(a?.id || ''),
+    title: String(a?.title || ''),
+    image: String(a?.image || ''),
+    order: Number.isFinite(a?.order) ? a.order : 0,
+    links: (Array.isArray(a?.links) ? a.links : [])
+      .filter(l => l && (l.url || l.image))
+      .map((l, i) => ({ id: String(l.id || ('l' + (i + 1))), url: String(l.url || ''), image: String(l.image || '') })),
+  };
+}
+function renderActivityAdminTab() {
+  const panel = $('#course-tab-panel');
+  panel.innerHTML = `
+    <div class="h-full bg-white rounded-2xl border border-slate-200 flex flex-col overflow-hidden">
+      <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-slate-700">活動</p>
+          <p class="text-[11px] text-slate-400 truncate">新增主題（2:3 主題圖片）與連結按鈕（1:1 圖片＋網址）</p>
+        </div>
+        <button id="btn-activity-add" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">＋ 新增主題</button>
+      </div>
+      <div id="activity-list" class="flex-1 min-h-0 overflow-auto no-scrollbar p-4 space-y-4">
+        <p class="text-slate-400 text-center py-6 text-sm">載入中…</p>
+      </div>
+    </div>`;
+  $('#btn-activity-add').addEventListener('click', () => openActivityEdit(''));
+  $('#activity-list').addEventListener('click', (e) => {
+    const up = e.target.closest('[data-activity-move-up]');
+    if (up) return moveActivity(up.dataset.activityMoveUp, -1);
+    const down = e.target.closest('[data-activity-move-down]');
+    if (down) return moveActivity(down.dataset.activityMoveDown, 1);
+    const ed = e.target.closest('[data-activity-edit]');
+    if (ed) return openActivityEdit(ed.dataset.activityEdit);
+    const del = e.target.closest('[data-activity-del]');
+    if (del) return deleteActivity(del.dataset.activityDel);
+  });
+  loadActivitiesAdmin();
+}
+function renderActivityAdminList() {
+  const list = $('#activity-list');
+  if (!list) return;
+  if (!state.activities.length) {
+    list.innerHTML = '<div class="h-full min-h-[12rem] rounded-2xl border border-dashed border-slate-200 bg-slate-50 grid place-items-center text-center p-6"><div><p class="text-slate-500 font-semibold">尚未新增主題</p><p class="text-xs text-slate-400 mt-1">點右上角「＋ 新增主題」建立活動內容</p></div></div>';
+    return;
+  }
+  list.innerHTML = state.activities.map((a, idx) => `
+    <div class="rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-start gap-4">
+        <div class="w-40 shrink-0 aspect-[2/3] rounded-lg border border-slate-200 bg-slate-100 overflow-hidden">
+          ${a.image ? `<img src="${escAttr(a.image)}" alt="" class="w-full h-full object-cover" />` : '<div class="w-full h-full grid place-items-center text-[11px] text-slate-400">未設定圖片</div>'}
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-slate-800 break-words">${escAttr(a.title || '未命名主題')}</p>
+          <p class="mt-1 text-[11px] text-slate-400">${a.links.length} 個連結按鈕</p>
+          ${a.links.length ? `<div class="mt-2 flex flex-wrap gap-2">${a.links.map(l => `<span class="w-9 h-9 rounded-md border border-slate-200 bg-slate-50 overflow-hidden grid place-items-center">${l.image ? `<img src="${escAttr(l.image)}" alt="" class="w-full h-full object-cover" />` : '<span class="text-[10px] text-slate-400">—</span>'}</span>`).join('')}</div>` : ''}
+        </div>
+        <div class="shrink-0 flex items-center gap-1.5">
+          ${idx > 0 ? `<button data-activity-move-up="${escAttr(a.id)}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="上移">↑</button>` : ''}
+          ${idx < state.activities.length - 1 ? `<button data-activity-move-down="${escAttr(a.id)}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="下移">↓</button>` : ''}
+          <button data-activity-edit="${escAttr(a.id)}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="編輯">✎</button>
+          <button data-activity-del="${escAttr(a.id)}" class="w-8 h-8 rounded-lg border border-red-200 text-red-500 grid place-items-center" title="刪除">✕</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+function loadActivitiesAdmin() {
+  cleanupListener('unsubActivities');
+  state.activities = [];
+  renderActivityAdminList();
+  if (!state.activeCourse) return;
+  state.unsubActivities = onSnapshot(query(collection(db, 'courseActivities'), where('courseId', '==', state.activeCourse.id)), (snap) => {
+    state.activities = snap.docs
+      .map(d => normalizeActivity({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.order - b.order) || a.id.localeCompare(b.id));
+    renderActivityAdminList();
+  }, (err) => {
+    console.error('[activities]', err);
+    const list = $('#activity-list');
+    if (list) list.innerHTML = `<p class="text-slate-400 text-center py-6 text-sm">活動載入失敗</p><p class="text-center text-xs text-red-400 break-all px-4">${escAttr(err?.code || '')} ${escAttr(err?.message || '')}</p>`;
+  });
+}
+let activityDraft = null;
+let pendingActivityLinkIndex = -1;
+function openActivityEdit(id) {
+  if (!state.activeCourse) return;
+  const found = state.activities.find(a => a.id === id);
+  const base = found ? normalizeActivity(found) : null;
+  activityDraft = base
+    ? { ...base, links: base.links.map(l => ({ ...l })) }
+    : { id: '', title: '', image: '', order: state.activities.length, links: [] };
+  $('#activity-edit-heading').textContent = found ? '編輯主題' : '新增主題';
+  $('#activity-edit-title').value = activityDraft.title;
+  renderActivityEditImage();
+  renderActivityLinks();
+  $('#modal-activity-edit').classList.remove('hidden');
+}
+function closeActivityEdit() {
+  activityDraft = null;
+  pendingActivityLinkIndex = -1;
+  $('#modal-activity-edit')?.classList.add('hidden');
+}
+function renderActivityEditImage() {
+  const box = $('#activity-edit-image-preview');
+  if (!box) return;
+  box.innerHTML = activityDraft?.image
+    ? `<img src="${escAttr(activityDraft.image)}" alt="" class="w-full h-full object-cover" />`
+    : '<span class="text-[11px] text-slate-400">2:3 主題圖片</span>';
+  $('#activity-edit-image-remove')?.classList.toggle('hidden', !activityDraft?.image);
+}
+function renderActivityLinks() {
+  const box = $('#activity-links');
+  if (!box || !activityDraft) return;
+  if (!activityDraft.links.length) {
+    box.innerHTML = '<p class="text-xs text-slate-400 py-2">尚未新增連結按鈕</p>';
+    return;
+  }
+  box.innerHTML = activityDraft.links.map((l, i) => `
+    <div class="flex items-center gap-2 rounded-xl border border-slate-200 p-2">
+      <button type="button" data-activity-link-image="${i}" class="w-11 h-11 shrink-0 rounded-lg border border-slate-200 bg-slate-50 overflow-hidden grid place-items-center" title="上傳 1:1 按鈕圖片">
+        ${l.image ? `<img src="${escAttr(l.image)}" alt="" class="w-full h-full object-cover" />` : '<span class="text-[10px] text-slate-400">1:1</span>'}
+      </button>
+      <input data-activity-link-url="${i}" type="url" value="${escAttr(l.url)}" placeholder="連結網址（https://…）" class="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      <button type="button" data-activity-link-del="${i}" class="w-8 h-8 shrink-0 rounded-lg border border-red-200 text-red-500 grid place-items-center" title="刪除">✕</button>
+    </div>`).join('');
+}
+async function saveActivityEdit() {
+  if (!activityDraft || !state.activeCourse) return;
+  const title = $('#activity-edit-title').value.trim();
+  if (!title) return toast('請輸入主題名稱');
+  if (!activityDraft.image) return toast('請上傳主題圖片');
+  const links = activityDraft.links.map((l, i) => ({
+    id: l.id || ('l' + (i + 1)),
+    url: String(l.url || '').trim(),
+    image: l.image || '',
+  }));
+  if (!links.every(l => l.url && l.image)) return toast('每個連結按鈕都需上傳圖片並填寫網址', 2400, 'warning');
+  const payload = {
+    courseId: state.activeCourse.id,
+    title,
+    image: activityDraft.image,
+    links,
+    order: Number.isFinite(activityDraft.order) ? activityDraft.order : state.activities.length,
+    updatedAt: serverTimestamp(),
+  };
+  try {
+    if (activityDraft.id) {
+      await setDoc(doc(db, 'courseActivities', activityDraft.id), payload, { merge: true });
+    } else {
+      payload.createdAt = serverTimestamp();
+      await setDoc(doc(collection(db, 'courseActivities')), payload);
+    }
+    closeActivityEdit();
+    toast('活動已儲存', 2000, 'success');
+  } catch (err) {
+    toast('儲存失敗：' + (err.message || ''), 2400, 'danger');
+  }
+}
+async function deleteActivity(id) {
+  if (!id) return;
+  try {
+    await deleteDoc(doc(db, 'courseActivities', id));
+    toast('已刪除主題', 1800, 'success');
+  } catch { toast('刪除失敗', 2000, 'danger'); }
+}
+async function moveActivity(id, dir) {
+  const list = state.activities.slice();
+  const i = list.findIndex(a => a.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  const tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+  try {
+    await Promise.all(list
+      .map((a, idx) => (a.order === idx ? null : updateDoc(doc(db, 'courseActivities', a.id), { order: idx, updatedAt: serverTimestamp() })))
+      .filter(Boolean));
+  } catch { toast('調整順序失敗', 2000, 'danger'); }
+}
+
+/* ===== 設定（控制各分頁在學員端的顯示方式） ===== */
+const TAB_VISIBILITY = [
+  { value: 'always', label: '一律顯示', cls: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
+  { value: 'checkin', label: '報到後顯示', cls: 'bg-amber-50 text-amber-600 border-amber-200' },
+  { value: 'hidden', label: '暫時隱藏', cls: 'bg-slate-100 text-slate-400 border-slate-200' },
+];
+function tabVisibility(t) {
+  if (t?.visibility === 'always' || t?.visibility === 'checkin' || t?.visibility === 'hidden') return t.visibility;
+  return t?.enabled === false ? 'hidden' : 'always';
+}
+function tabsForSettings(c) {
+  const list = Array.isArray(c?.tabs) ? c.tabs : [];
+  const base = DEFAULT_TABS.filter(t => t.id !== 'settings').map((t, i) => {
+    const e = list.find(x => x && x.id === t.id) || {};
+    return {
+      id: t.id,
+      label: String(e.label || t.label),
+      visibility: tabVisibility(e),
+      order: Number.isFinite(e.order) ? e.order : (t.order ?? i),
+    };
+  });
+  const customs = list
+    .filter(t => t && t.id && !DEFAULT_TABS.some(b => b.id === t.id))
+    .map(t => ({ id: String(t.id), label: String(t.label || t.id), visibility: tabVisibility(t), order: Number.isFinite(t.order) ? t.order : 99 }));
+  return base.concat(customs).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+function renderSettingsAdminTab() {
+  const panel = $('#course-tab-panel');
+  if (!panel) return;
+  const tabs = tabsForSettings(state.activeCourse || {});
+  panel.innerHTML = `
+    <div class="h-full bg-white rounded-2xl border border-slate-200 flex flex-col overflow-hidden">
+      <div class="shrink-0 px-4 py-3 border-b border-slate-100">
+        <p class="text-sm font-semibold text-slate-700">設定</p>
+        <p class="text-[11px] text-slate-400">控制各功能分頁在學員端的顯示方式（服務端一律顯示）</p>
+      </div>
+      <div id="settings-list" class="flex-1 min-h-0 overflow-auto no-scrollbar p-4 space-y-2">
+        ${tabs.map(t => `
+          <div class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3">
+            <span class="text-sm font-semibold text-slate-700">${escAttr(t.label)}</span>
+            <div class="shrink-0 flex items-center gap-1.5">
+              ${TAB_VISIBILITY.map(v => `<button data-tab-visibility="${escAttr(t.id)}" data-visibility-value="${v.value}" class="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border ${t.visibility === v.value ? v.cls : 'bg-white text-slate-400 border-slate-200'}">${v.label}</button>`).join('')}
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  $('#settings-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tab-visibility]');
+    if (b) setTabVisibility(b.dataset.tabVisibility, b.dataset.visibilityValue);
+  });
+}
+async function setTabVisibility(id, visibility) {
+  if (!state.activeCourse || !id || !visibility) return;
+  const tabs = tabsForSettings(state.activeCourse);
+  const t = tabs.find(x => x.id === id);
+  if (!t || t.visibility === visibility) return;
+  t.visibility = visibility;
+  const payload = tabs.map(x => ({ id: x.id, label: x.label, order: x.order, visibility: x.visibility, enabled: x.visibility !== 'hidden' }));
+  try {
+    await setDoc(doc(db, 'courses', state.activeCourse.id), { tabs: payload, updatedAt: serverTimestamp() }, { merge: true });
+    state.activeCourse.tabs = payload;
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].tabs = payload;
+    renderSettingsAdminTab();
+    const vLabel = (TAB_VISIBILITY.find(v => v.value === visibility) || {}).label || visibility;
+    toast(`${t.label}：${vLabel}`, 1800, 'success');
+  } catch { toast('設定失敗', 2000, 'danger'); }
+}
+
+/* ===== 座位表（最靠近講台為 A 排，由左開始為 01 列） ===== */
+function seatConfig(course) {
+  const s = course && course.seat;
+  const rows = Math.min(26, Math.max(0, parseInt(s?.rows, 10) || 0));
+  const cols = Math.min(99, Math.max(0, parseInt(s?.cols, 10) || 0));
+  const aisles = (Array.isArray(s?.aisles) ? s.aisles : [])
+    .map(n => parseInt(n, 10))
+    .filter(n => Number.isFinite(n) && n >= 1 && n < cols);
+  return { rows, cols, aisles: [...new Set(aisles)].sort((a, b) => a - b), allowSelfSelect: s?.allowSelfSelect === true };
+}
+function seatRowLetter(i) { return String.fromCharCode(65 + i); }
+function seatAssignmentsOf(course) {
+  const a = course && course.seatAssignments;
+  return (a && typeof a === 'object' && !Array.isArray(a)) ? a : {};
+}
+function seatSelfPicksOf(course) {
+  const a = course && course.seatSelfPicks;
+  return (a && typeof a === 'object' && !Array.isArray(a)) ? a : {};
+}
+/* 合併「服務指派」與「學員自選」：服務指派優先，回傳 code -> { uid, self } */
+function seatOccupancyOf(course) {
+  const staff = seatAssignmentsOf(course);
+  const picks = seatSelfPicksOf(course);
+  const staffUids = new Set(Object.values(staff));
+  const byCode = {};
+  Object.entries(staff).forEach(([code, uid]) => { if (uid) byCode[code] = { uid, self: false }; });
+  Object.entries(picks).forEach(([uid, code]) => {
+    if (!uid || !code || staffUids.has(uid) || byCode[code]) return;
+    byCode[code] = { uid, self: true };
+  });
+  return byCode;
+}
+function studentByUid(uid) {
+  if (!uid) return null;
+  return state.courseStudents.find(u => (u.uid || u.id) === uid) || null;
+}
+function renderSeatMap() {
+  const box = $('#seat-map');
+  if (!box) return;
+  const meta = $('#seat-meta');
+  const { rows, cols, aisles, allowSelfSelect } = seatConfig(state.activeCourse);
+  if (!rows || !cols) {
+    if (meta) meta.textContent = '尚未設定';
+    box.innerHTML = '<div class="h-full grid place-items-center"><p class="text-slate-400 text-sm">尚未設定座位表，請按右上角「設定」</p></div>';
+    return;
+  }
+  const occupancy = seatOccupancyOf(state.activeCourse);
+  const assignedCount = Object.keys(occupancy).length;
+  if (meta) meta.textContent = `${rows} 排 × ${cols} 列${aisles.length ? ' · 走道 ' + aisles.join('、') : ''} · 已指派 ${assignedCount} 人${allowSelfSelect ? ' · 開放自選' : ''}`;
+  const aisleSet = new Set(aisles);
+  let colsTmpl = '1.75rem';
+  for (let c = 1; c <= cols; c++) {
+    colsTmpl += ' minmax(0, 1fr)';
+    if (aisleSet.has(c)) colsTmpl += ' 1.75rem';
+  }
+  const gridStyle = `grid-template-columns: ${colsTmpl}; grid-template-rows: auto repeat(${rows}, minmax(2.5rem, 1fr));`;
+  const head = ['<div></div>'];
+  for (let c = 1; c <= cols; c++) {
+    head.push(`<div class="grid place-items-center text-[12px] text-slate-400 tabular-nums truncate">${String(c).padStart(2, '0')}</div>`);
+    if (aisleSet.has(c)) head.push('<div class="grid place-items-center text-[11px] text-slate-400 leading-none">走道</div>');
+  }
+  const body = Array.from({ length: rows }, (_, i) => rows - 1 - i).map(r => {
+    const letter = seatRowLetter(r);
+    const cells = [`<div class="grid place-items-center text-[13px] font-semibold text-slate-500">${letter}</div>`];
+    for (let c = 1; c <= cols; c++) {
+      const code = letter + String(c).padStart(2, '0');
+      const entry = occupancy[code];
+      const uid = entry && entry.uid;
+      const student = uid ? studentByUid(uid) : null;
+      if (student) {
+        const checked = !!state.checkedInMap[uid];
+        const name = student.name || '未命名';
+        const communityName = student.community || student.unit || '';
+        const tag = entry.self ? ' · 自選' : '';
+        const tip = `${code} · ${name}${communityName ? ' · ' + communityName : ''}${communityCodeOf(student) ? ' · ' + communityCodeOf(student) : ''}${tag}`;
+        const cls = entry.self
+          ? (checked ? 'border-sky-300 bg-sky-100 hover:bg-sky-200' : 'border-sky-300 bg-sky-50 hover:bg-sky-100')
+          : (checked ? 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100' : 'border-brand/40 bg-brand/10 hover:bg-brand/15');
+        cells.push(`<button type="button" data-seat="${code}" title="${escAttr(tip)}" class="min-w-0 h-full rounded-md border ${cls} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">
+          <span class="text-[11px] leading-none text-slate-400 tabular-nums">${code}</span>
+          <span class="text-xs leading-tight font-bold text-slate-800 truncate w-full">${escAttr(name)}</span>
+          ${communityName ? `<span class="text-[10px] leading-tight text-slate-500 truncate w-full">${escAttr(communityName)}</span>` : ''}
+        </button>`);
+      } else if (uid) {
+        cells.push(`<button type="button" data-seat="${code}" title="${escAttr(code)} · 已指派" class="min-w-0 h-full rounded-md border border-slate-300 bg-slate-100 hover:bg-slate-200 grid place-items-center text-[12px] text-slate-500 tabular-nums overflow-hidden">${code}</button>`);
+      } else {
+        cells.push(`<button type="button" data-seat="${code}" class="min-w-0 h-full rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 grid place-items-center text-[12px] text-slate-400 tabular-nums overflow-hidden">${code}</button>`);
+      }
+      if (aisleSet.has(c)) cells.push('<div class="rounded bg-slate-400 grid place-items-center text-[10px] font-semibold text-white/90 tracking-widest" style="writing-mode:vertical-rl;">走道</div>');
+    }
+    return cells.join('');
+  }).join('');
+  box.innerHTML = `
+    <div class="h-full flex flex-col min-h-0">
+      <div class="flex-1 min-h-0 overflow-auto no-scrollbar">
+        <div class="grid gap-1 min-h-full" style="${gridStyle}">${head.join('')}${body}</div>
+      </div>
+      <div class="shrink-0 pt-2 border-t border-slate-100">
+        <div class="h-10 rounded-lg bg-brand text-white grid place-items-center text-sm font-bold tracking-[0.5em]">講台</div>
+      </div>
+    </div>`;
+}
+function openSeatSetting() {
+  const { rows, cols, aisles, allowSelfSelect } = seatConfig(state.activeCourse);
+  $('#seat-rows').value = rows || 5;
+  $('#seat-cols').value = cols || 8;
+  $('#seat-aisles').value = aisles.join(', ');
+  $('#seat-self-select').checked = allowSelfSelect;
+  $('#modal-seat-setting').classList.remove('hidden');
+}
+function closeSeatSetting() { $('#modal-seat-setting').classList.add('hidden'); }
+async function confirmSeatSetting() {
+  if (!state.activeCourse) return;
+  const rows = Math.min(26, Math.max(1, parseInt($('#seat-rows').value, 10) || 0));
+  const cols = Math.min(99, Math.max(1, parseInt($('#seat-cols').value, 10) || 0));
+  const aisles = [...new Set(
+    String($('#seat-aisles').value || '').split(/[,，\s]+/)
+      .map(s => parseInt(s, 10))
+      .filter(n => Number.isFinite(n) && n >= 1 && n < cols)
+  )].sort((a, b) => a - b);
+  const allowSelfSelect = $('#seat-self-select').checked === true;
+  try {
+    await setDoc(doc(db, 'courses', state.activeCourse.id), {
+      seat: { rows, cols, aisles, allowSelfSelect }, updatedAt: serverTimestamp(),
+    }, { merge: true });
+    state.activeCourse.seat = { rows, cols, aisles, allowSelfSelect };
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].seat = { rows, cols, aisles, allowSelfSelect };
+    closeSeatSetting();
+    renderSeatMap();
+    toast('座位表已更新', 2200, 'success');
+  } catch (err) {
+    toast('儲存失敗：' + (err.message || ''), 2200, 'danger');
+  }
+}
+
+/* ===== 座位指派學員 ===== */
+function openSeatAssign(code) {
+  if (!state.activeCourse || !code) return;
+  const { rows, cols } = seatConfig(state.activeCourse);
+  if (!rows || !cols) { toast('請先設定座位表', 2000, 'warning'); return; }
+  state.pendingSeatCode = code;
+  $('#seat-assign-code').textContent = code;
+  $('#seat-assign-search').value = '';
+  renderSeatAssignList('');
+  $('#modal-seat-assign').classList.remove('hidden');
+  setTimeout(() => { const s = $('#seat-assign-search'); if (s) s.focus(); }, 60);
+}
+function closeSeatAssign() {
+  state.pendingSeatCode = '';
+  $('#modal-seat-assign').classList.add('hidden');
+}
+function renderSeatAssignList(keyword) {
+  const box = $('#seat-assign-list');
+  if (!box) return;
+  const assignments = seatAssignmentsOf(state.activeCourse);
+  const currentUid = assignments[state.pendingSeatCode] || '';
+  const seatOfUid = {};
+  Object.entries(assignments).forEach(([code, uid]) => { seatOfUid[uid] = code; });
+  const kw = String(keyword || '').trim().toLowerCase();
+  let list = state.courseStudents.slice();
+  if (kw) {
+    list = list.filter(u => String(u.name || '').toLowerCase().includes(kw) || communityCodeOf(u).toLowerCase().includes(kw));
+  }
+  if (!list.length) {
+    box.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">沒有符合的學員</p>';
+    return;
+  }
+  box.innerHTML = list.map(u => {
+    const uid = u.uid || u.id;
+    const isCurrent = uid === currentUid;
+    const occupied = seatOfUid[uid];
+    const code = communityCodeOf(u);
+    const sub = [code, u.community || u.unit].filter(Boolean).join(' ') || u.email || u.phone || u.loginCode || '—';
+    return `
+      <button type="button" data-seat-assign-uid="${escAttr(uid)}" class="w-full text-left flex items-center gap-3 rounded-xl px-3 py-2 border ${isCurrent ? 'border-brand bg-brand/5' : 'border-slate-100 bg-white'} hover:bg-slate-50">
+        ${u.avatar
+          ? `<img src="${u.avatar}" alt="" class="w-9 h-9 rounded-full object-cover ring-1 ring-slate-200 shrink-0" />`
+          : `<div class="w-9 h-9 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0 text-sm">${initial(u.name || '學')}</div>`}
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold truncate">${escAttr(u.name || '未命名學員')}${isCurrent ? ' <span class="text-[10px] text-brand font-normal">（目前座位）</span>' : ''}</p>
+          <p class="text-[11px] text-slate-500 truncate">${escAttr(sub)}</p>
+        </div>
+        ${occupied ? `<span class="shrink-0 text-[10px] px-2 py-0.5 rounded-full ${isCurrent ? 'bg-brand text-white' : 'bg-slate-100 text-slate-500'}">${occupied}</span>` : ''}
+      </button>`;
+  }).join('');
+}
+async function assignSeatToUser(uid) {
+  if (!state.activeCourse || !state.pendingSeatCode || !uid) return;
+  const code = state.pendingSeatCode;
+  const assignments = seatAssignmentsOf(state.activeCourse);
+  const payload = { ['seatAssignments.' + code]: uid };
+  Object.entries(assignments).forEach(([k, v]) => { if (v === uid && k !== code) payload['seatAssignments.' + k] = deleteField(); });
+  // 服務指派優先：指派時同步移除該學員的自選座位
+  if (seatSelfPicksOf(state.activeCourse)[uid]) payload['seatSelfPicks.' + uid] = deleteField();
+  try {
+    await updateDoc(doc(db, 'courses', state.activeCourse.id), payload);
+    const next = { ...assignments };
+    Object.keys(next).forEach(k => { if (next[k] === uid && k !== code) delete next[k]; });
+    next[code] = uid;
+    applySeatAssignments(next);
+    if (state.activeCourse.seatSelfPicks && state.activeCourse.seatSelfPicks[uid]) {
+      const picks = { ...state.activeCourse.seatSelfPicks };
+      delete picks[uid];
+      state.activeCourse.seatSelfPicks = picks;
+    }
+    closeSeatAssign();
+    renderSeatMap();
+    toast('已指派座位 ' + code, 2000, 'success');
+  } catch (err) {
+    toast('儲存失敗：' + (err.message || ''), 2200, 'danger');
+  }
+}
+async function clearSeatAssignment() {
+  if (!state.activeCourse || !state.pendingSeatCode) return;
+  const code = state.pendingSeatCode;
+  const assignments = seatAssignmentsOf(state.activeCourse);
+  if (!assignments[code]) { closeSeatAssign(); return; }
+  try {
+    await updateDoc(doc(db, 'courses', state.activeCourse.id), { ['seatAssignments.' + code]: deleteField() });
+    const next = { ...assignments };
+    delete next[code];
+    applySeatAssignments(next);
+    closeSeatAssign();
+    renderSeatMap();
+    toast('已清除座位 ' + code, 2000, 'success');
+  } catch (err) {
+    toast('儲存失敗：' + (err.message || ''), 2200, 'danger');
+  }
+}
+function applySeatAssignments(next) {
+  if (!state.activeCourse) return;
+  state.activeCourse.seatAssignments = next;
+  if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].seatAssignments = next;
+}
+
+/* ===== 報到場次（同一課程可含多個場次，休息後需重新報到） ===== */
+function courseSessions(course) {
+  const arr = Array.isArray(course?.sessions) ? course.sessions : [];
+  return arr
+    .filter(s => s && (s.label || s.id))
+    .map((s, i) => ({ id: String(s.id || ('s' + (i + 1))), label: String(s.label || ('場次 ' + (i + 1))) }));
+}
+function currentSession() {
+  return courseSessions(state.activeCourse).find(s => s.id === state.activeSessionId) || null;
+}
+function initActiveSession() {
+  const list = courseSessions(state.activeCourse);
+  if (!list.some(s => s.id === state.activeSessionId)) state.activeSessionId = list[0]?.id || '';
+  state.checkedInMap = state.checkinsBySession[state.activeSessionId] || {};
+}
+function renderSessionBar() {
+  const bar = $('#session-bar');
+  if (!bar) return;
+  const list = courseSessions(state.activeCourse);
+  if (!list.length) {
+    bar.innerHTML = '<span class="text-xs text-slate-400 py-1.5">未設定場次（整場報到一次）</span>';
+  } else {
+    bar.innerHTML = list.map(s => `
+      <button data-session-id="${escAttr(s.id)}" class="px-3 py-1.5 rounded-full text-xs font-semibold border ${s.id === state.activeSessionId ? 'bg-brand text-white border-brand' : 'bg-white text-slate-600 border-slate-200'}">${escAttr(s.label)}</button>
+    `).join('');
+  }
+  const hint = $('#checkin-session-hint');
+  const cur = currentSession();
+  if (hint) hint.textContent = cur ? `目前報到場次：${cur.label} — 掃描學員 QR Code 完成報到` : '掃描學員 QR Code 完成報到';
+  const att = $('#attendance-session-label');
+  if (att) att.textContent = cur ? `（${cur.label}）` : '';
+}
+function selectSession(id) {
+  if (state.activeSessionId === id) return;
+  state.activeSessionId = id;
+  state.checkedInMap = state.checkinsBySession[id] || {};
+  renderSessionBar();
+  renderAttendanceSummary();
+  renderCourseStudents();
+  renderSeatMap();
+}
+let sessionDraft = [];
+function openSessionSetting() {
+  if (!state.activeCourse) return;
+  sessionDraft = courseSessions(state.activeCourse).map(s => ({ ...s }));
+  renderSessionDraft();
+  $('#modal-session-setting').classList.remove('hidden');
+}
+function closeSessionSetting() {
+  sessionDraft = [];
+  $('#modal-session-setting').classList.add('hidden');
+}
+function renderSessionDraft() {
+  const box = $('#session-list');
+  if (!box) return;
+  if (!sessionDraft.length) {
+    box.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">尚未設定場次（整場報到一次）</p>';
+    return;
+  }
+  box.innerHTML = sessionDraft.map((s, i) => `
+    <div class="flex items-center gap-2">
+      <span class="w-6 text-xs text-slate-400 text-center shrink-0">${i + 1}</span>
+      <input data-session-draft="${i}" type="text" value="${escAttr(s.label)}" placeholder="場次名稱（例：第一場）" class="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      <button data-session-del="${i}" class="w-8 h-8 shrink-0 rounded-lg border border-red-200 text-red-500 grid place-items-center">✕</button>
+    </div>`).join('');
+}
+async function confirmSessionSetting() {
+  if (!state.activeCourse) return;
+  const clean = sessionDraft
+    .map((s, i) => ({ id: s.id || ('s' + (i + 1) + Date.now().toString(36)), label: String(s.label || '').trim() }))
+    .filter(s => s.label);
+  try {
+    await setDoc(doc(db, 'courses', state.activeCourse.id), {
+      sessions: clean, updatedAt: serverTimestamp(),
+    }, { merge: true });
+    state.activeCourse.sessions = clean;
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].sessions = clean;
+    initActiveSession();
+    closeSessionSetting();
+    renderSessionBar();
+    renderAttendanceSummary();
+    renderCourseStudents();
+    toast('場次已更新', 2200, 'success');
+  } catch (err) {
+    toast('儲存失敗：' + (err.message || ''), 2200, 'danger');
+  }
+}
+
+/* ===== 投票 ===== */
+function normalizeVotes(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter(v => v && (v.question || (Array.isArray(v.options) && v.options.length)))
+    .map((v, i) => ({
+      id: String(v.id || ('v' + (i + 1))),
+      question: String(v.question || ''),
+      type: v.type === 'multi' ? 'multi' : 'single',
+      options: (Array.isArray(v.options) ? v.options : [])
+        .filter(o => o && (o.text || o.id))
+        .map((o, j) => ({ id: String(o.id || ('o' + (j + 1))), text: String(o.text || '') }))
+        .filter(o => o.text),
+      open: v.open !== false,
+      showResults: v.showResults !== false,
+    }))
+    .filter(v => v.question && v.options.length >= 2);
+}
+function courseVotes(course) { return normalizeVotes(course?.votes); }
+
+function tallyVotes(vote) {
+  const responses = state.voteResponses[vote.id] || {};
+  const voters = Object.values(responses);
+  const counts = {};
+  vote.options.forEach(o => { counts[o.id] = 0; });
+  voters.forEach(r => (r.optionIds || []).forEach(oid => { if (counts[oid] != null) counts[oid] += 1; }));
+  return { counts, total: voters.length };
+}
+
+function loadVotes() {
+  cleanupListener('unsubVoteResponses');
+  state.voteResponses = {};
+  renderVoteList();
+  if (!state.activeCourse) return;
+  const q = query(collection(db, 'voteResponses'), where('courseId', '==', state.activeCourse.id));
+  state.unsubVoteResponses = onSnapshot(q, (snap) => {
+    const byVote = {};
+    snap.docs.forEach(d => {
+      const r = d.data();
+      const vid = String(r.voteId || '');
+      const bucket = byVote[vid] || (byVote[vid] = {});
+      bucket[r.uid] = {
+        name: r.name || '',
+        optionIds: Array.isArray(r.optionIds) ? r.optionIds : (r.optionId ? [r.optionId] : []),
+      };
+    });
+    state.voteResponses = byVote;
+    renderVoteList();
+  }, () => {});
+}
+
+function renderVoteList() {
+  const box = $('#vote-list');
+  if (!box) return;
+  const votes = courseVotes(state.activeCourse);
+  if (!votes.length) {
+    box.innerHTML = '<p class="text-slate-400 text-center py-8 text-sm">尚未建立投票，點右上「＋ 新增投票」開始</p>';
+    return;
+  }
+  box.innerHTML = votes.map((v, i) => renderVoteCard(v, i, votes.length)).join('');
+}
+
+function renderVoteCard(v, idx = 0, totalCount = 1) {
+  const { counts, total } = tallyVotes(v);
+  const maxCount = Math.max(1, ...Object.values(counts));
+  const optionsHtml = v.options.map(o => {
+    const c = counts[o.id] || 0;
+    const pct = total ? Math.round((c / total) * 100) : 0;
+    const w = (c / maxCount) * 100;
+    return `
+      <div class="relative rounded-lg border border-slate-100 overflow-hidden">
+        <div class="absolute inset-y-0 left-0 bg-brand/10" style="width:${w.toFixed(1)}%"></div>
+        <div class="relative flex items-center justify-between gap-2 px-3 py-2 text-sm">
+          <span class="truncate text-slate-700">${escAttr(o.text)}</span>
+          <span class="shrink-0 text-slate-500 tabular-nums">${c} 票 · ${pct}%</span>
+        </div>
+      </div>`;
+  }).join('');
+  return `
+    <div class="rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="font-semibold text-slate-800 break-words">${escAttr(v.question)}</p>
+          <p class="text-[11px] text-slate-400 mt-1">
+            <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${v.type === 'multi' ? '多選' : '單選'}</span>
+            <span class="ml-1.5">· ${total} 人投票</span>
+            ${v.showResults ? '' : '<span class="ml-1.5">· 不公開結果</span>'}
+          </p>
+        </div>
+        <div class="shrink-0 flex items-center gap-1.5">
+          ${idx > 0 ? `<button data-vote-move-up="${idx}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="上移">↑</button>` : ''}
+          ${idx < totalCount - 1 ? `<button data-vote-move-down="${idx}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="下移">↓</button>` : ''}
+          <button data-vote-toggle="${escAttr(v.id)}" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${v.open ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'}">${v.open ? '開放中' : '已關閉'}</button>
+          <button data-vote-edit="${escAttr(v.id)}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="編輯">✎</button>
+          <button data-vote-del="${escAttr(v.id)}" class="w-8 h-8 rounded-lg border border-red-200 text-red-500 grid place-items-center" title="刪除">✕</button>
+        </div>
+      </div>
+      <div class="mt-3 space-y-2">${optionsHtml}</div>
+    </div>`;
+}
+
+let voteDraft = null;
+function applyToggleState(btn, on) {
+  if (!btn) return;
+  btn.className = `relative w-12 h-7 rounded-full transition shrink-0 ${on ? 'bg-brand' : 'bg-slate-300'}`;
+  const sp = btn.querySelector('span');
+  if (sp) sp.className = `absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all ${on ? 'left-[22px]' : 'left-0.5'}`;
+}
+function openVoteEdit(voteId) {
+  if (!state.activeCourse) return;
+  const existing = voteId ? courseVotes(state.activeCourse).find(v => v.id === voteId) : null;
+  voteDraft = existing
+    ? JSON.parse(JSON.stringify(existing))
+    : { id: '', question: '', type: 'single', options: [{ id: '', text: '' }, { id: '', text: '' }], open: true, showResults: true };
+  if (!Array.isArray(voteDraft.options) || voteDraft.options.length < 2) {
+    voteDraft.options = [{ id: '', text: '' }, { id: '', text: '' }];
+  }
+  renderVoteEdit();
+  $('#modal-vote-edit').classList.remove('hidden');
+}
+function closeVoteEdit() { voteDraft = null; $('#modal-vote-edit').classList.add('hidden'); }
+function renderVoteEdit() {
+  if (!voteDraft) return;
+  $('#vote-question').value = voteDraft.question || '';
+  $$('.vote-type-btn').forEach(b => {
+    const on = b.dataset.voteType === voteDraft.type;
+    b.className = `vote-type-btn py-2 rounded-lg border text-sm font-semibold ${on ? 'bg-brand text-white border-brand' : 'bg-white text-slate-600 border-slate-300'}`;
+  });
+  $('#vote-options').innerHTML = voteDraft.options.map((o, i) => `
+    <div class="flex items-center gap-2">
+      <input data-vote-opt="${i}" type="text" value="${escAttr(o.text)}" placeholder="選項 ${i + 1}" class="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      <button data-vote-opt-del="${i}" class="w-8 h-8 shrink-0 rounded-lg border border-red-200 text-red-500 grid place-items-center">✕</button>
+    </div>`).join('');
+  applyToggleState($('#vote-toggle-open'), voteDraft.open);
+  applyToggleState($('#vote-toggle-results'), voteDraft.showResults);
+}
+async function saveVotes(list) {
+  await setDoc(doc(db, 'courses', state.activeCourse.id), { votes: list, updatedAt: serverTimestamp() }, { merge: true });
+  state.activeCourse.votes = list;
+  if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].votes = list;
+  renderVoteList();
+}
+async function moveVote(idx, dir) {
+  if (!state.activeCourse) return;
+  const list = courseVotes(state.activeCourse).slice();
+  const j = idx + dir;
+  if (idx < 0 || j < 0 || j >= list.length) return;
+  const t = list[idx]; list[idx] = list[j]; list[j] = t;
+  try { await saveVotes(list); }
+  catch { toast('調整順序失敗', 2000, 'danger'); }
+}
+async function confirmVoteEdit() {
+  if (!voteDraft || !state.activeCourse) return;
+  const question = $('#vote-question').value.trim();
+  if (!question) return toast('請輸入題目', 2000, 'warning');
+  const options = voteDraft.options
+    .map((o, i) => ({ id: o.id || ('o' + (i + 1)), text: String(o.text || '').trim() }))
+    .filter(o => o.text);
+  if (options.length < 2) return toast('至少需要 2 個選項', 2000, 'warning');
+  const vote = {
+    id: voteDraft.id || ('v' + Date.now().toString(36)),
+    question,
+    type: voteDraft.type === 'multi' ? 'multi' : 'single',
+    options,
+    open: !!voteDraft.open,
+    showResults: !!voteDraft.showResults,
+  };
+  const list = courseVotes(state.activeCourse);
+  const idx = list.findIndex(v => v.id === vote.id);
+  if (idx >= 0) list[idx] = vote; else list.push(vote);
+  try {
+    await saveVotes(list);
+    closeVoteEdit();
+    toast('已儲存投票', 2000, 'success');
+  } catch (err) { toast('儲存失敗：' + (err.message || ''), 2200, 'danger'); }
+}
+async function deleteVote(voteId) {
+  if (!state.activeCourse) return;
+  const list = courseVotes(state.activeCourse).filter(v => v.id !== voteId);
+  try { await saveVotes(list); toast('已刪除投票', 1800, 'success'); }
+  catch { toast('刪除失敗', 2000, 'danger'); }
+}
+async function toggleVoteOpen(voteId) {
+  if (!state.activeCourse) return;
+  const list = courseVotes(state.activeCourse);
+  const v = list.find(x => x.id === voteId);
+  if (!v) return;
+  v.open = !v.open;
+  try { await saveVotes(list); }
+  catch { toast('更新失敗', 2000, 'danger'); }
+}
+
+/* ===== 搶答 ===== */
+function buzzOpen() { return state.activeCourse?.buzzOpen === true; }
+function buzzRound() {
+  const r = parseInt(state.activeCourse?.buzzRound, 10);
+  return Number.isFinite(r) && r >= 0 ? r : 0;
+}
+function loadBuzz() {
+  cleanupListener('unsubBuzz');
+  state.buzzRounds = {};
+  renderBuzzControls();
+  renderBuzzWinner();
+  if (!state.activeCourse) return;
+  const q = query(collection(db, 'buzzRounds'), where('courseId', '==', state.activeCourse.id));
+  state.unsubBuzz = onSnapshot(q, (snap) => {
+    const map = {};
+    snap.docs.forEach(d => {
+      const r = d.data();
+      map[String(r.round)] = { id: d.id, uid: r.uid || '', name: r.name || '', buzzedAt: r.buzzedAt || null };
+    });
+    state.buzzRounds = map;
+    renderBuzzWinner();
+    renderBuzzLog();
+  }, () => {});
+}
+function renderBuzzControls() {
+  const meta = $('#buzz-meta');
+  const btn = $('#buzz-toggle');
+  if (!btn) return;
+  const open = buzzOpen();
+  if (meta) meta.textContent = open ? `搶答進行中 · 第 ${buzzRound() + 1} 回合` : '搶答已關閉';
+  btn.textContent = open ? '關閉搶答' : '開放搶答';
+  btn.className = `px-3 py-1.5 rounded-lg text-xs font-semibold border ${open ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'border-slate-300 text-slate-600'}`;
+}
+function buzzNameOf(rec) {
+  const s = studentByUid(rec.uid);
+  return { name: s?.name || rec.name || '學員', community: s ? (s.community || s.unit || '') : '', code: s ? communityCodeOf(s) : '' };
+}
+function buzzTimeText(ts) {
+  const t = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
+  if (!t || isNaN(t.getTime())) return '';
+  return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}:${String(t.getSeconds()).padStart(2,'0')}`;
+}
+function buzzRowsSorted() {
+  return Object.entries(state.buzzRounds)
+    .map(([r, v]) => ({ round: Number(r), ...v }))
+    .sort((a, b) => b.round - a.round);
+}
+function renderBuzzWinner() {
+  const box = $('#buzz-winner');
+  if (!box) return;
+  const cur = state.buzzRounds[String(buzzRound())] || null;
+  state.buzzWinnerUid = cur?.uid || '';
+  if (!cur) {
+    box.textContent = buzzOpen() ? '等待學員搶答…' : '搶答已關閉';
+    box.className = 'flex-1 min-w-0 text-sm font-semibold text-slate-500';
+  } else {
+    const info = buzzNameOf(cur);
+    box.innerHTML = `<span class="text-brand">${escAttr(info.name)}</span>${info.community ? ` <span class="text-[11px] font-normal text-slate-400">${escAttr(info.community)}</span>` : ''} <span class="text-[11px] font-normal text-slate-400">搶答成功</span>`;
+    box.className = 'flex-1 min-w-0 text-sm font-semibold text-slate-600';
+  }
+  renderSeatMap();
+}
+function renderBuzzLogCount() {
+  const el = $('#buzz-log-count');
+  if (el) el.textContent = String(Object.keys(state.buzzRounds).length);
+}
+function renderBuzzLog() {
+  renderBuzzLogCount();
+  const list = $('#buzz-log-list');
+  if (!list) return;
+  const rows = buzzRowsSorted();
+  if (!rows.length) {
+    list.innerHTML = '<p class="text-slate-400 text-sm text-center py-6">尚無搶答紀錄</p>';
+    return;
+  }
+  list.innerHTML = rows.map(v => {
+    const info = buzzNameOf(v);
+    const time = buzzTimeText(v.buzzedAt);
+    const isCur = v.round === buzzRound();
+    return `
+      <div class="flex items-center gap-2 rounded-lg border ${isCur ? 'border-brand/40 bg-brand/5' : 'border-slate-200'} px-3 py-2">
+        <span class="shrink-0 w-12 text-[11px] text-slate-400">第 ${v.round + 1} 回合</span>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-slate-700 truncate">${escAttr(info.name)}${isCur ? ' <span class="text-[10px] font-normal text-brand">目前</span>' : ''}</p>
+          <p class="text-[11px] text-slate-400 truncate">${escAttr([info.code, info.community, time].filter(Boolean).join(' · ')) || '—'}</p>
+        </div>
+        <button data-buzz-del="${v.round}" class="shrink-0 px-2.5 py-1 rounded-lg border border-red-300 text-red-500 text-xs font-semibold">清除</button>
+      </div>`;
+  }).join('');
+}
+function openBuzzLog() {
+  renderBuzzLog();
+  $('#modal-buzz-log').classList.remove('hidden');
+}
+function closeBuzzLog() { $('#modal-buzz-log').classList.add('hidden'); }
+async function deleteBuzzRecord(round) {
+  const rec = state.buzzRounds[String(round)];
+  if (!rec || !rec.id) return;
+  try {
+    await deleteDoc(doc(db, 'buzzRounds', rec.id));
+    toast('已清除該筆紀錄', 1800, 'success');
+  } catch { toast('清除失敗', 2000, 'danger'); }
+}
+async function clearAllBuzzLog() {
+  const ids = Object.values(state.buzzRounds).map(v => v.id).filter(Boolean);
+  if (!ids.length) return;
+  try {
+    await Promise.all(ids.map(id => deleteDoc(doc(db, 'buzzRounds', id))));
+    toast('已清除全部紀錄', 1800, 'success');
+  } catch { toast('清除失敗', 2000, 'danger'); }
+}
+async function toggleBuzzOpen() {
+  if (!state.activeCourse) return;
+  const next = !buzzOpen();
+  try {
+    await setDoc(doc(db, 'courses', state.activeCourse.id), { buzzOpen: next, updatedAt: serverTimestamp() }, { merge: true });
+    state.activeCourse.buzzOpen = next;
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].buzzOpen = next;
+    renderBuzzControls();
+    renderBuzzWinner();
+  } catch { toast('更新失敗', 2000, 'danger'); }
+}
+async function clearBuzz() {
+  if (!state.activeCourse) return;
+  const next = buzzRound() + 1;
+  try {
+    await setDoc(doc(db, 'courses', state.activeCourse.id), { buzzRound: next, updatedAt: serverTimestamp() }, { merge: true });
+    state.activeCourse.buzzRound = next;
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].buzzRound = next;
+    renderBuzzControls();
+    renderBuzzWinner();
+    toast('已清除，可再次搶答', 1800, 'success');
+  } catch { toast('清除失敗', 2000, 'danger'); }
+}
+
+/* ===== 課程資料獨立：報到紀錄（依 courseId） ===== */
+function loadRecentCheckins() {
+  if (!state.activeCourse) return;
+  cleanupListener('unsubRecent');
+  state.checkinsBySession = {};
+  state.checkedInMap = {};
+  const q = query(collection(db, 'checkins'), where('courseId', '==', state.activeCourse.id));
+  state.unsubRecent = onSnapshot(q, (snap) => {
+    const rows = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => {
+      const ta = a.checkedInAt?.toDate ? a.checkedInAt.toDate().getTime() : 0;
+      const tb = b.checkedInAt?.toDate ? b.checkedInAt.toDate().getTime() : 0;
+      return tb - ta;
+    });
+    const bySession = {};
+    rows.forEach(c => {
+      const sid = c.sessionId || '';
+      const bucket = bySession[sid] || (bySession[sid] = {});
+      if (c.uid && !bucket[c.uid]) bucket[c.uid] = c;
+    });
+    state.checkinsBySession = bySession;
+    state.checkedInMap = bySession[state.activeSessionId] || {};
+    renderSessionBar();
+    renderAttendanceSummary();
+    renderCourseStudents();
+  }, () => {
+    state.checkinsBySession = {};
+    state.checkedInMap = {};
+    renderAttendanceSummary();
+    renderCourseStudents();
+  });
+}
+
+async function loadCourseStudents() {
+  const list = $('#course-students-list');
+  const count = $('#course-students-count');
+  if (!list || !count || !state.activeCourse) return;
+  list.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入中…</p>';
+  count.textContent = '共 0 人';
+  cleanupListener('unsubCourseStudents');
+  await loadCommunityCodeMap();
+  const q = query(collection(db, 'users'), where('courses', 'array-contains', state.activeCourse.id));
+  state.unsubCourseStudents = onSnapshot(q, (snap) => {
+    state.courseStudents = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(u => u.role === 'student')
+      .sort((a, b) => String(communitySortKey(a)).localeCompare(String(communitySortKey(b)), 'zh-Hant', { numeric: true })
+        || String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hant'));
+    renderCourseStudents();
+  }, () => {
+    state.courseStudents = [];
+    list.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入失敗</p>';
+    renderAttendanceSummary();
+  });
+}
+
+function openCancelCheckinModal(uid) {
+  if (!uid || !state.activeCourse) return;
+  state.pendingCancelCheckinUid = uid;
+  const user = state.courseStudents.find(u => (u.uid || u.id) === uid);
+  const sess = currentSession();
+  const who = user ? `${user.name || '這位學員'}` : '這位學員';
+  $('#cancel-checkin-message').textContent = sess
+    ? `是否要取消 ${who} 在「${sess.label}」的報到？`
+    : `是否要取消 ${who} 的報到？`;
+  $('#modal-cancel-checkin').classList.remove('hidden');
+}
+
+function closeCancelCheckinModal() {
+  state.pendingCancelCheckinUid = '';
+  $('#modal-cancel-checkin').classList.add('hidden');
+}
+
+async function confirmCancelCheckin() {
+  const uid = state.pendingCancelCheckinUid;
+  if (!uid || !state.activeCourse) return;
+  const sessionId = state.activeSessionId || '';
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'checkins'),
+      where('courseId', '==', state.activeCourse.id),
+      where('uid', '==', uid)
+    ));
+    const targets = snap.docs.filter(d => (d.data().sessionId || '') === sessionId);
+    if (!targets.length) {
+      toast('找不到報到紀錄', 2200, 'warning');
+      closeCancelCheckinModal();
+      return;
+    }
+    await Promise.all(targets.map(d => deleteDoc(doc(db, 'checkins', d.id))));
+    if (state.checkinsBySession[sessionId]) delete state.checkinsBySession[sessionId][uid];
+    delete state.checkedInMap[uid];
+    renderAttendanceSummary();
+    renderCourseStudents();
+    closeCancelCheckinModal();
+    toast('已取消報到', 2200, 'success');
+  } catch (err) {
+    toast('取消報到失敗：' + (err.message || ''), 2200, 'danger');
+  }
+}
+
+/* ===== 報到掃描 ===== */
+function wireCheckin() {
+  $('#btn-start-scan')?.addEventListener('click', startScanner);
+  $('#btn-stop-scan')?.addEventListener('click', stopScanner);
+  $('#btn-session-setting')?.addEventListener('click', openSessionSetting);
+  $('#session-bar')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-session-id]');
+    if (b) selectSession(b.dataset.sessionId);
+  });
+  $('#camera-select')?.addEventListener('change', async (e) => {
+    state.activeCameraId = e.target.value || '';
+    if (state.scanning) {
+      await stopScanner();
+      await startScanner();
+    }
+  });
+  $('#course-students-list')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-manual-checkin]');
+    if (btn) {
+      processCheckin(btn.dataset.manualCheckin, 'manual');
+      return;
+    }
+    const cancelBtn = e.target.closest('[data-cancel-checkin]');
+    if (!cancelBtn) return;
+    openCancelCheckinModal(cancelBtn.dataset.cancelCheckin);
+  });
+}
+
+function preferredCameraId(devices) {
+  if (!devices.length) return '';
+  const rear = devices.find(d => /back|rear|environment|後/i.test(d.label || ''));
+  return (rear || devices[0]).id;
+}
+
+async function loadCameraOptions() {
+  const select = $('#camera-select');
+  if (!select || !navigator.mediaDevices?.enumerateDevices) return;
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    state.cameraDevices = devices
+      .filter(d => d.kind === 'videoinput')
+      .map((d, idx) => ({
+        id: d.deviceId || '',
+        label: d.label || `鏡頭 ${idx + 1}`,
+      }));
+    if (state.activeCameraId && !state.cameraDevices.some(d => d.id === state.activeCameraId)) {
+      state.activeCameraId = '';
+    }
+    const options = ['<option value="">自動選擇鏡頭</option>'].concat(
+      state.cameraDevices.filter(d => d.id).map((d, idx) => `
+      <option value="${escAttr(d.id)}"${d.id === state.activeCameraId ? ' selected' : ''}>${d.label || `鏡頭 ${idx + 1}`}</option>
+    `)
+    );
+    select.innerHTML = options.join('');
+  } catch (err) {
+    console.error('[cameras]', err?.name, err?.message, err);
+    state.cameraDevices = [];
+    select.innerHTML = '<option value="">自動選擇鏡頭</option>';
+  }
+}
+
+async function startScanner() {
+  if (!window.Html5Qrcode) return toast('掃描元件載入中，請稍候');
+  /* 相機僅能在安全來源（HTTPS／localhost）使用，file:// 或區網 IP 會被瀏覽器封鎖 */
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    return showCheckinStatus('此環境無法使用相機，請以 HTTPS 或 localhost 開啟', 'danger');
+  }
+  const reader = $('#reader');
+  if (!reader) return;
+
+  /* 清掉殘留的掃描實例（例如切換分頁後返回），確保相機能重新開啟 */
+  if (state.scanner) {
+    try { if (state.scanning) await state.scanner.stop(); } catch {}
+    try { state.scanner.clear(); } catch {}
+  }
+  state.scanner = null;
+  state.scanning = false;
+
+  const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+  const attempt = (cameraConfig) => {
+    const scanner = new window.Html5Qrcode('reader');
+    return scanner.start(cameraConfig, config, (decodedText) => {
+      processCheckin(decodedText, 'scan');
+    }, () => {}).then(() => scanner, async (err) => {
+      try { await scanner.clear(); } catch {}
+      throw err;
+    });
+  };
+  const candidates = [];
+  const used = new Set();
+  const pushCandidate = (key, value) => {
+    if (!value || used.has(key)) return;
+    used.add(key);
+    candidates.push(value);
+  };
+  if (state.activeCameraId) {
+    pushCandidate(`id:${state.activeCameraId}`, state.activeCameraId);
+  }
+  pushCandidate('facing:environment', { facingMode: 'environment' });
+  pushCandidate('facing:user', { facingMode: 'user' });
+  const preferredId = preferredCameraId(state.cameraDevices.filter(d => d.id));
+  pushCandidate(`id:${preferredId}`, preferredId);
+  state.cameraDevices.filter(d => d.id).forEach((d) => pushCandidate(`id:${d.id}`, d.id));
+
+  try {
+    let scanner = null;
+    let lastErr = null;
+    for (const candidate of candidates) {
+      try {
+        scanner = await attempt(candidate);
+        break;
+      } catch (err) {
+        lastErr = err;
+        try { reader.innerHTML = ''; } catch {}
+        const name = err?.name || '';
+        const message = typeof err === 'string' ? err : (err?.message || '');
+        if (name === 'NotAllowedError') throw err;
+        if (name === 'NotReadableError') continue;
+        if (name === 'AbortError') continue;
+        if (name === 'OverconstrainedError') continue;
+        if (name === 'NotFoundError' || name === 'DevicesNotFoundError') continue;
+        if (/Timeout starting video source/i.test(message)) continue;
+      }
+    }
+    if (!scanner) throw lastErr || new Error('找不到可用的鏡頭');
+    state.scanner = scanner;
+    state.scanning = true;
+    try {
+      const activeDeviceId = scanner.getRunningTrackSettings?.().deviceId || '';
+      if (activeDeviceId && state.cameraDevices.some(d => d.id === activeDeviceId)) {
+        state.activeCameraId = activeDeviceId;
+        if ($('#camera-select')) $('#camera-select').value = activeDeviceId;
+      }
+    } catch {}
+    reader.classList.remove('reader-idle');
+    $('#btn-start-scan')?.classList.add('hidden');
+    $('#btn-stop-scan')?.classList.remove('hidden');
+    loadCameraOptions();
+  } catch (err) {
+    state.scanner = null;
+    state.scanning = false;
+    try { reader.innerHTML = ''; } catch {}
+    reader.classList.add('reader-idle');
+    console.error('[scanner]', err?.name, err?.message, err);
+    const name = err?.name || '';
+    const why = name === 'NotAllowedError' ? '相機權限未允許'
+      : name === 'NotReadableError' ? '相機被其他程式占用'
+      : name === 'OverconstrainedError' ? '找不到可用的鏡頭'
+      : (name === 'NotFoundError' || name === 'DevicesNotFoundError') ? '找不到相機裝置'
+      : (typeof err === 'string' ? err : (err?.message || '未知錯誤'));
+    showCheckinStatus('無法啟動相機：' + why, 'danger', 6000);
+  }
+}
+
+async function stopScanner() {
+  const scanner = state.scanner;
+  state.scanner = null;
+  state.scanning = false;
+  if (scanner) {
+    try { await scanner.stop(); } catch {}
+    try { scanner.clear(); } catch {}
+  }
+  $('#reader')?.classList.add('reader-idle');
+  $('#btn-start-scan')?.classList.remove('hidden');
+  $('#btn-stop-scan')?.classList.add('hidden');
+}
+
+async function submitCheckin(uid) {
+  if (!uid) return;
+  if (!state.activeCourse) return { ok: false, status: 'invalid', message: '請先選擇課程' };
+  const snap = await getDoc(doc(db, 'users', uid));
+  if (!snap.exists()) return { ok: false, status: 'invalid', message: '無法辨識' };
+  const u = snap.data();
+  const joined = Array.isArray(u.courses) && u.courses.includes(state.activeCourse.id);
+  if (u.role !== 'student' || !joined) return { ok: false, status: 'invalid', message: '無法辨識' };
+  const list = courseSessions(state.activeCourse);
+  const session = currentSession();
+  if (list.length && !session) return { ok: false, status: 'invalid', message: '請先選擇場次' };
+  const sessionId = session ? session.id : '';
+  if (state.checkedInMap[uid]) return { ok: false, status: 'warning', message: '重複報到', user: u };
+  await addDoc(collection(db, 'checkins'), {
+    uid, name: u.name,
+    courseId: state.activeCourse.id, courseName: state.activeCourse.name || '',
+    sessionId, sessionLabel: session?.label || '',
+    scannedBy: state.currentUser.uid,
+    scannedByName: state.userDoc?.name || '', checkedInAt: serverTimestamp(),
+  });
+  state.checkedInMap[uid] = {
+    uid,
+    name: u.name,
+    sessionId,
+    checkedInAt: new Date(),
+  };
+  renderAttendanceSummary();
+  renderCourseStudents();
+  return { ok: true, status: 'success', message: '報到成功', user: u };
+}
+
+async function processCheckin(raw, source = 'scan') {
+  if (state.processingCheckin) return;
+  if (source === 'scan' && Date.now() < state.scanLockUntil) return;
+  state.processingCheckin = true;
+  try {
+    const uid = source === 'manual' ? String(raw || '').trim() : normalizeCheckinUid(raw);
+    if (!uid) {
+      showCheckinStatus('無法辨識', 'danger');
+      return;
+    }
+    const result = await submitCheckin(uid);
+    showCheckinStatus(result.message, result.status === 'success' ? 'success' : (result.status === 'warning' ? 'warning' : 'danger'));
+  } catch (err) {
+    toast('報到失敗：' + (err.message || ''), 2200, 'danger');
+  } finally {
+    state.processingCheckin = false;
+    if (source === 'scan') state.scanLockUntil = Date.now() + 1500;
+  }
+}
+
+/* ===== Auth 狀態監聽 ===== */
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    state.currentUser = user;
+    const cachedRole = localStorage.getItem('nw_role');
+    let doc = { uid: user.uid, name: user.displayName || '服務人員', email: user.email || '', phone: '', unit: '', role: cachedRole || 'service' };
+    let firestoreOk = false;
+    try {
+      const existing = await loadUserDoc(user.uid);
+      if (existing) { doc = existing; firestoreOk = true; }
+      else { await createUserDoc(user.uid, doc); firestoreOk = true; }
+    } catch { console.warn('Firestore 讀取失敗，使用本機快取角色'); }
+    if (!firestoreOk) {
+      if (cachedRole) doc.role = cachedRole;
+    } else {
+      localStorage.setItem('nw_role', doc.role || 'student');
+    }
+    state.userDoc = doc;
+    let role = doc.role || 'student';
+    if ((user.email || '').toLowerCase() === 'istage.eason@gmail.com') role = 'admin';
+    if (role !== doc.role) { doc.role = role; localStorage.setItem('nw_role', role); }
+    if (role !== PAGE_ROLE && role !== 'admin') {
+      window.location.href = REDIRECT_MAP[role] || 'index.html';
+      return;
+    }
+    renderUser();
+    loadSystemName();
+    showView('course-select');
+  } else {
+    state.currentUser = null; state.userDoc = null; state.activeCourse = null;
+    stopScanner();
+    cleanupListener('unsubRecent');
+    cleanupListener('unsubCourseStudents');
+    cleanupListener('unsubVoteResponses');
+    cleanupListener('unsubCourseDoc');
+    cleanupListener('unsubSeatCourse');
+    cleanupListener('unsubCourseFiles');
+    cleanupListener('unsubActivities');
+    closeCancelCheckinModal();
+    closeSeatSetting();
+    closeSeatAssign();
+    closeSessionSetting();
+    closeVoteEdit();
+    closeActivityEdit();
+    $('#btn-user-chip').classList.add('hidden');
+    $('#modal-profile').classList.add('hidden');
+    showView('auth');
+  }
+});
+
+/* ===== 事件綁定 ===== */
+$('#form-email').addEventListener('submit', handleEmailSubmit);
+$('#btn-user-chip').addEventListener('click', () => $('#modal-profile').classList.remove('hidden'));
+$('#pf-close').addEventListener('click', () => $('#modal-profile').classList.add('hidden'));
+$('#pf-logout').addEventListener('click', async () => {
+  $('#modal-profile').classList.add('hidden');
+  await signOut(auth); toast('已登出');
+});
+$$('.pf-goto').forEach(b => b.addEventListener('click', () => { location.href = b.dataset.goto; }));
+
+$$('.toggle-pwd').forEach(b => b.addEventListener('click', () => {
+  const input = b.previousElementSibling;
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  b.textContent = show ? '隱藏' : '顯示';
+}));
+
+/* 選擇課程 → 進入課程 */
+$('#course-select-list').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-course-open]');
+  if (!b) return;
+  const c = state.courseMap[b.dataset.courseOpen];
+  if (c) showCourse(c);
+});
+/* 返回課程列表 */
+$('#btn-back-courses').addEventListener('click', () => {
+  stopScanner();
+  cleanupListener('unsubRecent');
+  cleanupListener('unsubCourseStudents');
+  cleanupListener('unsubVoteResponses');
+  cleanupListener('unsubCourseDoc');
+  cleanupListener('unsubSeatCourse');
+  cleanupListener('unsubCourseFiles');
+  cleanupListener('unsubActivities');
+  closeCancelCheckinModal();
+  closeSeatSetting();
+  closeSeatAssign();
+  closeSessionSetting();
+  closeVoteEdit();
+  closeActivityEdit();
+  state.activeCourse = null;
+  showView('course-select');
+});
+/* Footer 分頁 → 切換課程功能 */
+$('#course-nav-list').addEventListener('click', (e) => {
+  const b = e.target.closest('.course-nav-btn');
+  if (b) { selectTab(b.dataset.courseTab); return; }
+});
+$('#cancel-checkin-close').addEventListener('click', closeCancelCheckinModal);
+$('#cancel-checkin-confirm').addEventListener('click', confirmCancelCheckin);
+$('#modal-cancel-checkin').addEventListener('click', (e) => { if (e.target === $('#modal-cancel-checkin')) closeCancelCheckinModal(); });
+$('#seat-setting-close').addEventListener('click', closeSeatSetting);
+$('#seat-setting-confirm').addEventListener('click', confirmSeatSetting);
+$('#modal-seat-setting').addEventListener('click', (e) => { if (e.target === $('#modal-seat-setting')) closeSeatSetting(); });
+$('#seat-assign-close').addEventListener('click', closeSeatAssign);
+$('#seat-assign-clear').addEventListener('click', clearSeatAssignment);
+$('#seat-assign-search').addEventListener('input', (e) => renderSeatAssignList(e.target.value));
+$('#seat-assign-list').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-seat-assign-uid]');
+  if (b) assignSeatToUser(b.dataset.seatAssignUid);
+});
+$('#modal-seat-assign').addEventListener('click', (e) => { if (e.target === $('#modal-seat-assign')) closeSeatAssign(); });
+$('#file-preview-close').addEventListener('click', closeCourseFilePreview);
+$('#modal-file-preview').addEventListener('click', (e) => { if (e.target === $('#modal-file-preview')) closeCourseFilePreview(); });
+setupPreviewZoom();
+$('#buzz-log-close').addEventListener('click', closeBuzzLog);
+$('#buzz-log-clear-all').addEventListener('click', clearAllBuzzLog);
+$('#buzz-log-list').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-buzz-del]');
+  if (b) deleteBuzzRecord(Number(b.dataset.buzzDel));
+});
+$('#modal-buzz-log').addEventListener('click', (e) => { if (e.target === $('#modal-buzz-log')) closeBuzzLog(); });
+$('#session-setting-close').addEventListener('click', closeSessionSetting);
+$('#session-setting-confirm').addEventListener('click', confirmSessionSetting);
+$('#session-add').addEventListener('click', () => {
+  sessionDraft.push({ id: '', label: '' });
+  renderSessionDraft();
+  const box = $('#session-list');
+  const last = box?.querySelector(`[data-session-draft="${sessionDraft.length - 1}"]`);
+  if (last) last.focus();
+});
+$('#session-list').addEventListener('input', (e) => {
+  const inp = e.target.closest('[data-session-draft]');
+  if (!inp) return;
+  const i = Number(inp.dataset.sessionDraft);
+  if (sessionDraft[i]) sessionDraft[i].label = inp.value;
+});
+$('#session-list').addEventListener('click', (e) => {
+  const del = e.target.closest('[data-session-del]');
+  if (!del) return;
+  sessionDraft.splice(Number(del.dataset.sessionDel), 1);
+  renderSessionDraft();
+});
+$('#modal-session-setting').addEventListener('click', (e) => { if (e.target === $('#modal-session-setting')) closeSessionSetting(); });
+
+/* 課表時間表編輯彈窗 */
+$('#schedule-edit-close').addEventListener('click', closeScheduleEdit);
+$('#schedule-edit-confirm').addEventListener('click', confirmScheduleEdit);
+$('#modal-schedule-edit').addEventListener('click', (e) => { if (e.target === $('#modal-schedule-edit')) closeScheduleEdit(); });
+$('#schedule-edit-content').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmScheduleEdit(); });
+
+/* 投票設定彈窗 */
+$('#vote-edit-close').addEventListener('click', closeVoteEdit);
+$('#vote-edit-confirm').addEventListener('click', confirmVoteEdit);
+$('#vote-option-add').addEventListener('click', () => {
+  if (!voteDraft) return;
+  voteDraft.options.push({ id: '', text: '' });
+  renderVoteEdit();
+  const box = $('#vote-options');
+  const last = box?.querySelector(`[data-vote-opt="${voteDraft.options.length - 1}"]`);
+  if (last) last.focus();
+});
+$('#vote-options').addEventListener('input', (e) => {
+  const inp = e.target.closest('[data-vote-opt]');
+  if (!inp || !voteDraft) return;
+  const i = Number(inp.dataset.voteOpt);
+  if (voteDraft.options[i]) voteDraft.options[i].text = inp.value;
+});
+$('#vote-options').addEventListener('click', (e) => {
+  const del = e.target.closest('[data-vote-opt-del]');
+  if (!del || !voteDraft) return;
+  if (voteDraft.options.length <= 2) return toast('至少需要 2 個選項', 2000, 'warning');
+  voteDraft.options.splice(Number(del.dataset.voteOptDel), 1);
+  renderVoteEdit();
+});
+$$('.vote-type-btn').forEach(b => b.addEventListener('click', () => {
+  if (!voteDraft) return;
+  voteDraft.type = b.dataset.voteType === 'multi' ? 'multi' : 'single';
+  renderVoteEdit();
+}));
+$('#vote-toggle-open').addEventListener('click', () => { if (!voteDraft) return; voteDraft.open = !voteDraft.open; applyToggleState($('#vote-toggle-open'), voteDraft.open); });
+$('#vote-toggle-results').addEventListener('click', () => { if (!voteDraft) return; voteDraft.showResults = !voteDraft.showResults; applyToggleState($('#vote-toggle-results'), voteDraft.showResults); });
+$('#modal-vote-edit').addEventListener('click', (e) => { if (e.target === $('#modal-vote-edit')) closeVoteEdit(); });
+
+/* 活動主題編輯彈窗 */
+$('#activity-edit-close').addEventListener('click', closeActivityEdit);
+$('#activity-edit-confirm').addEventListener('click', saveActivityEdit);
+$('#modal-activity-edit').addEventListener('click', (e) => { if (e.target === $('#modal-activity-edit')) closeActivityEdit(); });
+$('#activity-edit-image-pick').addEventListener('click', () => $('#activity-edit-image-input').click());
+$('#activity-edit-image-input').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file || !activityDraft) return;
+  try {
+    activityDraft.image = await compressImageToDataUrl(file, ACTIVITY_BANNER);
+    renderActivityEditImage();
+  } catch { toast('圖片處理失敗', 2000, 'danger'); }
+});
+$('#activity-edit-image-remove').addEventListener('click', () => {
+  if (!activityDraft) return;
+  activityDraft.image = '';
+  renderActivityEditImage();
+});
+$('#activity-link-add').addEventListener('click', () => {
+  if (!activityDraft) return;
+  activityDraft.links.push({ id: '', url: '', image: '' });
+  renderActivityLinks();
+});
+$('#activity-links').addEventListener('input', (e) => {
+  const inp = e.target.closest('[data-activity-link-url]');
+  if (!inp || !activityDraft) return;
+  const l = activityDraft.links[Number(inp.dataset.activityLinkUrl)];
+  if (l) l.url = inp.value;
+});
+$('#activity-links').addEventListener('click', (e) => {
+  const img = e.target.closest('[data-activity-link-image]');
+  if (img && activityDraft) { pendingActivityLinkIndex = Number(img.dataset.activityLinkImage); $('#activity-link-image-input').click(); return; }
+  const del = e.target.closest('[data-activity-link-del]');
+  if (del && activityDraft) { activityDraft.links.splice(Number(del.dataset.activityLinkDel), 1); renderActivityLinks(); }
+});
+$('#activity-link-image-input').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file || !activityDraft) return;
+  const idx = pendingActivityLinkIndex;
+  pendingActivityLinkIndex = -1;
+  const l = activityDraft.links[idx];
+  if (!l) return;
+  try {
+    l.image = await compressImageToDataUrl(file, ACTIVITY_ICON);
+    renderActivityLinks();
+  } catch { toast('圖片處理失敗', 2000, 'danger'); }
+});
+</script>
+</body>
+</html>
