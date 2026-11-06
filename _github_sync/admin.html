@@ -92,6 +92,12 @@
   #file-preview-body table { border-collapse: collapse; font-size: 12px; }
   #file-preview-body td, #file-preview-body th { border: 1px solid #e2e8f0; padding: 4px 6px; }
   #file-preview-body img { max-width: 100%; }
+  /* 搶答入選座位特效：金色光暈脈動 */
+  @keyframes buzzSeatGlow {
+    0%, 100% { box-shadow: 0 0 0 2px #fbbf24, 0 0 8px 2px rgba(251,191,36,.85); }
+    50% { box-shadow: 0 0 0 2px #f59e0b, 0 0 18px 6px rgba(245,158,11,.95); }
+  }
+  .seat-buzz-win { animation: buzzSeatGlow 1.2s ease-in-out infinite; position: relative; z-index: 5; }
 </style>
 </head>
 
@@ -191,9 +197,15 @@
 
     <!-- 選擇課程 -->
     <section id="view-course-select" class="hidden h-full flex flex-col fade-in">
-      <div class="shrink-0 px-4 md:px-6 h-16 flex flex-col justify-center border-b border-slate-200 bg-white">
-        <h2 class="text-base font-bold text-slate-900">選擇課程</h2>
-        <p class="text-[11px] text-slate-500">請選擇要服務的課程</p>
+      <div class="shrink-0 px-4 md:px-6 h-16 flex items-center justify-between gap-3 border-b border-slate-200 bg-white">
+        <div class="min-w-0">
+          <h2 class="text-base font-bold text-slate-900">選擇課程</h2>
+          <p class="text-[11px] text-slate-500">請選擇要服務的課程</p>
+        </div>
+        <div class="shrink-0 flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100">
+          <button data-course-filter="active" class="px-3 py-1.5 rounded-md text-xs font-semibold">進行中</button>
+          <button data-course-filter="archived" class="px-3 py-1.5 rounded-md text-xs font-semibold">已封存</button>
+        </div>
       </div>
       <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 md:p-6">
         <div id="course-select-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -288,6 +300,20 @@
   </div>
 </div>
 
+<!-- 證件設定 -->
+<div id="modal-cert-setting" class="hidden fixed inset-0 z-[96] bg-black/40 grid place-items-center p-4">
+  <div class="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 fade-in">
+    <p class="text-base font-bold text-slate-900 text-center">證件設定</p>
+    <p class="mt-1 text-[11px] text-slate-400 text-center">設定學員報到頁上方顯示的證件文字。</p>
+    <label class="mt-4 block text-xs text-slate-400 mb-1">證件文字</label>
+    <input id="cert-title-input" type="text" maxlength="12" placeholder="上課證" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm" />
+    <div class="mt-4 grid grid-cols-2 gap-2">
+      <button id="cert-setting-close" class="py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">取消</button>
+      <button id="cert-setting-confirm" class="py-2.5 rounded-lg bg-brand text-white font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
 <!-- 課表時間表編輯 -->
 <div id="modal-schedule-edit" class="hidden fixed inset-0 z-[96] bg-black/40 grid place-items-center p-4">
   <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 fade-in flex flex-col max-h-[85vh]">
@@ -335,9 +361,9 @@
         <input id="activity-edit-title" type="text" placeholder="例：開幕活動" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
       </label>
       <div>
-        <span class="text-xs text-slate-500">主題圖片（2:3）</span>
+        <span class="text-xs text-slate-500">主題圖片（1:1）</span>
         <div class="mt-1 flex items-center gap-3">
-          <button type="button" id="activity-edit-image-pick" class="w-40 shrink-0 aspect-[2/3] rounded-lg border border-dashed border-slate-300 bg-slate-50 overflow-hidden grid place-items-center">
+          <button type="button" id="activity-edit-image-pick" class="w-40 shrink-0 aspect-square rounded-lg border border-dashed border-slate-300 bg-slate-50 overflow-hidden grid place-items-center">
             <span id="activity-edit-image-preview" class="w-full h-full grid place-items-center"></span>
           </button>
           <button type="button" id="activity-edit-image-remove" class="hidden px-2.5 py-1 rounded-lg border border-red-300 text-red-500 text-xs font-semibold">移除圖片</button>
@@ -387,6 +413,22 @@
   </div>
 </div>
 
+<!-- 搶答設定 -->
+<div id="modal-buzz-setting" class="hidden fixed inset-0 z-[96] bg-black/40 grid place-items-center p-4">
+  <div class="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 fade-in flex flex-col max-h-[85vh]">
+    <p class="text-base font-bold text-slate-900 text-center">搶答設定</p>
+    <label class="block mt-4">
+      <span class="text-xs text-slate-500">每回合選取人數</span>
+      <input id="buzz-winner-count" type="number" min="1" max="20" value="1" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      <span class="block mt-1 text-[11px] text-slate-400">預設 1 位；2 位以上會依搶答時間先後取前 N 位。</span>
+    </label>
+    <div class="mt-4 grid grid-cols-2 gap-2">
+      <button id="buzz-setting-cancel" class="py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">取消</button>
+      <button id="buzz-setting-confirm" class="py-2.5 rounded-lg bg-brand text-white font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
 <!-- 投票設定 -->
 <div id="modal-vote-edit" class="hidden fixed inset-0 z-[96] bg-black/40 grid place-items-center p-4">
   <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 fade-in flex flex-col max-h-[85vh]">
@@ -432,7 +474,7 @@
 
 <!-- 檔案預覽 -->
 <div id="modal-file-preview" class="hidden fixed inset-0 z-[98] bg-black/50 grid place-items-center p-4">
-  <div class="w-full max-w-3xl bg-white rounded-2xl shadow-xl flex flex-col max-h-[90vh] overflow-hidden">
+  <div class="w-[90vw] h-[90vh] bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden">
     <div class="shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
       <p id="file-preview-name" class="text-sm font-semibold text-slate-800 truncate">預覽</p>
       <button id="file-preview-close" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">關閉</button>
@@ -494,13 +536,14 @@ const state = {
   unsubSeatCourse: null,
   unsubBuzz: null,
   buzzRounds: {},
-  buzzWinnerUid: '',
+  buzzWinnerUids: [],
   unsubCourseFiles: null,
   courseFiles: [],
   unsubActivities: null,
   activities: [],
   activeTabId: '',
   courseMap: {}, activeCourse: null,
+  allCourses: [], courseFilter: 'active',
 };
 
 const COURSE_FILE_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx';
@@ -631,12 +674,19 @@ function renderPageSwitch() {
   sw.classList.toggle('hidden', !isAdmin);
   sw.classList.toggle('flex', isAdmin);
   if (!isAdmin) return;
-  const cur = location.pathname.split('/').pop() || 'index.html';
+  const cur = currentPageName();
   $$('#pf-page-switch [data-goto]').forEach(b => {
     const on = b.dataset.goto === cur;
     b.className = 'pf-goto w-10 h-10 rounded-lg border grid place-items-center ' +
       (on ? 'bg-brand text-white border-brand' : 'text-slate-500 border-slate-300 active:bg-slate-100');
   });
+}
+
+/* 目前頁面檔名（支援 /admin 這種省略 .html 的網址） */
+function currentPageName() {
+  const raw = (location.pathname.split('/').pop() || '').split('?')[0].split('#')[0];
+  if (!raw) return 'index.html';
+  return /\.html?$/i.test(raw) ? raw : `${raw}.html`;
 }
 
 function authErrorText(err) {
@@ -740,6 +790,17 @@ function formatDisplayTime(value) {
     return `${String(parts[0] || '0').padStart(2, '0')}:${String(parts[1] || '0').padStart(2, '0')}:${String(parts[2] || '0').padStart(2, '0')}`;
   }
   return v;
+}
+/* 課程日期（含結束時間，未設定時間則以當日 23:59:59 計）後滿 24 小時視為已結束 */
+function isCourseOutdated(c) {
+  const d = String(c?.date || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+  const parts = String(c?.endTime || c?.startTime || '').trim().split(':');
+  const hh = String(parts[0] || '23').padStart(2, '0');
+  const mm = String(parts[1] || '59').padStart(2, '0');
+  const ss = String(parts[2] || '59').padStart(2, '0');
+  const ts = new Date(`${d}T${hh}:${mm}:${ss}`).getTime();
+  return !isNaN(ts) && Date.now() > ts + 86400000;
 }
 function communityCodeOf(u) {
   return String(state.communityCodeMap[u.community] || '').trim();
@@ -891,7 +952,7 @@ function normalizeCheckinUid(raw) {
   return '';
 }
 
-/* ===== 選擇課程（服務端：顯示全部課程） ===== */
+/* ===== 選擇課程（服務端：顯示全部課程，可切換「進行中／已封存」） ===== */
 async function loadCourseSelect() {
   const list = $('#course-select-list');
   list.innerHTML = '<p class="text-slate-400 text-center py-6 text-xs col-span-full">載入中…</p>';
@@ -899,14 +960,52 @@ async function loadCourseSelect() {
     const rows = sortCoursesByDate((await getDocs(collection(db, 'courses'))).docs.map(d => ({ id: d.id, ...d.data() })));
     state.courseMap = {};
     rows.forEach(c => { state.courseMap[c.id] = c; });
-    if (!rows.length) { list.innerHTML = '<p class="text-slate-400 text-center py-6 text-xs col-span-full">尚無課程</p>'; return; }
-    list.innerHTML = rows.map(c => `
-      <button data-course-open="${c.id}" class="text-left bg-white border border-slate-200 rounded-xl p-4 active:bg-slate-50 flex flex-col gap-1">
-        <p class="font-semibold text-sm truncate">${c.name || '未命名課程'}</p>
-        <p class="text-xs text-slate-500 truncate">${formatDisplayDate(c.date)}${courseTimeText(c) ? ' ' + courseTimeText(c) : ''}</p>
-        <p class="text-[11px] text-slate-400 truncate">講師：${c.instructor || '未指定'}${c.location ? ' · 地點：' + c.location : ''}</p>
-      </button>`).join('');
+    state.allCourses = rows;
+    renderCourseSelect();
   } catch { list.innerHTML = '<p class="text-slate-400 text-center py-6 text-xs col-span-full">載入失敗</p>'; }
+}
+
+function isCourseArchived(c) { return c?.archived === true; }
+
+function renderCourseSelect() {
+  const list = $('#course-select-list');
+  if (!list) return;
+  const showArchived = state.courseFilter === 'archived';
+  document.querySelectorAll('[data-course-filter]').forEach(b => {
+    const on = b.dataset.courseFilter === state.courseFilter;
+    b.className = `px-3 py-1.5 rounded-md text-xs font-semibold ${on ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 active:bg-white/60'}`;
+  });
+  const rows = (state.allCourses || []).filter(c => isCourseArchived(c) === showArchived);
+  if (!rows.length) {
+    list.innerHTML = `<p class="text-slate-400 text-center py-6 text-xs col-span-full">${showArchived ? '尚無封存課程' : '尚無課程'}</p>`;
+    return;
+  }
+  list.innerHTML = rows.map(c => {
+    const old = isCourseOutdated(c);
+    return `
+    <div data-course-open="${c.id}" class="relative text-left border rounded-xl p-4 flex flex-col gap-1 cursor-pointer ${old ? 'bg-slate-100 border-slate-300 active:bg-slate-200/70' : 'bg-white border-slate-200 active:bg-slate-50'}">
+      <button data-course-archive="${c.id}" class="absolute top-2 right-2 px-2 py-1 rounded-md text-[11px] font-semibold border border-slate-200 text-slate-400 active:bg-slate-100">${isCourseArchived(c) ? '取消封存' : '封存'}</button>
+      <p class="font-semibold text-sm truncate pr-16 ${old ? 'text-slate-400' : ''}">${c.name || '未命名課程'}</p>
+      <p class="text-xs truncate ${old ? 'text-slate-400' : 'text-slate-500'}">${formatDisplayDate(c.date)}${courseTimeText(c) ? ' ' + courseTimeText(c) : ''}</p>
+      ${c.location ? `<p class="text-[11px] text-slate-400 truncate">地點：${c.location}</p>` : ''}
+    </div>`;
+  }).join('');
+}
+
+/* 封存／取消封存課程：封存後不在「進行中」列表顯示，仍可由「已封存」查看內容 */
+async function toggleCourseArchive(courseId) {
+  const c = state.courseMap[courseId];
+  if (!c) return;
+  const next = !isCourseArchived(c);
+  try {
+    await setDoc(doc(db, 'courses', courseId), { archived: next, archivedAt: next ? serverTimestamp() : null, updatedAt: serverTimestamp() }, { merge: true });
+    c.archived = next;
+    state.courseMap[courseId] = c;
+    const inAll = (state.allCourses || []).find(x => x.id === courseId);
+    if (inAll) inAll.archived = next;
+    renderCourseSelect();
+    toast(next ? '已封存課程' : '已取消封存', 1600, 'success');
+  } catch { toast('操作失敗', 1800, 'danger'); }
 }
 
 /* ===== 進入課程：Footer 依課程設定產生分頁按鈕 ===== */
@@ -981,7 +1080,7 @@ function renderTabContent(id, label) {
   if (state.scanner) stopScanner();
   if (id !== 'vote') cleanupListener('unsubVoteResponses');
   if (id !== 'seat') cleanupListener('unsubSeatCourse');
-  if (id !== 'qa') { cleanupListener('unsubBuzz'); state.buzzWinnerUid = ''; closeBuzzLog(); }
+  if (id !== 'qa') { cleanupListener('unsubBuzz'); state.buzzWinnerUids = []; closeBuzzLog(); }
   if (id !== 'handouts') { cleanupListener('unsubCourseFiles'); state.courseFiles = []; closeCourseFilePreview(); }
   if (id !== 'download') { cleanupListener('unsubActivities'); state.activities = []; closeActivityEdit(); }
   if (id === 'checkin') {
@@ -991,6 +1090,7 @@ function renderTabContent(id, label) {
           <div class="shrink-0 flex items-start gap-2">
             <div id="session-bar" class="flex-1 min-w-0 flex flex-wrap gap-1.5"></div>
             <button id="btn-session-setting" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">場次設定</button>
+            <button id="btn-cert-setting" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">證件設定</button>
           </div>
           <p id="checkin-session-hint" class="text-sm text-slate-500">掃描學員 QR Code 完成報到</p>
           <div class="shrink-0">
@@ -1079,24 +1179,30 @@ function renderTabContent(id, label) {
     panel.innerHTML = `
       <div class="h-full bg-white rounded-2xl border border-slate-200 flex flex-col overflow-hidden">
         <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
-          <div class="min-w-0">
-            <p class="text-sm font-semibold text-slate-700">搶答</p>
-            <p id="buzz-meta" class="text-[11px] text-slate-400 truncate">—</p>
+          <div class="min-w-0 flex items-center gap-2">
+            <div class="min-w-0">
+              <p class="text-sm font-semibold text-slate-700">搶答</p>
+              <p id="buzz-meta" class="text-[11px] text-slate-400 truncate">—</p>
+            </div>
+            <button id="buzz-start" class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border border-amber-300 bg-amber-50 text-amber-600">開始</button>
           </div>
           <div class="shrink-0 flex items-center gap-2">
+            <button id="buzz-setting" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">設定</button>
             <button id="buzz-log" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">紀錄 <span id="buzz-log-count">0</span></button>
             <button id="buzz-toggle" class="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 text-slate-600">開放搶答</button>
             <button id="buzz-clear" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">清除</button>
           </div>
         </div>
         <div class="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60 min-w-0">
-          <span class="shrink-0 text-[11px] text-slate-400">目前搶答</span>
+          <span class="shrink-0 self-start text-[11px] text-slate-400">目前搶答</span>
           <div id="buzz-winner" class="flex-1 min-w-0 text-sm font-semibold text-slate-500">等待搶答…</div>
         </div>
         <div id="seat-map" class="flex-1 min-h-0 overflow-auto no-scrollbar p-4"></div>
       </div>`;
+    $('#buzz-setting').addEventListener('click', openBuzzSetting);
     $('#buzz-log').addEventListener('click', openBuzzLog);
     $('#buzz-toggle').addEventListener('click', toggleBuzzOpen);
+    $('#buzz-start').addEventListener('click', startBuzzCountdown);
     $('#buzz-clear').addEventListener('click', clearBuzz);
     initActiveSession();
     renderBuzzControls();
@@ -1716,7 +1822,7 @@ async function deleteCourseFile(fileId) {
 }
 
 /* ===== 活動（主題 + 連結按鈕） ===== */
-const ACTIVITY_BANNER = { aspect: 2 / 3, maxW: 800, quality: 0.72, type: 'image/jpeg' };
+const ACTIVITY_BANNER = { aspect: 1, maxW: 800, quality: 0.72, type: 'image/jpeg' };
 const ACTIVITY_ICON = { aspect: 1, maxW: 128, quality: 0.85, type: 'image/png' };
 
 function loadImageFromFile(file) {
@@ -1764,7 +1870,7 @@ function renderActivityAdminTab() {
       <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
         <div class="min-w-0">
           <p class="text-sm font-semibold text-slate-700">活動</p>
-          <p class="text-[11px] text-slate-400 truncate">新增主題（2:3 主題圖片）與連結按鈕（1:1 圖片＋網址）</p>
+          <p class="text-[11px] text-slate-400 truncate">新增主題（1:1 主題圖片）與連結按鈕（1:1 圖片＋網址）</p>
         </div>
         <button id="btn-activity-add" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">＋ 新增主題</button>
       </div>
@@ -1795,7 +1901,7 @@ function renderActivityAdminList() {
   list.innerHTML = state.activities.map((a, idx) => `
     <div class="rounded-2xl border border-slate-200 p-4">
       <div class="flex items-start gap-4">
-        <div class="w-40 shrink-0 aspect-[2/3] rounded-lg border border-slate-200 bg-slate-100 overflow-hidden">
+        <div class="w-40 shrink-0 aspect-square rounded-lg border border-slate-200 bg-slate-100 overflow-hidden">
           ${a.image ? `<img src="${escAttr(a.image)}" alt="" class="w-full h-full object-cover" />` : '<div class="w-full h-full grid place-items-center text-[11px] text-slate-400">未設定圖片</div>'}
         </div>
         <div class="flex-1 min-w-0">
@@ -1853,7 +1959,7 @@ function renderActivityEditImage() {
   if (!box) return;
   box.innerHTML = activityDraft?.image
     ? `<img src="${escAttr(activityDraft.image)}" alt="" class="w-full h-full object-cover" />`
-    : '<span class="text-[11px] text-slate-400">2:3 主題圖片</span>';
+    : '<span class="text-[11px] text-slate-400">1:1 主題圖片</span>';
   $('#activity-edit-image-remove')?.classList.toggle('hidden', !activityDraft?.image);
 }
 function renderActivityLinks() {
@@ -2109,7 +2215,9 @@ function renderSeatMap() {
         const cls = entry.self
           ? (checked ? 'border-sky-300 bg-sky-100 hover:bg-sky-200' : 'border-sky-300 bg-sky-50 hover:bg-sky-100')
           : (checked ? 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100' : 'border-brand/40 bg-brand/10 hover:bg-brand/15');
-        cells.push(`<button type="button" data-seat="${code}" title="${escAttr(tip)}" class="min-w-0 h-full rounded-md border ${cls} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">
+        const isBuzzWinner = (state.buzzWinnerUids || []).includes(uid);
+        const buzzCls = isBuzzWinner ? ' seat-buzz-win' : '';
+        cells.push(`<button type="button" data-seat="${code}" title="${escAttr(isBuzzWinner ? tip + ' · 搶答入選' : tip)}" class="min-w-0 h-full rounded-md border ${cls}${buzzCls} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">
           <span class="text-[11px] leading-none text-slate-400 tabular-nums">${code}</span>
           <span class="text-xs leading-tight font-bold text-slate-800 truncate w-full">${escAttr(name)}</span>
           ${communityName ? `<span class="text-[10px] leading-tight text-slate-500 truncate w-full">${escAttr(communityName)}</span>` : ''}
@@ -2356,6 +2464,32 @@ async function confirmSessionSetting() {
     toast('儲存失敗：' + (err.message || ''), 2200, 'danger');
   }
 }
+/* 證件設定：設定學員報到頁的證件文字（預設「上課證」） */
+const CERT_TITLE_DEFAULT = '上課證';
+function openCertSetting() {
+  if (!state.activeCourse) return;
+  $('#cert-title-input').value = String(state.activeCourse.certTitle || '');
+  $('#modal-cert-setting').classList.remove('hidden');
+  setTimeout(() => $('#cert-title-input').focus(), 50);
+}
+function closeCertSetting() {
+  $('#modal-cert-setting').classList.add('hidden');
+}
+async function confirmCertSetting() {
+  if (!state.activeCourse) return;
+  const title = String($('#cert-title-input').value || '').trim() || CERT_TITLE_DEFAULT;
+  try {
+    await setDoc(doc(db, 'courses', state.activeCourse.id), {
+      certTitle: title, updatedAt: serverTimestamp(),
+    }, { merge: true });
+    state.activeCourse.certTitle = title;
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].certTitle = title;
+    closeCertSetting();
+    toast('證件文字已更新', 2200, 'success');
+  } catch (err) {
+    toast('儲存失敗：' + (err.message || ''), 2200, 'danger');
+  }
+}
 
 /* ===== 投票 ===== */
 function normalizeVotes(list) {
@@ -2555,36 +2689,90 @@ function buzzRound() {
   const r = parseInt(state.activeCourse?.buzzRound, 10);
   return Number.isFinite(r) && r >= 0 ? r : 0;
 }
+/* 每回合選取人數（預設 1 位） */
+function buzzWinnerCount() {
+  const n = parseInt(state.activeCourse?.buzzWinnerCount, 10);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 20) : 1;
+}
+function buzzTimeMs(ts) {
+  const t = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
+  const ms = t && !isNaN(t.getTime()) ? t.getTime() : null;
+  // 尚未由伺服器回填時間的紀錄視為最後（避免搶答瞬間排序亂跳）
+  return ms === null ? Number.MAX_SAFE_INTEGER : ms;
+}
+/* 該回合所有搶答紀錄（依搶答時間先後排序） */
+function buzzRoundRecords(round = buzzRound()) {
+  return state.buzzRounds[String(round)] || [];
+}
+/* 該回合入選者：依搶答時間先後取前 N 位 */
+function buzzWinnerRecordsOf(round) {
+  return buzzRoundRecords(round).slice(0, buzzWinnerCount());
+}
+function buzzWinnerRecords() { return buzzWinnerRecordsOf(buzzRound()); }
+
 function loadBuzz() {
   cleanupListener('unsubBuzz');
   state.buzzRounds = {};
+  state.buzzWinnerUids = [];
   renderBuzzControls();
   renderBuzzWinner();
   if (!state.activeCourse) return;
+  let normalized = false;
   const q = query(collection(db, 'buzzRounds'), where('courseId', '==', state.activeCourse.id));
   state.unsubBuzz = onSnapshot(q, (snap) => {
-    const map = {};
+    const byRound = {};
     snap.docs.forEach(d => {
       const r = d.data();
-      map[String(r.round)] = { id: d.id, uid: r.uid || '', name: r.name || '', buzzedAt: r.buzzedAt || null };
+      const key = String(r.round);
+      (byRound[key] || (byRound[key] = [])).push({
+        id: d.id,
+        uid: r.uid || '',
+        name: r.name || '',
+        community: r.community || '',
+        title: r.title || '',
+        buzzedAt: r.buzzedAt || null,
+      });
     });
-    state.buzzRounds = map;
+    Object.values(byRound).forEach(list => list.sort((a, b) => buzzTimeMs(a.buzzedAt) - buzzTimeMs(b.buzzedAt)));
+    state.buzzRounds = byRound;
+    // 尚無任何搶答紀錄時，回合歸零，從「第 1 回合」開始
+    if (!normalized && snap.empty && buzzRound() !== 0 && state.activeCourse) {
+      normalized = true;
+      const courseId = state.activeCourse.id;
+      state.activeCourse.buzzRound = 0;
+      if (state.courseMap[courseId]) state.courseMap[courseId].buzzRound = 0;
+      setDoc(doc(db, 'courses', courseId), { buzzRound: 0, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+    }
     renderBuzzWinner();
     renderBuzzLog();
+    renderBuzzControls();
   }, () => {});
 }
 function renderBuzzControls() {
   const meta = $('#buzz-meta');
   const btn = $('#buzz-toggle');
+  const startBtn = $('#buzz-start');
   if (!btn) return;
   const open = buzzOpen();
-  if (meta) meta.textContent = open ? `搶答進行中 · 第 ${buzzRound() + 1} 回合` : '搶答已關閉';
+  if (meta) {
+    const cnt = buzzWinnerCount();
+    meta.textContent = (open ? `搶答進行中 · 第 ${buzzRound() + 1} 回合` : '搶答已關閉') + (cnt > 1 ? ` · 取 ${cnt} 人` : '');
+  }
   btn.textContent = open ? '關閉搶答' : '開放搶答';
   btn.className = `px-3 py-1.5 rounded-lg text-xs font-semibold border ${open ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'border-slate-300 text-slate-600'}`;
+  if (startBtn) {
+    startBtn.disabled = !open;
+    startBtn.className = `shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border ${open ? 'border-amber-300 bg-amber-50 text-amber-600' : 'border-slate-200 text-slate-300'}`;
+  }
 }
 function buzzNameOf(rec) {
   const s = studentByUid(rec.uid);
-  return { name: s?.name || rec.name || '學員', community: s ? (s.community || s.unit || '') : '', code: s ? communityCodeOf(s) : '' };
+  return {
+    name: s?.name || rec.name || '學員',
+    community: (s ? (s.community || s.unit || '') : '') || rec.community || '',
+    title: (s?.title || '') || rec.title || '',
+    code: s ? communityCodeOf(s) : '',
+  };
 }
 function buzzTimeText(ts) {
   const t = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
@@ -2592,28 +2780,39 @@ function buzzTimeText(ts) {
   return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}:${String(t.getSeconds()).padStart(2,'0')}`;
 }
 function buzzRowsSorted() {
-  return Object.entries(state.buzzRounds)
-    .map(([r, v]) => ({ round: Number(r), ...v }))
-    .sort((a, b) => b.round - a.round);
+  const rows = [];
+  Object.entries(state.buzzRounds).forEach(([r, list]) => {
+    list.forEach(v => rows.push({ round: Number(r), ...v }));
+  });
+  return rows.sort((a, b) => (b.round - a.round) || (buzzTimeMs(a.buzzedAt) - buzzTimeMs(b.buzzedAt)));
 }
 function renderBuzzWinner() {
   const box = $('#buzz-winner');
   if (!box) return;
-  const cur = state.buzzRounds[String(buzzRound())] || null;
-  state.buzzWinnerUid = cur?.uid || '';
-  if (!cur) {
+  const winners = buzzWinnerRecords();
+  const total = buzzRoundRecords().length;
+  state.buzzWinnerUids = winners.map(w => w.uid).filter(Boolean);
+  if (!winners.length) {
     box.textContent = buzzOpen() ? '等待學員搶答…' : '搶答已關閉';
     box.className = 'flex-1 min-w-0 text-sm font-semibold text-slate-500';
   } else {
-    const info = buzzNameOf(cur);
-    box.innerHTML = `<span class="text-brand">${escAttr(info.name)}</span>${info.community ? ` <span class="text-[11px] font-normal text-slate-400">${escAttr(info.community)}</span>` : ''} <span class="text-[11px] font-normal text-slate-400">搶答成功</span>`;
-    box.className = 'flex-1 min-w-0 text-sm font-semibold text-slate-600';
+    box.className = 'flex-1 min-w-0 flex flex-col gap-0.5 text-sm font-semibold text-slate-600';
+    box.innerHTML = winners.map((w, i) => {
+      const info = buzzNameOf(w);
+      const rank = winners.length > 1 ? `<span class="shrink-0 w-4 text-[11px] font-normal text-slate-400 tabular-nums">${i + 1}.</span>` : '';
+      const extra = [info.community, info.title].filter(Boolean).join(' · ');
+      return `<div class="flex items-baseline gap-1 min-w-0">
+        ${rank}
+        <span class="shrink-0 text-brand">${escAttr(info.name)}</span>
+        ${extra ? `<span class="min-w-0 truncate text-[11px] font-normal text-slate-500">${escAttr(extra)}</span>` : ''}
+      </div>`;
+    }).join('') + (total > winners.length ? `<p class="text-[11px] font-normal text-slate-400">其餘 ${total - winners.length} 人未入選</p>` : '');
   }
   renderSeatMap();
 }
 function renderBuzzLogCount() {
   const el = $('#buzz-log-count');
-  if (el) el.textContent = String(Object.keys(state.buzzRounds).length);
+  if (el) el.textContent = String(Object.values(state.buzzRounds).reduce((n, list) => n + list.length, 0));
 }
 function renderBuzzLog() {
   renderBuzzLogCount();
@@ -2628,14 +2827,15 @@ function renderBuzzLog() {
     const info = buzzNameOf(v);
     const time = buzzTimeText(v.buzzedAt);
     const isCur = v.round === buzzRound();
+    const isWin = isCur && buzzWinnerRecordsOf(v.round).some(w => w.uid === v.uid);
     return `
       <div class="flex items-center gap-2 rounded-lg border ${isCur ? 'border-brand/40 bg-brand/5' : 'border-slate-200'} px-3 py-2">
         <span class="shrink-0 w-12 text-[11px] text-slate-400">第 ${v.round + 1} 回合</span>
         <div class="flex-1 min-w-0">
-          <p class="text-sm font-semibold text-slate-700 truncate">${escAttr(info.name)}${isCur ? ' <span class="text-[10px] font-normal text-brand">目前</span>' : ''}</p>
-          <p class="text-[11px] text-slate-400 truncate">${escAttr([info.code, info.community, time].filter(Boolean).join(' · ')) || '—'}</p>
+          <p class="text-sm font-semibold text-slate-700 truncate">${escAttr(info.name)}${isWin ? ' <span class="text-[10px] font-normal text-brand">入選</span>' : ''}</p>
+          <p class="text-[11px] text-slate-400 truncate">${escAttr([info.code, info.community, info.title, time].filter(Boolean).join(' · ')) || '—'}</p>
         </div>
-        <button data-buzz-del="${v.round}" class="shrink-0 px-2.5 py-1 rounded-lg border border-red-300 text-red-500 text-xs font-semibold">清除</button>
+        <button data-buzz-del="${v.id}" class="shrink-0 px-2.5 py-1 rounded-lg border border-red-300 text-red-500 text-xs font-semibold">清除</button>
       </div>`;
   }).join('');
 }
@@ -2644,19 +2844,48 @@ function openBuzzLog() {
   $('#modal-buzz-log').classList.remove('hidden');
 }
 function closeBuzzLog() { $('#modal-buzz-log').classList.add('hidden'); }
-async function deleteBuzzRecord(round) {
-  const rec = state.buzzRounds[String(round)];
-  if (!rec || !rec.id) return;
+/* 搶答設定：每回合選取人數 */
+function openBuzzSetting() {
+  if (!state.activeCourse) return;
+  $('#buzz-winner-count').value = String(buzzWinnerCount());
+  $('#modal-buzz-setting').classList.remove('hidden');
+}
+function closeBuzzSetting() { $('#modal-buzz-setting').classList.add('hidden'); }
+async function confirmBuzzSetting() {
+  if (!state.activeCourse) return;
+  const n = Math.min(20, Math.max(1, parseInt($('#buzz-winner-count').value, 10) || 1));
   try {
-    await deleteDoc(doc(db, 'buzzRounds', rec.id));
+    await setDoc(doc(db, 'courses', state.activeCourse.id), { buzzWinnerCount: n, updatedAt: serverTimestamp() }, { merge: true });
+    state.activeCourse.buzzWinnerCount = n;
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].buzzWinnerCount = n;
+    closeBuzzSetting();
+    renderBuzzControls();
+    renderBuzzWinner();
+    renderBuzzLog();
+    toast(`已設定每回合取 ${n} 人`, 1800, 'success');
+  } catch { toast('儲存失敗', 2000, 'danger'); }
+}
+async function deleteBuzzRecord(id) {
+  if (!id) return;
+  try {
+    await deleteDoc(doc(db, 'buzzRounds', id));
     toast('已清除該筆紀錄', 1800, 'success');
   } catch { toast('清除失敗', 2000, 'danger'); }
 }
 async function clearAllBuzzLog() {
-  const ids = Object.values(state.buzzRounds).map(v => v.id).filter(Boolean);
+  const ids = buzzRowsSorted().map(v => v.id).filter(Boolean);
   if (!ids.length) return;
   try {
     await Promise.all(ids.map(id => deleteDoc(doc(db, 'buzzRounds', id))));
+    if (state.activeCourse) {
+      const courseId = state.activeCourse.id;
+      await setDoc(doc(db, 'courses', courseId), { buzzRound: 0, buzzStartAt: null, updatedAt: serverTimestamp() }, { merge: true });
+      state.activeCourse.buzzRound = 0;
+      state.activeCourse.buzzStartAt = null;
+      if (state.courseMap[courseId]) { state.courseMap[courseId].buzzRound = 0; state.courseMap[courseId].buzzStartAt = null; }
+      renderBuzzControls();
+      renderBuzzWinner();
+    }
     toast('已清除全部紀錄', 1800, 'success');
   } catch { toast('清除失敗', 2000, 'danger'); }
 }
@@ -2664,20 +2893,34 @@ async function toggleBuzzOpen() {
   if (!state.activeCourse) return;
   const next = !buzzOpen();
   try {
-    await setDoc(doc(db, 'courses', state.activeCourse.id), { buzzOpen: next, updatedAt: serverTimestamp() }, { merge: true });
+    await setDoc(doc(db, 'courses', state.activeCourse.id), { buzzOpen: next, buzzStartAt: null, updatedAt: serverTimestamp() }, { merge: true });
     state.activeCourse.buzzOpen = next;
-    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].buzzOpen = next;
+    state.activeCourse.buzzStartAt = null;
+    if (state.courseMap[state.activeCourse.id]) { state.courseMap[state.activeCourse.id].buzzOpen = next; state.courseMap[state.activeCourse.id].buzzStartAt = null; }
     renderBuzzControls();
     renderBuzzWinner();
   } catch { toast('更新失敗', 2000, 'danger'); }
+}
+async function startBuzzCountdown() {
+  if (!state.activeCourse) return;
+  if (!buzzOpen()) return toast('請先開放搶答', 1800, 'danger');
+  const stamp = Date.now();
+  try {
+    await setDoc(doc(db, 'courses', state.activeCourse.id), { buzzStartAt: stamp, updatedAt: serverTimestamp() }, { merge: true });
+    state.activeCourse.buzzStartAt = stamp;
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].buzzStartAt = stamp;
+    renderBuzzControls();
+    toast('搶答即將開始', 1500, 'success');
+  } catch { toast('操作失敗', 2000, 'danger'); }
 }
 async function clearBuzz() {
   if (!state.activeCourse) return;
   const next = buzzRound() + 1;
   try {
-    await setDoc(doc(db, 'courses', state.activeCourse.id), { buzzRound: next, updatedAt: serverTimestamp() }, { merge: true });
+    await setDoc(doc(db, 'courses', state.activeCourse.id), { buzzRound: next, buzzStartAt: null, updatedAt: serverTimestamp() }, { merge: true });
     state.activeCourse.buzzRound = next;
-    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].buzzRound = next;
+    state.activeCourse.buzzStartAt = null;
+    if (state.courseMap[state.activeCourse.id]) { state.courseMap[state.activeCourse.id].buzzRound = next; state.courseMap[state.activeCourse.id].buzzStartAt = null; }
     renderBuzzControls();
     renderBuzzWinner();
     toast('已清除，可再次搶答', 1800, 'success');
@@ -2790,6 +3033,7 @@ function wireCheckin() {
   $('#btn-start-scan')?.addEventListener('click', startScanner);
   $('#btn-stop-scan')?.addEventListener('click', stopScanner);
   $('#btn-session-setting')?.addEventListener('click', openSessionSetting);
+  $('#btn-cert-setting')?.addEventListener('click', openCertSetting);
   $('#session-bar')?.addEventListener('click', (e) => {
     const b = e.target.closest('[data-session-id]');
     if (b) selectSession(b.dataset.sessionId);
@@ -3045,6 +3289,7 @@ onAuthStateChanged(auth, async (user) => {
     closeSeatSetting();
     closeSeatAssign();
     closeSessionSetting();
+    closeCertSetting();
     closeVoteEdit();
     closeActivityEdit();
     $('#btn-user-chip').classList.add('hidden');
@@ -3070,12 +3315,21 @@ $$('.toggle-pwd').forEach(b => b.addEventListener('click', () => {
   b.textContent = show ? '隱藏' : '顯示';
 }));
 
-/* 選擇課程 → 進入課程 */
+/* 選擇課程 → 進入課程／封存切換 */
 $('#course-select-list').addEventListener('click', (e) => {
+  const arch = e.target.closest('[data-course-archive]');
+  if (arch) { e.stopPropagation(); toggleCourseArchive(arch.dataset.courseArchive); return; }
   const b = e.target.closest('[data-course-open]');
   if (!b) return;
   const c = state.courseMap[b.dataset.courseOpen];
   if (c) showCourse(c);
+});
+/* 切換「進行中／已封存」課程列表 */
+document.querySelectorAll('[data-course-filter]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.courseFilter = btn.dataset.courseFilter === 'archived' ? 'archived' : 'active';
+    renderCourseSelect();
+  });
 });
 /* 返回課程列表 */
 $('#btn-back-courses').addEventListener('click', () => {
@@ -3091,6 +3345,7 @@ $('#btn-back-courses').addEventListener('click', () => {
   closeSeatSetting();
   closeSeatAssign();
   closeSessionSetting();
+  closeCertSetting();
   closeVoteEdit();
   closeActivityEdit();
   state.activeCourse = null;
@@ -3122,9 +3377,12 @@ $('#buzz-log-close').addEventListener('click', closeBuzzLog);
 $('#buzz-log-clear-all').addEventListener('click', clearAllBuzzLog);
 $('#buzz-log-list').addEventListener('click', (e) => {
   const b = e.target.closest('[data-buzz-del]');
-  if (b) deleteBuzzRecord(Number(b.dataset.buzzDel));
+  if (b) deleteBuzzRecord(b.dataset.buzzDel);
 });
 $('#modal-buzz-log').addEventListener('click', (e) => { if (e.target === $('#modal-buzz-log')) closeBuzzLog(); });
+$('#buzz-setting-cancel').addEventListener('click', closeBuzzSetting);
+$('#buzz-setting-confirm').addEventListener('click', confirmBuzzSetting);
+$('#modal-buzz-setting').addEventListener('click', (e) => { if (e.target === $('#modal-buzz-setting')) closeBuzzSetting(); });
 $('#session-setting-close').addEventListener('click', closeSessionSetting);
 $('#session-setting-confirm').addEventListener('click', confirmSessionSetting);
 $('#session-add').addEventListener('click', () => {
@@ -3147,6 +3405,10 @@ $('#session-list').addEventListener('click', (e) => {
   renderSessionDraft();
 });
 $('#modal-session-setting').addEventListener('click', (e) => { if (e.target === $('#modal-session-setting')) closeSessionSetting(); });
+$('#cert-setting-close').addEventListener('click', closeCertSetting);
+$('#cert-setting-confirm').addEventListener('click', confirmCertSetting);
+$('#cert-title-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmCertSetting(); });
+$('#modal-cert-setting').addEventListener('click', (e) => { if (e.target === $('#modal-cert-setting')) closeCertSetting(); });
 
 /* 課表時間表編輯彈窗 */
 $('#schedule-edit-close').addEventListener('click', closeScheduleEdit);

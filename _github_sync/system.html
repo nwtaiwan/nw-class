@@ -407,12 +407,11 @@
 </div>
 
 <!-- 編輯課程彈窗 -->
-<div id="modal-course" class="hidden fixed inset-0 z-50 bg-black/50 grid place-items-center p-4">
-  <div class="bg-white rounded-2xl w-full max-w-md p-5 fade-in">
-    <h3 id="modal-course-title" class="text-lg font-bold mb-4 text-center">新增課程</h3>
-    <div class="space-y-3">
+<div id="modal-course" class="hidden fixed inset-0 z-50 bg-black/50 grid place-items-center p-4 overflow-y-auto">
+  <div class="bg-white rounded-2xl w-full max-w-md p-5 fade-in flex flex-col max-h-[calc(100vh-2rem)]">
+    <h3 id="modal-course-title" class="shrink-0 text-lg font-bold mb-4 text-center">新增課程</h3>
+    <div class="space-y-3 flex-1 min-h-0 overflow-y-auto">
       <div><label class="text-xs text-slate-500">課程名稱</label><input id="course-name" type="text" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
-      <div><label class="text-xs text-slate-500">講師</label><select id="course-instructor" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand"><option value="">請選擇</option></select></div>
       <div>
         <label class="text-xs text-slate-500">日期</label>
         <input id="course-date" type="date" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
@@ -427,10 +426,12 @@
           </div>
         </div>
       </div>
+      <div><label class="text-xs text-slate-500">報到時間</label><input id="course-checkin-time" type="time" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
       <div><label class="text-xs text-slate-500">地點</label><input id="course-location" type="text" placeholder="選填" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
+      <div><label class="text-xs text-slate-500">地址</label><input id="course-address" type="text" placeholder="選填" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
       <div><label class="text-xs text-slate-500">備註</label><textarea id="course-notes" rows="2" class="w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand resize-none"></textarea></div>
     </div>
-    <div class="flex gap-2 mt-5">
+    <div class="shrink-0 flex gap-2 mt-5">
       <button id="course-cancel" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">取消</button>
       <button id="course-save" class="flex-1 py-2.5 bg-brand text-white rounded-lg font-semibold">儲存</button>
     </div>
@@ -669,12 +670,19 @@ function renderPageSwitch() {
   sw.classList.toggle('hidden', !isAdmin);
   sw.classList.toggle('flex', isAdmin);
   if (!isAdmin) return;
-  const cur = location.pathname.split('/').pop() || 'index.html';
+  const cur = currentPageName();
   $$('#pf-page-switch [data-goto]').forEach(b => {
     const on = b.dataset.goto === cur;
     b.className = 'pf-goto w-10 h-10 rounded-lg border grid place-items-center ' +
       (on ? 'bg-brand text-white border-brand' : 'text-slate-500 border-slate-300 active:bg-slate-100');
   });
+}
+
+/* 目前頁面檔名（支援 /admin 這種省略 .html 的網址） */
+function currentPageName() {
+  const raw = (location.pathname.split('/').pop() || '').split('?')[0].split('#')[0];
+  if (!raw) return 'index.html';
+  return /\.html?$/i.test(raw) ? raw : `${raw}.html`;
 }
 
 function authErrorText(err) {
@@ -1107,9 +1115,10 @@ function loadCourses(container) {
         <div class="flex items-start justify-between gap-2">
           <div class="flex-1 min-w-0">
             <p class="font-semibold truncate">${c.name || '未命名課程'}</p>
-            <p class="text-xs text-slate-500 mt-0.5">${formatDisplayDate(c.date)}${courseTimeText(c)}${c.instructor ? ' · ' + c.instructor : ''}</p>
+            <p class="text-xs text-slate-500 mt-0.5">${formatDisplayDate(c.date)}</p>
+            ${courseTimeText(c) ? `<p class="text-xs text-slate-500 mt-0.5">${courseTimeText(c)}</p>` : ''}
             ${c.location ? `<p class="text-xs text-slate-400 mt-0.5">📍 ${c.location}</p>` : ''}
-            ${c.notes ? `<p class="text-[11px] text-slate-400 mt-1">${c.notes}</p>` : ''}
+            ${c.checkinTime ? `<p class="text-xs text-slate-400 mt-0.5">報到時間：${formatDisplayTime(c.checkinTime)}</p>` : ''}
           </div>
           <div class="flex shrink-0 gap-1">
             <button data-course-edit="${c.id}" class="course-edit text-xs text-blue-600 px-2 py-1">編輯</button>
@@ -1151,23 +1160,7 @@ function sortCoursesByDate(courses) {
   return courses.slice().sort((a, b) => courseSortKey(a).localeCompare(courseSortKey(b)));
 }
 
-/* ===== 講師下拉選單（來源：instructors 集合） ===== */
-async function fillInstructorSelect(selected = '') {
-  const sel = $('#course-instructor');
-  sel.innerHTML = '<option value="">請選擇</option>';
-  let names = [];
-  try {
-    const snap = await getDocs(collection(db, 'instructors'));
-    names = Array.from(new Set(snap.docs.map(d => String(d.data().name || '').trim()).filter(Boolean)))
-      .sort((a, b) => a.localeCompare(b, 'zh-Hant'));
-  } catch {}
-  sel.innerHTML = '<option value="">請選擇</option>' + names.map(n => `<option value="${n}">${n}</option>`).join('');
-  if (selected && !names.includes(selected)) {
-    sel.insertAdjacentHTML('beforeend', `<option value="${selected}">${selected}</option>`);
-  }
-  sel.value = selected || '';
-}
-
+/* ===== 課程編輯 ===== */
 function openCourseModal(courseData = null) {
   state.editingCourseId = courseData?.id || null;
   $('#modal-course-title').textContent = courseData ? '編輯課程' : '新增課程';
@@ -1175,18 +1168,20 @@ function openCourseModal(courseData = null) {
   $('#course-date').value = courseData?.date || '';
   $('#course-start-time').value = courseData?.startTime || '';
   $('#course-end-time').value = courseData?.endTime || '';
+  $('#course-checkin-time').value = courseData?.checkinTime || '';
   $('#course-location').value = courseData?.location || '';
+  $('#course-address').value = courseData?.address || '';
   $('#course-notes').value = courseData?.notes || '';
-  fillInstructorSelect(courseData?.instructor || '');
   $('#modal-course').classList.remove('hidden');
 }
 async function saveCourse() {
   const name = $('#course-name').value.trim();
   if (!name) return toast('課程名稱必填');
   const data = {
-    name, instructor: $('#course-instructor').value.trim(), date: $('#course-date').value,
+    name, date: $('#course-date').value,
     startTime: $('#course-start-time').value, endTime: $('#course-end-time').value,
-    location: $('#course-location').value.trim(), notes: $('#course-notes').value.trim(),
+    checkinTime: $('#course-checkin-time').value,
+    location: $('#course-location').value.trim(), address: $('#course-address').value.trim(), notes: $('#course-notes').value.trim(),
     updatedAt: serverTimestamp(),
   };
   try {

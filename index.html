@@ -59,6 +59,10 @@
   #app-shell { height: 100vh; height: 100dvh; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  /* 活動幻燈片：桌機（非觸控）可用滑鼠按住左右拖曳 */
+  #activity-student-list { cursor: grab; }
+  #activity-student-list, #activity-student-list * { user-select: none; -webkit-user-select: none; }
+  #activity-student-list.dragging { cursor: grabbing; scroll-snap-type: none; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to {opacity:1; transform:none;} }
   .fade-in { animation: fadeIn .25s ease-out; }
   /* 上課證背景：緩慢流動的漸層動畫 */
@@ -81,14 +85,55 @@
     background-size: 300% 300%;
     animation: checkinBg 14s ease-in-out infinite;
   }
-  /* 上課證標題：黑色立體感文字 */
-  .cert-title {
-    color: #111827;
-    text-shadow:
-      1px 1px 0 #cbd5e1,
-      2px 2px 0 #94a3b8,
-      3px 3px 0 #64748b,
-      4px 4px 6px rgba(0, 0, 0, .35);
+  /* 搶答：立體亮面圓形紅色大按鈕 */
+  .buzz-btn {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: min(68vw, 280px);
+    aspect-ratio: 1 / 1;
+    border: none;
+    border-radius: 50%;
+    color: #fff;
+    font-size: clamp(2rem, 12vw, 3rem);
+    font-weight: 800;
+    text-shadow: 0 3px 8px rgba(110, 0, 0, .5);
+    background: radial-gradient(circle at 50% 76%, #b91c1c 0%, #dc2626 40%, #ef4444 68%, #fca5a5 100%);
+    box-shadow:
+      0 16px 0 #7f1d1d,
+      0 24px 36px rgba(127, 29, 29, .45),
+      inset 0 -12px 20px rgba(127, 29, 29, .55),
+      inset 0 10px 18px rgba(255, 255, 255, .28);
+    transition: transform .07s ease, box-shadow .07s ease, filter .25s ease;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  /* 亮面高光 */
+  .buzz-btn::after {
+    content: '';
+    position: absolute;
+    left: 15%;
+    right: 15%;
+    top: 7%;
+    height: 34%;
+    border-radius: 50%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .85), rgba(255, 255, 255, 0));
+    filter: blur(2px);
+    pointer-events: none;
+  }
+  .buzz-btn:active:not(:disabled) {
+    transform: translateY(12px);
+    box-shadow:
+      0 4px 0 #7f1d1d,
+      0 8px 16px rgba(127, 29, 29, .4),
+      inset 0 -8px 16px rgba(127, 29, 29, .5),
+      inset 0 8px 16px rgba(255, 255, 255, .24);
+  }
+  .buzz-btn:disabled {
+    cursor: default;
+    filter: grayscale(.75) brightness(.85);
+    box-shadow: 0 8px 0 #475569, 0 12px 20px rgba(15, 23, 42, .25);
   }
   #landscape-lock { display: none; }
   @media (orientation: landscape) and (max-height: 540px) {
@@ -100,6 +145,8 @@
   #file-preview-body table { border-collapse: collapse; font-size: 12px; }
   #file-preview-body td, #file-preview-body th { border: 1px solid #e2e8f0; padding: 4px 6px; }
   #file-preview-body img { max-width: 100%; }
+  /* 圖片燈箱：於 90% 彈窗內完整顯示並置中（可兩指縮放） */
+  #file-preview-zoom img.lightbox-img { display: block; margin: 0 auto; width: auto; height: auto; max-width: 100%; max-height: calc(90vh - 5rem); object-fit: contain; }
 </style>
 </head>
 
@@ -294,7 +341,7 @@
 
 <!-- 檔案預覽 -->
 <div id="modal-file-preview" class="hidden fixed inset-0 z-[98] bg-black/50 grid place-items-center p-4">
-  <div class="w-full max-w-3xl bg-white rounded-2xl shadow-xl flex flex-col max-h-[90vh] overflow-hidden">
+  <div class="w-[90vw] h-[90vh] bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden">
     <div class="shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
       <p id="file-preview-name" class="text-sm font-semibold text-slate-800 truncate">預覽</p>
       <button id="file-preview-close" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">關閉</button>
@@ -380,6 +427,7 @@ const state = {
   unsubCourseFiles: null, courseFiles: [],
   unsubActivities: null, activities: [],
   unsubCourseCheckin: null, courseCheckedIn: false, activeTabId: null,
+  unsubCourseDoc: null,
   unsubSeatCourse: null, seatBusy: false,
   courseMap: {}, activeCourse: null, myCourses: {},
 };
@@ -439,7 +487,7 @@ function showView(name) {
   if (name === 'dashboard' && !state.activeCourse) name = 'course-select';
   if (name !== 'dashboard') stopCheckinCelebration();
   if (name !== 'profile') cleanupListener('unsubCheckins');
-  if (name !== 'dashboard') { cleanupListener('unsubCourseCheckin'); cleanupVoteListeners(); cleanupBuzzListeners(); cleanupCourseFileListeners(); cleanupActivityListeners(); cleanupSeatListener(); }
+  if (name !== 'dashboard') { cleanupListener('unsubCourseCheckin'); cleanupListener('unsubCertTitle'); cleanupListener('unsubCourseDoc'); cleanupVoteListeners(); cleanupBuzzListeners(); cleanupCourseFileListeners(); cleanupActivityListeners(); cleanupSeatListener(); }
   $$('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
   const el = $(`#view-${name}`);
   if (el) el.classList.remove('hidden');
@@ -511,12 +559,19 @@ function renderPageSwitch() {
   sw.classList.toggle('hidden', !isAdmin);
   sw.classList.toggle('flex', isAdmin);
   if (!isAdmin) return;
-  const cur = location.pathname.split('/').pop() || 'index.html';
+  const cur = currentPageName();
   $$('#pf-page-switch [data-goto]').forEach(b => {
     const on = b.dataset.goto === cur;
     b.className = 'pf-goto w-10 h-10 rounded-lg border grid place-items-center ' +
       (on ? 'bg-brand text-white border-brand' : 'text-slate-500 border-slate-300 active:bg-slate-100');
   });
+}
+
+/* 目前頁面檔名（支援 /admin 這種省略 .html 的網址） */
+function currentPageName() {
+  const raw = (location.pathname.split('/').pop() || '').split('?')[0].split('#')[0];
+  if (!raw) return 'index.html';
+  return /\.html?$/i.test(raw) ? raw : `${raw}.html`;
 }
 
 function authErrorText(err) {
@@ -589,6 +644,8 @@ function courseTabs(c, checkedIn = false) {
   return mergedDefaults.concat(customs)
     .map(t => (t.id === 'qa' && t.label === '問答') ? { ...t, label: '搶答' } : t)
     .filter(t => {
+      // 「搶答」分頁由服務端「開放搶答」開關控制：開放才顯示，關閉則隱藏
+      if (t.id === 'qa' && c?.buzzOpen !== true) return false;
       const v = tabVisibility(t);
       if (v === 'hidden') return false;
       if (v === 'checkin') return !!checkedIn;
@@ -628,6 +685,17 @@ function courseTimeText(c) {
   if (s && e) return `${formatDisplayTime(s)}~${formatDisplayTime(e)}`;
   return s ? formatDisplayTime(s) : '';
 }
+/* 課程日期（含結束時間，未設定時間則以當日 23:59:59 計）後滿 24 小時視為已結束 */
+function isCourseOutdated(c) {
+  const d = String(c?.date || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+  const parts = String(c?.endTime || c?.startTime || '').trim().split(':');
+  const hh = String(parts[0] || '23').padStart(2, '0');
+  const mm = String(parts[1] || '59').padStart(2, '0');
+  const ss = String(parts[2] || '59').padStart(2, '0');
+  const ts = new Date(`${d}T${hh}:${mm}:${ss}`).getTime();
+  return !isNaN(ts) && Date.now() > ts + 86400000;
+}
 
 /* ===== 選擇課程（學員：僅指派課程；系統管理員：全部課程） ===== */
 async function loadCourseSelect() {
@@ -644,22 +712,46 @@ async function loadCourseSelect() {
       const docs = await Promise.all(ids.map(id => getDoc(doc(db, 'courses', id))));
       rows = docs.filter(d => d.exists()).map(d => ({ id: d.id, ...d.data() }));
     }
-    rows = sortCoursesByDate(rows);
+    rows = sortCoursesByDate(rows).filter(c => c.archived !== true);
     state.courseMap = {};
     rows.forEach(c => { state.courseMap[c.id] = c; });
     if (!rows.length) { list.innerHTML = `<p class="text-slate-400 text-center py-4 text-xs">${isAdmin ? '尚無課程' : '尚未指派課程'}</p>`; return; }
-    list.innerHTML = rows.map(c => `
-      <button data-course-open="${c.id}" class="w-full text-left bg-white border border-slate-200 rounded-xl p-3 active:bg-slate-50">
+    list.innerHTML = rows.map(c => {
+      const old = isCourseOutdated(c);
+      return `
+      <button data-course-open="${c.id}" class="w-full text-left border rounded-xl px-4 py-5 ${old ? 'bg-slate-100 border-slate-300 active:bg-slate-200/70' : 'bg-white border-slate-200 active:bg-slate-50'}">
         <div class="flex items-center justify-between gap-2">
           <div class="min-w-0">
-            <p class="font-semibold text-sm truncate">${c.name || '未命名課程'}</p>
-            <p class="text-xs text-slate-500 mt-0.5">${formatDisplayDate(c.date)}${courseTimeText(c) ? ' ' + courseTimeText(c) : ''}${c.instructor ? ' · ' + c.instructor : ''}</p>
-            ${c.location ? `<p class="text-[11px] text-slate-400 mt-0.5">📍 ${c.location}</p>` : ''}
+            <p class="font-bold text-lg truncate ${old ? 'text-slate-400' : 'text-slate-900'}">${c.name || '未命名課程'}</p>
+            <p class="text-base mt-1 ${old ? 'text-slate-400' : 'text-slate-600'}">${formatDisplayDate(c.date)}</p>
+            ${courseTimeText(c) ? `<p class="text-base mt-0.5 ${old ? 'text-slate-400' : 'text-slate-600'}">${courseTimeText(c)}</p>` : ''}
+            ${c.location ? `<div class="flex items-center gap-1.5 mt-1">
+              <p class="min-w-0 text-sm truncate ${old ? 'text-slate-400' : 'text-slate-500'}">📍 ${escHtml(c.location)}</p>
+              <span role="button" tabindex="0" data-map="${escHtml(c.address || c.location)}" class="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border border-brand text-brand text-xs font-semibold ${old ? 'opacity-60' : ''}">${MAP_ICON}地圖</span>
+            </div>` : ''}
+            ${c.checkinTime ? `<p class="text-sm mt-1 ${old ? 'text-slate-400' : 'text-slate-500'}">報到時間：${escHtml(formatDisplayTime(c.checkinTime))}</p>` : ''}
           </div>
-          <svg class="shrink-0 text-slate-300" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+          <svg class="shrink-0 text-slate-300" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
         </div>
-      </button>`).join('');
+      </button>`;
+    }).join('');
   } catch { list.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">載入失敗</p>'; }
+}
+
+/* 地圖按鈕圖示 */
+const MAP_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 24 24"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>';
+
+/* 彈出約 90% 螢幕大小的視窗顯示地點地圖 */
+function openLocationMap(query) {
+  const q = String(query || '').trim();
+  if (!q) return toast('此課程未設定地點');
+  const url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+  const w = Math.round((window.screen.availWidth || window.innerWidth) * 0.9);
+  const h = Math.round((window.screen.availHeight || window.innerHeight) * 0.9);
+  const left = Math.max(0, Math.round(((window.screen.availWidth || window.innerWidth) - w) / 2));
+  const top = Math.max(0, Math.round(((window.screen.availHeight || window.innerHeight) - h) / 2));
+  const win = window.open(url, 'nw_map_' + Date.now(), `width=${w},height=${h},left=${left},top=${top}`);
+  if (!win) window.open(url, '_blank');
 }
 
 /* ===== 進入課程：顯示該課程啟用的按鈕 ===== */
@@ -707,10 +799,11 @@ function watchCourseCheckin() {
 /* ===== 學員報到頁（一頁式：上課證 + QR Code） ===== */
 function renderCheckinStudent() {
   const u = state.userDoc || {};
+  const certTitle = String((state.activeCourse && state.activeCourse.certTitle) || '').trim() || '上課證';
   const panel = $('#course-tab-panel');
   panel.innerHTML = `
     <div class="h-full flex flex-col items-center gap-2">
-      <p class="shrink-0 text-4xl font-bold tracking-widest cert-title">上課證</p>
+      <p class="shrink-0 text-4xl font-bold tracking-widest text-slate-900">${escHtml(certTitle)}</p>
       <div class="shrink-0 w-full min-w-0 space-y-1">
         <p class="text-lg text-slate-600 truncate">${escHtml(u.community || '—')}</p>
         <p class="text-lg text-slate-600 truncate">${escHtml(u.title || '—')}</p>
@@ -722,6 +815,20 @@ function renderCheckinStudent() {
       <p class="shrink-0 text-sm leading-relaxed text-slate-900 text-center">請於活動現場向服務人員出示此 QR Code，提供掃描後即完成報到。</p>
     </div>`;
   renderCheckinQr();
+}
+/* 監聽課程文件的證件文字設定，服務端修改後即時更新報到頁標題 */
+function watchCertTitle() {
+  cleanupListener('unsubCertTitle');
+  if (!state.activeCourse) return;
+  const courseId = state.activeCourse.id;
+  state.unsubCertTitle = onSnapshot(doc(db, 'courses', courseId), (snap) => {
+    if (!snap.exists()) return;
+    if (!state.activeCourse || state.activeCourse.id !== courseId) return;
+    const prev = String(state.activeCourse.certTitle || '');
+    const data = snap.data();
+    state.activeCourse = { id: snap.id, ...data };
+    if (String(data.certTitle || '') !== prev) renderCheckinStudent();
+  }, () => {});
 }
 function renderCheckinQr() {
   const box = $('#checkin-qr');
@@ -760,14 +867,27 @@ function speakCheckinCongratulations() {
     const synth = window.speechSynthesis;
     const name = (state.userDoc && state.userDoc.name) || '學員';
     const text = `恭喜${name}完成報到，讓我們來找座位吧！`;
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'zh-TW';
-    u.pitch = 1.4;   // 提高音調，模擬男童聲
-    u.rate = 1.0;
-    const v = pickBoyVoice(synth.getVoices());
-    if (v) u.voice = v;
-    synth.cancel();
-    synth.speak(u);
+    const speak = () => {
+      try {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'zh-TW';
+        u.pitch = 1.4;   // 提高音調，模擬男童聲
+        u.rate = 1.0;
+        const v = pickBoyVoice(synth.getVoices());
+        if (v) u.voice = v;
+        synth.cancel();
+        // cancel 與 speak 之間留間隔，避免部分瀏覽器直接吞掉語音
+        setTimeout(() => { try { synth.resume(); synth.speak(u); } catch { /* 忽略 */ } }, 90);
+      } catch { /* 忽略 */ }
+    };
+    if (synth.getVoices().length) speak();
+    else {
+      // 語音清單尚未載入時，等待 voiceschanged 後再發聲
+      let done = false;
+      const once = () => { if (done) return; done = true; speak(); };
+      try { synth.addEventListener('voiceschanged', once, { once: true }); } catch { /* 忽略 */ }
+      setTimeout(once, 500);
+    }
   } catch { /* 忽略語音失敗 */ }
 }
 function playCheckinCelebration() {
@@ -779,7 +899,6 @@ function playCheckinCelebration() {
   const actions = $('#celebrate-actions');
   const showActions = () => { if (actions) actions.classList.remove('hidden'); };
   if (actions) actions.classList.add('hidden');
-  speakCheckinCongratulations();
   overlay.classList.remove('hidden');
   // 影片播放結束（或無法播放）→ 顯示「再看一次 / 好的！」按鈕
   video.onended = showActions;
@@ -802,6 +921,8 @@ function replayCheckinCelebration() {
   const actions = $('#celebrate-actions');
   if (!video) return;
   if (actions) actions.classList.add('hidden');
+  // 重播影片與字幕，並同步重播語音提示音
+  speakCheckinCongratulations();
   try { video.currentTime = 0; } catch {}
   const p = video.play();
   if (p && typeof p.catch === 'function') p.catch(() => { if (actions) actions.classList.remove('hidden'); });
@@ -853,10 +974,10 @@ function openSeatStudent() {
     <div class="h-full flex flex-col min-h-0 text-left p-3">
       <div class="shrink-0 mb-2 flex items-start justify-between gap-2">
         <div class="min-w-0">
-          <p class="font-semibold text-slate-700">座位圖</p>
-          <p id="seat-student-hint" class="text-xs text-slate-400 truncate">載入中…</p>
+          <p class="text-xl font-bold text-slate-700">座位圖</p>
+          <p id="seat-student-hint" class="text-lg text-slate-500 truncate">載入中…</p>
         </div>
-        <button id="seat-student-clear" class="hidden shrink-0 px-2.5 py-1 rounded-lg border border-slate-300 text-slate-500 text-xs font-semibold">取消我的座位</button>
+        <button id="seat-student-clear" class="hidden shrink-0 px-2.5 py-1 rounded-lg border border-slate-300 text-slate-500 text-sm font-semibold">取消我的座位</button>
       </div>
       <div id="seat-student-map" class="seat-map-anim flex-1 min-h-0 overflow-auto no-scrollbar"></div>
     </div>`;
@@ -898,9 +1019,12 @@ function renderSeatStudent() {
   // 已有服務指派座位時，不開放自選（避免與指派衝突）
   const canSelfPick = allowSelfSelect && (!mine || mine.self);
   if (hint) {
-    hint.textContent = myCode
-      ? `我的座位：${myCode}${mine.self ? '（自選）' : ''}`
-      : (allowSelfSelect ? '請點選一個空位作為您的座位' : '尚未安排座位');
+    if (myCode) {
+      // 座位代號以紅字粗體顯示
+      hint.innerHTML = `我的座位：<span class="text-red-600 font-bold">${escHtml(myCode)}</span>${mine.self ? '（自選）' : ''}`;
+    } else {
+      hint.textContent = allowSelfSelect ? '請點選一個空位作為您的座位' : '尚未安排座位';
+    }
   }
   if (clearBtn) clearBtn.classList.toggle('hidden', !(mine && mine.self));
   const aisleSet = new Set(aisles);
@@ -925,7 +1049,7 @@ function renderSeatStudent() {
       if (isMine) {
         cells.push(`<div class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-brand bg-brand text-white grid place-items-center font-semibold tabular-nums overflow-hidden"><span class="seat-code">${code}</span></div>`);
       } else if (entry) {
-        cells.push(`<button type="button" data-seat-info="${code}" class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-slate-300 bg-slate-100 grid place-items-center text-slate-400 tabular-nums overflow-hidden"><span class="seat-code">${code}</span></button>`);
+        cells.push(`<button type="button" data-seat-info="${code}" class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-orange-300 bg-orange-100 grid place-items-center text-orange-600 tabular-nums overflow-hidden"><span class="seat-code">${code}</span></button>`);
       } else if (canSelfPick) {
         cells.push(`<button type="button" data-seat-pick="${code}" class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 grid place-items-center text-emerald-700 tabular-nums overflow-hidden"><span class="seat-code">${code}</span></button>`);
       } else {
@@ -1030,13 +1154,37 @@ function showCourse(course) {
   state.activeCourse = course;
   state.activeTabId = null;
   $('#course-view-name').textContent = course.name || '未命名課程';
-  $('#course-view-meta').textContent = [formatDisplayDate(course.date), courseTimeText(course), course.instructor].filter(Boolean).join(' · ');
+  $('#course-view-meta').textContent = [formatDisplayDate(course.date), courseTimeText(course)].filter(Boolean).join(' · ');
   renderCourseButtons();
   const firstTab = courseTabs(course, state.courseCheckedIn)[0];
   if (firstTab) openCourseTab(firstTab.id);
   else $('#course-tab-panel').innerHTML = '<p class="text-slate-400 text-sm">請選擇下方功能</p>';
   showView('dashboard');
   watchCourseCheckin();
+  watchCourseDoc();
+}
+
+/* 監聽課程文件：同步「搶答」分頁的顯示/隱藏（由服務端開放搶答開關控制） */
+function watchCourseDoc() {
+  cleanupListener('unsubCourseDoc');
+  if (!state.activeCourse) return;
+  const courseId = state.activeCourse.id;
+  let prevBuzzOpen = state.activeCourse.buzzOpen === true;
+  state.unsubCourseDoc = onSnapshot(doc(db, 'courses', courseId), (snap) => {
+    if (!snap.exists()) return;
+    if (!state.activeCourse || state.activeCourse.id !== courseId) return;
+    const data = snap.data();
+    const nextBuzzOpen = data.buzzOpen === true;
+    const changed = nextBuzzOpen !== prevBuzzOpen;
+    prevBuzzOpen = nextBuzzOpen;
+    state.activeCourse = { id: snap.id, ...data };
+    if (!changed) return;
+    renderCourseButtons();
+    if (!nextBuzzOpen && state.activeTabId === 'qa') {
+      const first = courseTabs(state.activeCourse, state.courseCheckedIn)[0];
+      if (first) openCourseTab(first.id);
+    }
+  }, () => {});
 }
 
 /* ===== 投票（學員端） ===== */
@@ -1068,8 +1216,8 @@ function openVoteStudent() {
   const panel = $('#course-tab-panel');
   panel.innerHTML = `
     <div class="text-left">
-      <p class="font-semibold text-slate-700 mb-1">投票</p>
-      <p class="text-xs text-slate-400 mb-3">請選擇你的答案後送出</p>
+      <p class="text-xl font-bold text-slate-700">投票</p>
+      <p class="text-lg text-slate-500 mb-3">請選擇你的答案後送出</p>
       <div id="vote-list" class="space-y-3">
         <p class="text-slate-400 text-sm text-center py-4">載入中…</p>
       </div>
@@ -1200,9 +1348,12 @@ async function submitVote(voteId) {
 }
 
 /* ===== 搶答（學員端） ===== */
+let _buzzTimer = null;
+function clearBuzzTimer() { if (_buzzTimer) { clearInterval(_buzzTimer); _buzzTimer = null; } }
 function cleanupBuzzListeners() {
   cleanupListener('unsubBuzzRounds');
   cleanupListener('unsubBuzzCourse');
+  clearBuzzTimer();
 }
 
 function buzzOpen() { return state.activeCourse?.buzzOpen === true; }
@@ -1210,14 +1361,32 @@ function buzzRound() {
   const r = parseInt(state.activeCourse?.buzzRound, 10);
   return Number.isFinite(r) && r >= 0 ? r : 0;
 }
+function buzzStartAt() {
+  const v = Number(state.activeCourse?.buzzStartAt);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
+/* 每回合選取人數（預設 1 位），與服務端設定同步 */
+function buzzWinnerCount() {
+  const n = parseInt(state.activeCourse?.buzzWinnerCount, 10);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 20) : 1;
+}
+function buzzTimeMs(ts) {
+  const t = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
+  const ms = t && !isNaN(t.getTime()) ? t.getTime() : null;
+  return ms === null ? Number.MAX_SAFE_INTEGER : ms;
+}
+/* 目前回合的搶答紀錄（依搶答時間先後排序） */
+function buzzRoundRecords(round = buzzRound()) {
+  return state.buzzRounds[String(round)] || [];
+}
 
 function openBuzzStudent() {
   const panel = $('#course-tab-panel');
   panel.innerHTML = `
-    <div class="text-left">
-      <p class="font-semibold text-slate-700 mb-1">搶答</p>
-      <p id="buzz-sub" class="text-xs text-slate-400 mb-3">載入中…</p>
-      <div id="buzz-stage"></div>
+    <div class="h-full flex flex-col text-left">
+      <p class="shrink-0 text-xl font-bold text-slate-700">搶答</p>
+      <p id="buzz-sub" class="shrink-0 text-lg text-slate-500 mb-2">載入中…</p>
+      <div id="buzz-stage" class="flex-1 min-h-0 overflow-auto no-scrollbar flex py-2"></div>
     </div>`;
   cleanupBuzzListeners();
   state.buzzRounds = {};
@@ -1229,9 +1398,21 @@ function openBuzzStudent() {
     renderBuzzStudent();
   }, () => {});
   state.unsubBuzzRounds = onSnapshot(query(collection(db, 'buzzRounds'), where('courseId', '==', courseId)), (snap) => {
-    const map = {};
-    snap.docs.forEach(d => { const r = d.data(); map[String(r.round)] = { uid: r.uid || '', name: r.name || '' }; });
-    state.buzzRounds = map;
+    const byRound = {};
+    snap.docs.forEach(d => {
+      const r = d.data();
+      const key = String(r.round);
+      (byRound[key] || (byRound[key] = [])).push({
+        id: d.id,
+        uid: r.uid || '',
+        name: r.name || '',
+        community: r.community || '',
+        title: r.title || '',
+        buzzedAt: r.buzzedAt || null,
+      });
+    });
+    Object.values(byRound).forEach(list => list.sort((a, b) => buzzTimeMs(a.buzzedAt) - buzzTimeMs(b.buzzedAt)));
+    state.buzzRounds = byRound;
     renderBuzzStudent();
   }, () => {});
 }
@@ -1241,37 +1422,67 @@ function renderBuzzStudent() {
   const sub = $('#buzz-sub');
   if (!stage) return;
   const uid = state.currentUser?.uid || '';
-  const cur = state.buzzRounds[String(buzzRound())] || null;
+  const records = buzzRoundRecords();
+  const winners = records.slice(0, buzzWinnerCount());
   const open = buzzOpen();
+
+  if (records.length) {
+    clearBuzzTimer();
+    if (sub) sub.textContent = `第 ${buzzRound() + 1} 回合 · 已搶答`;
+    const myIndex = winners.findIndex(w => w.uid === uid);
+    const mine = myIndex >= 0;
+    if (mine) {
+      stage.innerHTML = `
+        <div class="m-auto w-full max-w-sm rounded-3xl border border-emerald-300 bg-emerald-50 px-6 py-8 text-center shadow-sm">
+          <p class="text-sm text-slate-400 mb-1">恭喜</p>
+          <p class="text-2xl font-bold break-words text-emerald-600">你搶答成功！</p>
+          ${winners.length > 1 ? `<p class="mt-1 text-sm font-semibold text-emerald-700">第 ${myIndex + 1} 位</p>` : ''}
+        </div>`;
+    } else {
+      const names = winners.map(w => escHtml(w.name || '學員')).join('、');
+      stage.innerHTML = `
+        <div class="m-auto w-full max-w-sm rounded-3xl border border-slate-200 bg-white px-6 py-8 text-center shadow-sm">
+          <p class="text-sm text-slate-400 mb-1">本回合搶答成功</p>
+          <p class="text-xl font-bold break-words text-brand">${names || '學員'}</p>
+        </div>`;
+    }
+    return;
+  }
+
   if (sub) sub.textContent = open ? `搶答進行中 · 第 ${buzzRound() + 1} 回合` : '搶答已關閉';
 
-  if (!open && !cur) {
-    stage.innerHTML = '<div class="h-40 rounded-2xl border border-slate-200 bg-slate-50 grid place-items-center text-slate-400 text-sm">搶答尚未開放</div>';
+  const startAt = buzzStartAt();
+  const remain = (open && startAt) ? 3000 - (Date.now() - startAt) : -1;
+
+  if (!open) {
+    clearBuzzTimer();
+    stage.innerHTML = `<button id="buzz-btn" type="button" class="buzz-btn m-auto" disabled aria-label="搶答">搶答</button>`;
     return;
   }
-  if (cur) {
-    const mine = cur.uid === uid;
-    stage.innerHTML = `
-      <div class="h-40 rounded-2xl border ${mine ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white'} grid place-items-center text-center px-4">
-        <div>
-          <p class="text-xs text-slate-400 mb-1">${mine ? '' : '搶答成功'}</p>
-          <p class="text-xl font-bold ${mine ? 'text-emerald-600' : 'text-brand'}">${escHtml(mine ? '你搶答成功！' : (cur.name || '學員'))}</p>
-          <p class="text-[11px] text-slate-400 mt-1">第 ${buzzRound() + 1} 回合</p>
-        </div>
-      </div>`;
+  if (remain > 0) {
+    // 服務端按下「開始」後的倒數：顯示秒數且不可按
+    if (!_buzzTimer) _buzzTimer = setInterval(() => {
+      if (!document.getElementById('buzz-btn')) { clearBuzzTimer(); return; }
+      renderBuzzStudent();
+    }, 200);
+    stage.innerHTML = `<button id="buzz-btn" type="button" class="buzz-btn m-auto" disabled aria-label="搶答">${Math.ceil(remain / 1000)}</button>`;
     return;
   }
-  stage.innerHTML = `
-    <button id="buzz-btn" class="w-full h-40 rounded-2xl bg-brand text-white text-2xl font-bold active:scale-[0.98] shadow-lg disabled:opacity-60">搶答</button>`;
+  // 倒數結束（startAt > 0）才可按；尚未按「開始」時僅顯示按鈕但不可按
+  clearBuzzTimer();
+  const canPick = startAt > 0;
+  stage.innerHTML = `<button id="buzz-btn" type="button" class="buzz-btn m-auto" ${canPick ? '' : 'disabled'} aria-label="搶答">搶答</button>`;
 }
 
 async function submitBuzz() {
   if (!state.activeCourse || state.buzzSubmitting) return;
   if (!buzzOpen()) return toast('搶答尚未開放');
+  const startAt = buzzStartAt();
+  if (!startAt || Date.now() - startAt < 3000) return toast('搶答尚未開始');
   const courseId = state.activeCourse.id;
   const round = buzzRound();
   const uid = state.currentUser.uid;
-  const ref = doc(db, 'buzzRounds', `${courseId}_${round}`);
+  const ref = doc(db, 'buzzRounds', `${courseId}_${round}_${uid}`);
   state.buzzSubmitting = true;
   const btn = $('#buzz-btn');
   if (btn) btn.disabled = true;
@@ -1284,11 +1495,13 @@ async function submitBuzz() {
       tx.set(ref, {
         courseId, round, uid,
         name: state.userDoc?.name || '',
+        community: state.userDoc?.community || state.userDoc?.unit || '',
+        title: state.userDoc?.title || '',
         buzzedAt: serverTimestamp(),
       });
     });
     if (won) toast('搶答成功！', 1800);
-    else toast('已被搶答');
+    else toast('已搶答過');
   } catch { toast('搶答失敗'); }
   finally {
     state.buzzSubmitting = false;
@@ -1436,6 +1649,17 @@ function closeCourseFilePreview() {
   const content = $('#file-preview-zoom');
   if (content) content.innerHTML = '';
 }
+/* 圖片燈箱：沿用 90% 預覽彈窗與既有的兩指縮放邏輯 */
+function openImageLightbox(src, title) {
+  const modal = $('#modal-file-preview');
+  const content = $('#file-preview-zoom');
+  if (!modal || !content || !src) return;
+  previewRenderToken++;
+  $('#file-preview-name').textContent = title || '圖片';
+  modal.classList.remove('hidden');
+  resetPreviewZoom();
+  content.innerHTML = `<img src="${escHtml(src)}" alt="" class="lightbox-img" draggable="false" />`;
+}
 async function openCourseFilePreview(file) {
   if (!file) return;
   const body = $('#file-preview-body');
@@ -1522,8 +1746,8 @@ function openCourseFilesStudent(tabId, label) {
   const panel = $('#course-tab-panel');
   panel.innerHTML = `
     <div class="text-left">
-      <p class="font-semibold text-slate-700 mb-1">${escHtml(label)}</p>
-      <p class="text-xs text-slate-400 mb-3">可預覽課程檔案；是否可下載由服務端逐檔設定</p>
+      <p class="text-xl font-bold text-slate-700">${escHtml(label)}</p>
+      <p class="text-lg text-slate-500 mb-3">可預覽課程檔案；是否可下載由服務端逐檔設定</p>
       <div id="course-file-list" class="space-y-3">
         <p class="text-slate-400 text-sm text-center py-4">載入中…</p>
       </div>
@@ -1574,14 +1798,14 @@ function openScheduleStudent() {
   const sessions = (Array.isArray(c.sessions) ? c.sessions : []).filter(s => s && s.label);
   panel.innerHTML = `
     <div class="text-left">
-      <p class="font-semibold text-slate-700 mb-1">課表</p>
-      <p class="text-xs text-slate-400 mb-3">課程資訊與場次</p>
+      <p class="text-xl font-bold text-slate-700">課表</p>
+      <p class="text-lg text-slate-500 mb-3">課程資訊與場次</p>
       <div class="rounded-2xl border border-slate-200 p-4">
         <p class="text-base font-bold text-slate-800 break-words">${escHtml(c.name || '未命名課程')}</p>
         <div class="mt-3 grid grid-cols-[4.5rem_1fr] gap-y-2 text-sm">
           <span class="text-slate-400">日期</span><span class="text-slate-700">${escHtml(formatDisplayDate(c.date))}</span>
           <span class="text-slate-400">時間</span><span class="text-slate-700">${escHtml(courseTimeText(c) || '未設定')}</span>
-          <span class="text-slate-400">講師</span><span class="text-slate-700">${escHtml(c.instructor || '未指定')}</span>
+          <span class="text-slate-400">報到</span><span class="text-slate-700">${escHtml(c.checkinTime ? formatDisplayTime(c.checkinTime) : '未設定')}</span>
           <span class="text-slate-400">地點</span><span class="text-slate-700">${escHtml(c.location || '未設定')}</span>
         </div>
         <div class="mt-4 pt-3 border-t border-slate-100">
@@ -1636,12 +1860,16 @@ function openActivityStudent() {
   const panel = $('#course-tab-panel');
   panel.innerHTML = `
     <div class="text-left">
-      <p class="font-semibold text-slate-700 mb-1">活動</p>
-      <p class="text-xs text-slate-400 mb-3">點擊按鈕前往活動連結</p>
-      <div id="activity-student-list" class="space-y-4">
-        <p class="text-slate-400 text-sm text-center py-4">載入中…</p>
-      </div>
+      <p class="text-xl font-bold text-slate-700">活動</p>
+      <p class="text-lg text-slate-500 mb-3">左右滑動切換活動，點擊按鈕前往連結</p>
+      <div id="activity-student-list" class="flex gap-4 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-1"></div>
+      <div id="activity-dots" class="mt-3 flex items-center justify-center gap-1.5"></div>
     </div>`;
+  const listEl = $('#activity-student-list');
+  if (listEl) {
+    listEl.addEventListener('scroll', updateActivityDots, { passive: true });
+    bindActivityDrag(listEl);
+  }
   cleanupActivityListeners();
   renderActivityStudentList();
   if (!state.activeCourse) return;
@@ -1659,12 +1887,13 @@ function renderActivityStudentList() {
   const list = $('#activity-student-list');
   if (!list) return;
   if (!state.activities.length) {
-    list.innerHTML = '<div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center"><p class="text-slate-500 font-semibold">目前沒有活動</p><p class="text-xs text-slate-400 mt-1">請稍後再查看</p></div>';
+    list.innerHTML = '<div class="w-full flex-shrink-0 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center"><p class="text-slate-500 font-semibold">目前沒有活動</p><p class="text-xs text-slate-400 mt-1">請稍後再查看</p></div>';
+    updateActivityDots();
     return;
   }
   list.innerHTML = state.activities.map(a => `
-    <div class="rounded-2xl border border-slate-200 overflow-hidden">
-      ${a.image ? `<img src="${escHtml(a.image)}" alt="" class="w-full aspect-[2/3] object-cover" />` : ''}
+    <div class="w-full flex-shrink-0 snap-center rounded-2xl border border-slate-200 overflow-hidden bg-white">
+      ${a.image ? `<img src="${escHtml(a.image)}" alt="" data-activity-image="${escHtml(a.image)}" data-activity-title="${escHtml(a.title || '活動')}" class="w-full aspect-square object-cover cursor-zoom-in active:opacity-90" draggable="false" />` : ''}
       <div class="p-4">
         <p class="text-sm font-semibold text-slate-800 break-words">${escHtml(a.title || '活動')}</p>
         ${a.links.length ? `<div class="mt-3 flex flex-wrap gap-2">${a.links.map(l => `<a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border border-slate-200 bg-slate-50 active:bg-slate-100">
@@ -1673,6 +1902,63 @@ function renderActivityStudentList() {
         </a>`).join('')}</div>` : ''}
       </div>
     </div>`).join('');
+  updateActivityDots();
+}
+/* 更新幻燈片分頁圓點：依捲動位置算出目前頁碼 */
+function updateActivityDots() {
+  const list = $('#activity-student-list');
+  const dots = $('#activity-dots');
+  if (!list || !dots) return;
+  const total = state.activities.length;
+  if (!total) { dots.innerHTML = ''; return; }
+  const center = list.scrollLeft + list.clientWidth / 2;
+  let idx = 0, best = Infinity;
+  Array.from(list.children).forEach((el, i) => {
+    const c = el.offsetLeft + el.offsetWidth / 2;
+    const d = Math.abs(c - center);
+    if (d < best) { best = d; idx = i; }
+  });
+  dots.innerHTML = Array.from({ length: total }, (_, i) =>
+    `<span class="w-2 h-2 rounded-full transition-colors ${i === idx ? 'bg-brand' : 'bg-slate-300'}"></span>`).join('');
+}
+/* 桌機（非觸控）：滑鼠按住左右拖曳切換幻燈片（觸控交給原生捲動） */
+const _activityDrag = { el: null, active: false, startX: 0, startScroll: 0, moved: false };
+let _activityDragInit = false;
+function bindActivityDrag(list) {
+  _activityDrag.el = list;
+  _activityDrag.active = false;
+  _activityDrag.moved = false;
+  list.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch' || e.button !== 0) return;
+    _activityDrag.active = true;
+    _activityDrag.moved = false;
+    _activityDrag.startX = e.clientX;
+    _activityDrag.startScroll = list.scrollLeft;
+  });
+  // 拖曳後放開滑鼠時，避免誤觸卡片內的圖片或連結
+  list.addEventListener('click', (e) => {
+    if (_activityDrag.moved) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+  if (_activityDragInit) return;
+  _activityDragInit = true;
+  window.addEventListener('pointermove', (e) => {
+    const st = _activityDrag;
+    if (!st.active || !st.el) return;
+    const dx = e.clientX - st.startX;
+    if (!st.moved && Math.abs(dx) < 5) return;
+    st.moved = true;
+    st.el.classList.add('dragging');
+    st.el.scrollLeft = st.startScroll - dx;
+  });
+  const endDrag = () => {
+    const st = _activityDrag;
+    if (!st.active) return;
+    st.active = false;
+    if (st.el) st.el.classList.remove('dragging');
+    if (st.moved) setTimeout(() => { st.moved = false; }, 0);
+  };
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
 }
 
 /* ===== 我的報到紀錄（即時監聽） ===== */
@@ -1852,6 +2138,8 @@ $$('.toggle-pwd').forEach(b => b.addEventListener('click', () => {
 
 /* 選擇課程 → 進入課程 */
 $('#course-select-list').addEventListener('click', (e) => {
+  const map = e.target.closest('[data-map]');
+  if (map) { e.preventDefault(); e.stopPropagation(); openLocationMap(map.dataset.map); return; }
   const btn = e.target.closest('[data-course-open]');
   if (!btn) return;
   const c = state.courseMap[btn.dataset.courseOpen];
@@ -1868,11 +2156,12 @@ function openCourseTab(tabId) {
     if (activeSpan) activeSpan.classList.add('font-semibold');
   }
   state.activeTabId = tabId;
-  $('#course-tab-panel').classList.toggle('h-full', tabId === 'checkin' || tabId === 'seat');
+  $('#course-tab-panel').classList.toggle('h-full', tabId === 'checkin' || tabId === 'seat' || tabId === 'qa');
   $('#course-tab-panel').classList.toggle('p-6', tabId !== 'seat');
   $('#course-tab-panel').classList.toggle('checkin-anim', tabId === 'checkin');
   if (tabId !== 'seat') cleanupSeatListener();
-  if (tabId === 'checkin') { cleanupVoteListeners(); cleanupBuzzListeners(); cleanupCourseFileListeners(); cleanupActivityListeners(); renderCheckinStudent(); return; }
+  if (tabId !== 'checkin') cleanupListener('unsubCertTitle');
+  if (tabId === 'checkin') { cleanupVoteListeners(); cleanupBuzzListeners(); cleanupCourseFileListeners(); cleanupActivityListeners(); renderCheckinStudent(); watchCertTitle(); return; }
   if (tabId === 'seat') { cleanupVoteListeners(); cleanupBuzzListeners(); cleanupCourseFileListeners(); cleanupActivityListeners(); openSeatStudent(); return; }
   if (tabId === 'vote') { cleanupBuzzListeners(); cleanupCourseFileListeners(); cleanupActivityListeners(); openVoteStudent(); return; }
   if (tabId === 'qa') { cleanupVoteListeners(); cleanupCourseFileListeners(); cleanupActivityListeners(); openBuzzStudent(); return; }
@@ -1914,6 +2203,8 @@ $('#course-tab-panel').addEventListener('click', (e) => {
   if (buzz) { submitBuzz(); return; }
   const preview = e.target.closest('[data-file-preview]');
   if (preview) { openCourseFilePreview(state.courseFiles.find(f => f.id === preview.dataset.filePreview)); return; }
+  const actImg = e.target.closest('[data-activity-image]');
+  if (actImg) { openImageLightbox(actImg.dataset.activityImage, actImg.dataset.activityTitle); return; }
   const download = e.target.closest('[data-file-download]');
   if (download) { triggerCourseFileDownload(state.courseFiles.find(f => f.id === download.dataset.fileDownload)); return; }
 });
