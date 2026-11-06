@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>西北會議系統 · 停車資訊</title>
+<meta name="theme-color" content="#d32f2f" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: { brand: { DEFAULT: '#d32f2f', dark: '#b71c1c', light: '#ef5350' } },
+        fontFamily: { sans: ['-apple-system','BlinkMacSystemFont','Segoe UI','PingFang TC','Microsoft JhengHei','sans-serif'] },
+      },
+    },
+  };
+</script>
+
+<link rel="icon" type="image/png" sizes="192x192" href="logo.png" />
+<link rel="apple-touch-icon" href="logo.png" />
+
+<style>
+  body { -webkit-tap-highlight-color: transparent; }
+</style>
+</head>
+
+<body class="font-sans text-slate-800 bg-slate-100 min-h-[100dvh]">
+
+<header class="bg-white border-b border-slate-200 px-4 md:px-6 h-14 flex items-center gap-2">
+  <img src="logo.png" alt="" class="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200"
+       onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
+  <span class="font-bold text-lg text-slate-900">西北會議系統</span>
+  <span class="px-1.5 py-0.5 bg-slate-700 text-white text-[12px] rounded font-semibold">停車資訊</span>
+</header>
+
+<main class="max-w-3xl mx-auto p-4 md:p-6 space-y-3">
+  <p id="share-meta" class="text-sm text-slate-500"></p>
+  <div id="share-list" class="space-y-2"></div>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD1QJxc-AFkS7RkbQOLCqk1LBMydCU067s",
+  authDomain: "nw-class.firebaseapp.com",
+  projectId: "nw-class",
+  storageBucket: "nw-class.firebasestorage.app",
+  messagingSenderId: "222147006846",
+  appId: "1:222147006846:web:f197cc75aa51879967232f",
+  measurementId: "G-0E1SRMQPRE"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const esc = (s) => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+const listEl = document.getElementById('share-list');
+const metaEl = document.getElementById('share-meta');
+
+function render(data) {
+  if (!data) {
+    metaEl.textContent = '';
+    listEl.innerHTML = '<p class="text-center text-slate-400 py-10 text-sm">連結無效或已失效</p>';
+    return;
+  }
+  const items = Array.isArray(data.items) ? data.items : [];
+  metaEl.textContent = [data.courseName, data.courseDate, data.courseTime]
+    .filter(Boolean).join(' · ') + ` · 共 ${items.length} 筆`;
+  if (!items.length) {
+    listEl.innerHTML = '<p class="text-center text-slate-400 py-10 text-sm">目前尚無學員登記停車資訊</p>';
+    return;
+  }
+  listEl.innerHTML = items.map((it) => `
+      <div class="flex items-center gap-3 rounded-xl px-3 py-3 border border-slate-100 bg-white">
+        <div class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0">${esc((it.name || '學').trim().charAt(0).toUpperCase())}</div>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold truncate">${esc(it.name || '未命名學員')}</p>
+          <p class="text-[11px] text-slate-400 truncate">${esc(it.community || '—')}</p>
+        </div>
+        <div class="shrink-0 flex flex-col items-end gap-1">
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${it.type === 'moto' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'}">${it.type === 'moto' ? '機車' : '汽車'}</span>
+          <span class="text-sm font-bold text-slate-900 tracking-wide">${esc(it.plate)}</span>
+        </div>
+      </div>`).join('');
+}
+
+const token = new URLSearchParams(location.search).get('s') || '';
+if (!token) {
+  render(null);
+} else {
+  listEl.innerHTML = '<p class="text-center text-slate-400 py-10 text-sm">載入中…</p>';
+  try {
+    const snap = await getDoc(doc(db, 'parkingShares', token));
+    render(snap.exists() ? snap.data() : null);
+  } catch (err) {
+    metaEl.textContent = '';
+    listEl.innerHTML = '<p class="text-center text-slate-400 py-10 text-sm">讀取失敗，請稍後再試</p>';
+  }
+}
+</script>
+
+</body>
+</html>

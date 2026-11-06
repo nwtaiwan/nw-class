@@ -160,7 +160,7 @@
 <div id="app-shell" class="mx-auto w-full max-w-md h-[100dvh] bg-white flex flex-col overflow-hidden relative shadow-2xl">
 
   <!-- Header -->
-  <header class="safe-t flex items-center justify-between px-4 h-14 bg-white border-b border-slate-200 shrink-0">
+  <header class="safe-t flex items-center justify-between px-4 h-[10dvh] bg-white border-b border-slate-200 shrink-0">
     <div class="flex items-center gap-2">
       <img id="app-logo" src="logo.png" alt="NW Class" class="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200"
            onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
@@ -266,7 +266,7 @@
         <h2 class="text-base font-bold text-slate-900">選擇課程</h2>
         <p class="text-[11px] text-slate-500">請選擇要進入的課程</p>
       </div>
-      <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4">
+      <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4" style="background-image:url('bg-001.jpg');background-size:cover;background-position:center;background-repeat:no-repeat;">
         <div id="course-select-list" class="space-y-2">
           <p class="text-slate-400 text-center py-4 text-xs">載入中…</p>
         </div>
@@ -275,13 +275,13 @@
 
     <!-- 首頁：課程內容主頁 -->
     <section id="view-dashboard" class="hidden h-full flex flex-col fade-in">
-      <div class="shrink-0 flex items-center px-4 h-14 border-b border-slate-200 bg-white">
+      <div class="shrink-0 flex items-center px-4 h-[10dvh] border-b border-slate-200 bg-white">
         <div class="flex-1 min-w-0">
           <p id="course-view-name" class="text-base font-bold text-slate-900 truncate">課程</p>
           <p id="course-view-meta" class="text-sm text-slate-500 truncate"></p>
         </div>
       </div>
-      <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 space-y-3">
+      <div class="h-[70dvh] overflow-y-auto no-scrollbar p-4 space-y-3">
         <div id="course-tab-panel" class="bg-white rounded-2xl border border-slate-200 p-6 text-center text-slate-400 text-sm">請選擇下方功能</div>
       </div>
     </section>
@@ -376,6 +376,28 @@
   </div>
 </div>
 
+<!-- 停車資訊登記 -->
+<div id="modal-parking" class="hidden fixed inset-0 z-[99] bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-[80vw] max-w-sm p-5 fade-in">
+    <p class="text-base font-bold text-slate-900">登記停車資訊</p>
+    <p id="parking-course-name" class="mt-1 text-xs text-slate-400 truncate"></p>
+    <p class="mt-4 text-xs font-medium text-slate-500 mb-1">車種</p>
+    <div class="grid grid-cols-2 gap-2">
+      <button type="button" data-parking-type="car" class="parking-type-btn py-2 rounded-lg border font-semibold text-sm">汽車</button>
+      <button type="button" data-parking-type="moto" class="parking-type-btn py-2 rounded-lg border font-semibold text-sm">機車</button>
+    </div>
+    <label class="block mt-3">
+      <span class="text-xs font-medium text-slate-500">車牌號碼</span>
+      <input id="parking-plate" type="text" maxlength="12" placeholder="例如 ABC-1234" autocomplete="off" class="mt-1 w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm uppercase" />
+    </label>
+    <p class="mt-2 text-[11px] text-slate-400">清空車牌後儲存即可取消登記。</p>
+    <div class="mt-4 grid grid-cols-2 gap-2">
+      <button id="parking-cancel" class="py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">取消</button>
+      <button id="parking-save" class="py-2.5 rounded-lg bg-brand text-white font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
 <!-- 報到成功慶祝（影片 + 字幕 + 語音） -->
 <div id="modal-celebrate" class="hidden fixed inset-0 z-[110] bg-black/85 flex flex-col items-center justify-center gap-4 p-4">
   <video id="celebrate-video" src="./check-ok.mp4" playsinline webkit-playsinline preload="auto" class="max-w-full max-h-[72vh] rounded-2xl bg-black"></video>
@@ -426,10 +448,13 @@ const state = {
   buzzRounds: {}, buzzSubmitting: false,
   unsubCourseFiles: null, courseFiles: [],
   unsubActivities: null, activities: [],
+  unsubExamCourse: null, unsubExamResults: null,
+  examSubjects: [], examSubject: null, examResultsMap: {}, examPaper: null, examResult: null, examStage: 'list', examAnswers: {}, examCertUrl: '', examJust: null,
   unsubCourseCheckin: null, courseCheckedIn: false, activeTabId: null,
   unsubCourseDoc: null,
   unsubSeatCourse: null, seatBusy: false,
   courseMap: {}, activeCourse: null, myCourses: {},
+  parkingCourseId: '', parkingType: 'car',
 };
 
 const COURSE_FILE_LABELS = {
@@ -487,7 +512,7 @@ function showView(name) {
   if (name === 'dashboard' && !state.activeCourse) name = 'course-select';
   if (name !== 'dashboard') stopCheckinCelebration();
   if (name !== 'profile') cleanupListener('unsubCheckins');
-  if (name !== 'dashboard') { cleanupListener('unsubCourseCheckin'); cleanupListener('unsubCertTitle'); cleanupListener('unsubCourseDoc'); cleanupVoteListeners(); cleanupBuzzListeners(); cleanupCourseFileListeners(); cleanupActivityListeners(); cleanupSeatListener(); }
+  if (name !== 'dashboard') { cleanupListener('unsubCourseCheckin'); cleanupListener('unsubCertTitle'); cleanupListener('unsubCourseDoc'); cleanupVoteListeners(); cleanupBuzzListeners(); cleanupCourseFileListeners(); cleanupActivityListeners(); cleanupExamListeners(); cleanupSeatListener(); }
   $$('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
   const el = $(`#view-${name}`);
   if (el) el.classList.remove('hidden');
@@ -615,7 +640,8 @@ const DEFAULT_TABS = [
   { id: 'vote', label: '投票', enabled: true, order: 3 },
   { id: 'qa', label: '搶答', enabled: true, order: 4 },
   { id: 'handouts', label: '講義', enabled: true, order: 5 },
-  { id: 'download', label: '活動', enabled: true, order: 6 },
+  { id: 'exam', label: '測驗', enabled: true, order: 6 },
+  { id: 'download', label: '活動', enabled: true, order: 7 },
 ];
 const TAB_ICONS = {
   checkin: '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>',
@@ -624,6 +650,7 @@ const TAB_ICONS = {
   vote: '<path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>',
   qa: '<path d="M11 21H9.8l1.28-6H7.7c-.62 0-.96-.72-.57-1.2L13 3h1.2l-1.28 6h3.38c.62 0 .96.72.57 1.2L11 21z"/>',
   handouts: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>',
+  exam: '<path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2.2 14.2L6.6 14l1.4-1.4 2.8 2.8 5.9-5.9 1.4 1.4-7.3 7.3z"/>',
   download: '<path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z"/>',
   default: '<path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>',
 };
@@ -652,6 +679,11 @@ function courseTabs(c, checkedIn = false) {
       return true;
     })
     .slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+/* 分頁設定簽章：用於偵測服務端「分頁顯示」變更，以即時重繪學員端導覽 */
+function tabsSignature(c) {
+  return JSON.stringify((Array.isArray(c?.tabs) ? c.tabs : [])
+    .map(t => [t?.id, t?.label, t?.order, tabVisibility(t), t?.enabled === true]));
 }
 
 /* ===== 課程排序（日期時間近至遠） ===== */
@@ -766,7 +798,7 @@ function renderCourseButtons() {
   box.innerHTML = tabs.map(t => {
     const on = state.activeTabId === t.id;
     return `
-    <button data-tab="${t.id}" data-tab-label="${escHtml(t.label || '功能')}" class="course-tab-btn flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 ${on ? 'text-brand' : 'text-slate-400'}">
+    <button data-tab="${t.id}" data-tab-label="${escHtml(t.label || '功能')}" class="course-tab-btn flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 h-[10dvh] px-1 ${on ? 'text-brand' : 'text-slate-400'}">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24">${iconOf(t.id)}</svg>
       <span class="text-sm truncate w-full text-center${on ? ' font-semibold' : ''}">${escHtml(t.label || '功能')}</span>
     </button>`;
@@ -1164,25 +1196,31 @@ function showCourse(course) {
   watchCourseDoc();
 }
 
-/* 監聽課程文件：同步「搶答」分頁的顯示/隱藏（由服務端開放搶答開關控制） */
+/* 監聽課程文件：同步「搶答」分頁顯示與服務端「分頁顯示」設定（即時重繪學員端導覽） */
 function watchCourseDoc() {
   cleanupListener('unsubCourseDoc');
   if (!state.activeCourse) return;
   const courseId = state.activeCourse.id;
   let prevBuzzOpen = state.activeCourse.buzzOpen === true;
+  let prevTabsSig = tabsSignature(state.activeCourse);
   state.unsubCourseDoc = onSnapshot(doc(db, 'courses', courseId), (snap) => {
     if (!snap.exists()) return;
     if (!state.activeCourse || state.activeCourse.id !== courseId) return;
     const data = snap.data();
     const nextBuzzOpen = data.buzzOpen === true;
-    const changed = nextBuzzOpen !== prevBuzzOpen;
+    const nextTabsSig = tabsSignature({ id: snap.id, ...data });
+    const buzzChanged = nextBuzzOpen !== prevBuzzOpen;
+    const tabsChanged = nextTabsSig !== prevTabsSig;
     prevBuzzOpen = nextBuzzOpen;
+    prevTabsSig = nextTabsSig;
     state.activeCourse = { id: snap.id, ...data };
-    if (!changed) return;
+    if (!buzzChanged && !tabsChanged) return;
     renderCourseButtons();
-    if (!nextBuzzOpen && state.activeTabId === 'qa') {
-      const first = courseTabs(state.activeCourse, state.courseCheckedIn)[0];
-      if (first) openCourseTab(first.id);
+    /* 目前所在分頁被隱藏（或搶答關閉）時，自動切換到第一個可用分頁 */
+    const available = courseTabs(state.activeCourse, state.courseCheckedIn);
+    if (!available.some(t => t.id === state.activeTabId)) {
+      if (available[0]) openCourseTab(available[0].id);
+      else $('#course-tab-panel').innerHTML = '<p class="text-slate-400 text-sm">請選擇下方功能</p>';
     }
   }, () => {});
 }
@@ -1507,6 +1545,457 @@ async function submitBuzz() {
     state.buzzSubmitting = false;
     renderBuzzStudent();
   }
+}
+
+/* ===== 測驗（學員端） ===== */
+const EXAM_OPTION_LABELS = 'ABCDEFGH';
+function examNormPaper(arr) {
+  return (Array.isArray(arr) ? arr : [])
+    .map((q, i) => ({
+      id: String(q?.id || ('p' + (i + 1))),
+      text: String(q?.text || ''),
+      options: (Array.isArray(q?.options) ? q.options : [])
+        .map((o, j) => ({ id: String(o?.id || ('o' + (j + 1))), text: String(o?.text || '') }))
+        .filter(o => o.text),
+      answer: String(q?.answer || ''),
+    }))
+    .filter(q => q.text && q.options.length >= 2 && q.options.some(o => o.id === q.answer));
+}
+/* 取課程的多科試卷設定（相容尚未遷移的舊版單一 exam） */
+function examNormSubject(s, i) {
+  const paperA = examNormPaper(s?.papers?.A);
+  const legacy = examNormPaper(s?.questions);
+  const A = paperA.length ? paperA : legacy;
+  if (!A.length) return null;
+  const raw = parseInt(s?.passPercent, 10);
+  const abOn = s?.abEnabled === true;
+  const B = abOn ? examNormPaper(s?.papers?.B) : [];
+  return {
+    id: String(s?.id || ('sub' + (i + 1))),
+    name: String(s?.name || ('科目 ' + (i + 1))),
+    passPercent: Number.isFinite(raw) ? Math.min(100, Math.max(0, raw)) : 60,
+    abEnabled: abOn && B.length > 0,
+    paperA: A,
+    paperB: B,
+  };
+}
+function courseExams(course) {
+  const hasExams = Array.isArray(course?.exams);
+  const list = hasExams ? course.exams : [];
+  const out = list.map((s, i) => examNormSubject(s, i)).filter(Boolean);
+  if (out.length || hasExams) return out;
+  const legacy = course?.exam ? examNormSubject({ ...course.exam, id: 'legacy', name: course.name || '本課程' }, 0) : null;
+  return legacy ? [legacy] : [];
+}
+/* 依學員 uid 穩定分配 A／B 卷（同一人每次進入都拿同一卷） */
+function examUidHash(uid) {
+  let h = 5381;
+  const s = String(uid || '');
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+function examPaperFor(cfg, uid) {
+  if (!cfg || !cfg.abEnabled) return { key: '', questions: (cfg && cfg.paperA) || [] };
+  const key = (examUidHash(uid) % 2 === 0) ? 'A' : 'B';
+  return { key, questions: key === 'A' ? cfg.paperA : cfg.paperB };
+}
+function examQuestions() {
+  return (state.examPaper && state.examPaper.questions) || [];
+}
+function cleanupExamListeners() {
+  cleanupListener('unsubExamCourse');
+  cleanupListener('unsubExamResults');
+}
+function openExamStudent() {
+  const panel = $('#course-tab-panel');
+  panel.innerHTML = `
+    <div class="text-left">
+      <p class="text-xl font-bold text-slate-700">測驗</p>
+      <p class="text-lg text-slate-500 mb-3">作答達合格門檻即可下載電子獎狀</p>
+      <div id="exam-body"></div>
+    </div>`;
+  cleanupExamListeners();
+  state.examStage = 'list';
+  state.examSubject = null;
+  state.examPaper = null;
+  state.examResult = null;
+  state.examAnswers = {};
+  state.examJust = null;
+  state.examCertUrl = '';
+  state.examSubjects = courseExams(state.activeCourse || {});
+  state.examResultsMap = {};
+  renderExamStudent();
+  if (!state.activeCourse || !state.currentUser) return;
+  const courseId = state.activeCourse.id;
+  state.unsubExamCourse = onSnapshot(doc(db, 'courses', courseId), (snap) => {
+    if (!snap.exists()) return;
+    if (!state.activeCourse || state.activeCourse.id !== courseId) return;
+    state.activeCourse = { id: snap.id, ...snap.data() };
+    state.examSubjects = courseExams(state.activeCourse);
+    if (state.examSubject) {
+      const cur = state.examSubjects.find(s => s.id === state.examSubject.id);
+      if (cur) {
+        state.examSubject = cur;
+        state.examPaper = examPaperFor(cur, state.currentUser && state.currentUser.uid);
+      } else {
+        state.examSubject = null;
+        state.examPaper = null;
+        state.examStage = 'list';
+      }
+    }
+    if (state.examStage !== 'quiz') renderExamStudent();
+  }, () => {});
+  /* 僅查 courseId（等值查詢不需複合索引），再於前端篩選本人各科成績 */
+  state.unsubExamResults = onSnapshot(query(collection(db, 'examResults'), where('courseId', '==', courseId)), (snap) => {
+    const map = {};
+    snap.docs.forEach(d => {
+      const data = d.data();
+      if (data.uid !== state.currentUser.uid || !data.subjectId) return;
+      map[data.subjectId] = { id: d.id, ...data };
+    });
+    state.examResultsMap = map;
+    if (state.examSubject) state.examResult = map[state.examSubject.id] || null;
+    if (state.examStage !== 'quiz') renderExamStudent();
+  }, () => {});
+}
+function renderExamStudent() {
+  const box = $('#exam-body');
+  if (!box) return;
+  if (state.examStage === 'quiz') {
+    box.innerHTML = examQuizHtml();
+    updateExamSubmitState();
+    return;
+  }
+  if (state.examStage === 'list' || !state.examSubject) {
+    box.innerHTML = examListHtml();
+    return;
+  }
+  box.innerHTML = examOverviewHtml(state.examSubject, state.examResult);
+  if (state.examResult && state.examResult.passed) ensureExamCertificate(state.examResult);
+}
+function examStatusBadge(result) {
+  if (!result) return '<span class="shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-500">尚未作答</span>';
+  return result.passed
+    ? '<span class="shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-600">合格</span>'
+    : '<span class="shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-red-50 text-red-500">未達門檻</span>';
+}
+function examListHtml() {
+  const subs = state.examSubjects || [];
+  if (!subs.length) {
+    return `
+      <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+        <p class="text-slate-500 font-semibold">測驗尚未開放</p>
+        <p class="text-sm text-slate-400 mt-1">請等待服務人員開放測驗題目</p>
+      </div>`;
+  }
+  return `
+    <div class="space-y-3">
+      ${subs.map(s => {
+        const r = state.examResultsMap[s.id];
+        return `
+        <button data-exam-open="${escHtml(s.id)}" class="w-full text-left rounded-2xl border border-slate-200 p-4 active:scale-[0.99] active:bg-slate-50">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-lg font-bold text-slate-800 min-w-0 truncate">${escHtml(s.name)}</p>
+            ${examStatusBadge(r)}
+          </div>
+          <p class="text-sm text-slate-500 mt-1">共 ${s.paperA.length} 題 · 合格門檻 ${s.passPercent} 分${s.abEnabled ? ' · AB 卷' : ''}</p>
+          ${r
+            ? `<p class="text-sm mt-1 ${r.passed ? 'text-emerald-600' : 'text-slate-500'}">最佳成績 ${Number(r.percent) || 0} 分 · 已作答 ${Number(r.attempts) || 1} 次</p>`
+            : '<p class="text-sm text-slate-400 mt-1">點擊開始作答</p>'}
+        </button>`;
+      }).join('')}
+    </div>`;
+}
+function openExamSubject(id) {
+  const sub = (state.examSubjects || []).find(s => s.id === id);
+  if (!sub) return;
+  state.examSubject = sub;
+  state.examPaper = examPaperFor(sub, state.currentUser && state.currentUser.uid);
+  state.examResult = state.examResultsMap[id] || null;
+  state.examAnswers = {};
+  state.examJust = null;
+  state.examCertUrl = '';
+  state.examStage = 'intro';
+  renderExamStudent();
+}
+function backExamList() {
+  if (state.examStage === 'quiz' && Object.keys(state.examAnswers).length) {
+    return nwConfirm('離開將不會保留作答內容，確定要離開嗎？', '離開測驗').then(ok => { if (ok) doBackExamList(); });
+  }
+  doBackExamList();
+}
+function doBackExamList() {
+  state.examStage = 'list';
+  state.examSubject = null;
+  state.examPaper = null;
+  state.examResult = null;
+  state.examAnswers = {};
+  state.examJust = null;
+  state.examCertUrl = '';
+  renderExamStudent();
+}
+function examOverviewHtml(sub, result) {
+  const questions = (sub && sub.paperA) || [];
+  const paper = state.examPaper || {};
+  const paperBadge = sub.abEnabled
+    ? `<span class="ml-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-brand/10 text-brand align-middle">${paper.key} 卷</span>`
+    : '';
+  const just = state.examJust;
+  const resultCard = result ? `
+    <div class="mt-3 rounded-2xl border border-slate-200 p-4">
+      <p class="text-xs text-slate-400">最佳成績</p>
+      <div class="mt-2 flex items-end gap-2">
+        <span class="text-4xl font-bold tabular-nums ${result.passed ? 'text-emerald-600' : 'text-red-500'}">${Number(result.percent) || 0}</span>
+        <span class="text-sm text-slate-400 mb-1">分</span>
+        <span class="ml-auto mb-1 px-2 py-0.5 rounded text-xs font-semibold ${result.passed ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}">${result.passed ? '合格' : '未達門檻'}</span>
+      </div>
+      <p class="mt-1 text-sm text-slate-500">答對 ${Number(result.score) || 0} / ${Number(result.total) || 0} 題 · 合格門檻 ${sub.passPercent} 分 · 已作答 ${Number(result.attempts) || 1} 次</p>
+    </div>` : '';
+  const certCard = (result && result.passed) ? `
+    <div class="mt-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+      <p class="text-sm font-semibold text-amber-700">電子獎狀</p>
+      <p class="text-xs text-amber-600 mt-0.5">點擊獎狀可放大預覽，或按下方按鈕下載 PNG 檔</p>
+      <div id="exam-cert-box" class="mt-3 rounded-xl overflow-hidden border border-amber-200 bg-white grid place-items-center">
+        <p class="text-xs text-slate-400 py-8">獎狀產生中…</p>
+      </div>
+      <button data-exam-cert class="mt-3 w-full py-3 rounded-xl bg-brand text-white font-semibold active:scale-[0.98]">下載電子獎狀（PNG）</button>
+    </div>` : '';
+  return `
+    <button data-exam-back class="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-slate-500 active:text-slate-700">← 返回科目列表</button>
+    <div class="rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-lg font-bold text-slate-800 min-w-0 truncate">${escHtml(sub.name)}</p>
+        ${examStatusBadge(result)}
+      </div>
+      <p class="text-base font-bold text-slate-800 mt-1">共 ${questions.length} 題 · 合格門檻 ${sub.passPercent} 分${paperBadge}</p>
+      <p class="text-sm text-slate-500 mt-0.5">${result ? '可重複測驗，成績取最高分' : '單選題，答對比例達門檻即可下載電子獎狀'}</p>
+      ${just ? `<div class="mt-3 rounded-xl px-3 py-2 text-sm font-semibold ${just.passed ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}">本次成績 ${just.percent} 分（答對 ${just.score}/${just.total} 題）${just.passed ? ' · 恭喜合格！' : ''}</div>` : ''}
+      <button data-exam-start class="mt-3 w-full py-3 rounded-xl bg-brand text-white font-semibold active:scale-[0.98]">${result ? '重新測驗' : '開始測驗'}</button>
+    </div>
+    ${resultCard}
+    ${certCard}`;
+}
+function examQuizHtml() {
+  const questions = examQuestions();
+  const sub = state.examSubject || {};
+  return `
+    <button data-exam-back class="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-slate-500 active:text-slate-700">← 返回科目列表</button>
+    <p class="text-lg font-bold text-slate-800 mb-3">${escHtml(sub.name || '測驗')}</p>
+    <div class="space-y-3">
+      ${questions.map((q, i) => `
+        <div data-exam-question="${escHtml(q.id)}" class="rounded-2xl border border-slate-200 p-4">
+          <p class="text-base font-semibold text-slate-800"><span class="text-brand mr-1.5">${i + 1}.</span>${escHtml(q.text)}</p>
+          <div class="mt-3 space-y-2">
+            ${q.options.map((o, j) => `
+              <button type="button" data-exam-option="${escHtml(o.id)}" data-exam-qid="${escHtml(q.id)}" class="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl border border-slate-200 text-slate-600 active:bg-slate-50">
+                <span data-exam-dot class="shrink-0 w-7 h-7 rounded-full border-2 border-slate-300 text-slate-500 grid place-items-center text-xs font-semibold">${EXAM_OPTION_LABELS[j] || (j + 1)}</span>
+                <span class="flex-1 min-w-0 text-base break-words">${escHtml(o.text)}</span>
+              </button>`).join('')}
+          </div>
+        </div>`).join('')}
+      <button id="exam-submit" data-exam-submit class="w-full py-3 rounded-xl font-semibold text-white bg-slate-300">送出測驗</button>
+    </div>`;
+}
+function startExamQuiz() {
+  if (!examQuestions().length) return toast('測驗尚未開放');
+  state.examStage = 'quiz';
+  state.examAnswers = {};
+  state.examJust = null;
+  state.examCertUrl = '';
+  renderExamStudent();
+}
+function selectExamOption(qid, oid) {
+  state.examAnswers[qid] = oid;
+  const group = $(`[data-exam-question="${qid}"]`);
+  if (group) {
+    group.querySelectorAll('[data-exam-option]').forEach(btn => {
+      const on = btn.dataset.examOption === oid;
+      btn.classList.toggle('border-brand', on);
+      btn.classList.toggle('bg-brand/5', on);
+      btn.classList.toggle('border-slate-200', !on);
+      btn.classList.toggle('text-slate-900', on);
+      const dot = btn.querySelector('[data-exam-dot]');
+      if (dot) {
+        dot.classList.toggle('bg-brand', on);
+        dot.classList.toggle('border-brand', on);
+        dot.classList.toggle('text-white', on);
+        dot.classList.toggle('border-slate-300', !on);
+        dot.classList.toggle('text-slate-500', !on);
+      }
+    });
+  }
+  updateExamSubmitState();
+}
+function updateExamSubmitState() {
+  const questions = examQuestions();
+  const total = questions.length;
+  const answered = questions.filter(q => state.examAnswers[q.id]).length;
+  const btn = $('#exam-submit');
+  if (!btn) return;
+  const done = total > 0 && answered >= total;
+  btn.disabled = !done;
+  btn.className = `w-full py-3 rounded-xl font-semibold text-white ${done ? 'bg-brand active:scale-[0.98]' : 'bg-slate-300'}`;
+  btn.textContent = done ? '送出測驗' : `尚餘 ${total - answered} 題未作答`;
+}
+async function submitExamQuiz() {
+  const sub = state.examSubject;
+  const questions = examQuestions();
+  if (!sub || !questions.length || !state.activeCourse || !state.currentUser) return;
+  const unanswered = questions.filter(q => !state.examAnswers[q.id]);
+  if (unanswered.length) return toast(`尚有 ${unanswered.length} 題未作答`);
+  const ok = await nwConfirm('送出後將立即計分，確定要送出嗎？', '送出測驗');
+  if (!ok) return;
+  const score = questions.filter(q => state.examAnswers[q.id] === q.answer).length;
+  const total = questions.length;
+  const percent = Math.round((score / total) * 100);
+  const passed = percent >= sub.passPercent;
+  const prev = state.examResult;
+  const better = !prev || (Number(prev.percent) || 0) <= percent;
+  const u = state.userDoc || {};
+  const attempts = (Number(prev?.attempts) || 0) + 1;
+  const payload = {
+    courseId: state.activeCourse.id,
+    subjectId: sub.id,
+    subjectName: sub.name,
+    uid: state.currentUser.uid,
+    name: u.name || '',
+    community: u.community || '',
+    title: u.title || '',
+    paper: (state.examPaper && state.examPaper.key) || '',
+    attempts,
+    updatedAt: serverTimestamp(),
+  };
+  if (better) Object.assign(payload, { score, total, percent, passed });
+  const docId = `${state.activeCourse.id}_${sub.id}_${state.currentUser.uid}`;
+  try {
+    await setDoc(doc(db, 'examResults', docId), payload, { merge: true });
+    state.examJust = { score, total, percent, passed };
+    const merged = better
+      ? { ...(prev || {}), ...payload, score, total, percent, passed }
+      : { ...(prev || {}), subjectId: sub.id, subjectName: sub.name, attempts };
+    state.examResult = merged;
+    state.examResultsMap[sub.id] = merged;
+    state.examCertUrl = '';
+    state.examStage = 'result';
+    renderExamStudent();
+  } catch (err) {
+    toast('送出失敗：' + (err.message || ''), 2600);
+  }
+}
+/* ===== 電子獎狀（Canvas 產生 PNG，零外部相依） ===== */
+function examCertFont(size, weight) {
+  return `${weight ? weight + ' ' : ''}${size}px "Noto Sans TC","Microsoft JhengHei","PingFang TC","Heiti TC",sans-serif`;
+}
+function examCertTrim(text, max) {
+  const t = String(text || '');
+  return t.length > max ? `${t.slice(0, max)}…` : t;
+}
+function loadImageElement(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('load failed'));
+    img.src = src;
+  });
+}
+let examCertToken = 0;
+async function buildExamCertificate(result) {
+  const W = 1600, H = 1131;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const u = state.userDoc || {};
+  const course = state.activeCourse || {};
+  const name = examCertTrim(result?.name || u.name || '學員', 12);
+  const courseName = examCertTrim(course.name || '本課程', 22);
+  const subjectName = examCertTrim((state.examSubject && state.examSubject.name) || '測驗', 22);
+  const percent = Number(result?.percent) || 0;
+  const passPercent = (state.examSubject && state.examSubject.passPercent) ?? 60;
+
+  ctx.fillStyle = '#fffdf9'; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#c81e1e'; ctx.lineWidth = 16; ctx.strokeRect(28, 28, W - 56, H - 56);
+  ctx.strokeStyle = 'rgba(200,30,30,0.35)'; ctx.lineWidth = 3; ctx.strokeRect(58, 58, W - 116, H - 116);
+  ctx.fillStyle = '#c81e1e';
+  [[28, 28], [W - 28, 28], [28, H - 28], [W - 28, H - 28]].forEach(([x, y]) => {
+    ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI * 2); ctx.fill();
+  });
+
+  try { const logo = await loadImageElement('logo.png'); ctx.drawImage(logo, W / 2 - 52, 96, 104, 104); } catch {}
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#c81e1e';
+  ctx.font = examCertFont(104, '700');
+  ctx.fillText('獎　狀', W / 2, 300);
+  ctx.strokeStyle = 'rgba(200,30,30,0.5)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(W / 2 - 260, 336); ctx.lineTo(W / 2 + 260, 336); ctx.stroke();
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = examCertFont(26, '400');
+  ctx.fillText('ELECTRONIC CERTIFICATE', W / 2, 378);
+
+  ctx.fillStyle = '#1e293b';
+  ctx.font = examCertFont(78, '700');
+  ctx.fillText(name, W / 2, 492);
+
+  const sub = [u.community, u.title].filter(Boolean).join(' · ');
+  if (sub) {
+    ctx.fillStyle = '#64748b';
+    ctx.font = examCertFont(34, '400');
+    ctx.fillText(examCertTrim(sub, 30), W / 2, 548);
+  }
+
+  ctx.fillStyle = '#334155';
+  ctx.font = examCertFont(36, '400');
+  ctx.fillText(`完成《${courseName}》`, W / 2, 620);
+  ctx.fillText(`「${subjectName}」測驗`, W / 2, 676);
+  ctx.fillText(`成績 ${percent} 分（合格門檻 ${passPercent} 分），`, W / 2, 732);
+  ctx.fillText('特頒此狀，以資鼓勵。', W / 2, 788);
+
+  ctx.strokeStyle = 'rgba(148,163,184,0.5)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(200, 880); ctx.lineTo(W - 200, 880); ctx.stroke();
+
+  const d = new Date();
+  const dateText = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#475569';
+  ctx.font = examCertFont(30, '400');
+  ctx.fillText(`頒發日期：${dateText}`, 200, 948);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#0f172a';
+  ctx.font = examCertFont(30, '600');
+  ctx.fillText(state.systemName || '西北會議系統', W / 2, 948);
+
+  ctx.strokeStyle = 'rgba(200,30,30,0.85)'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(W - 250, 930, 66, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = 'rgba(200,30,30,0.9)';
+  ctx.font = examCertFont(48, '700');
+  ctx.fillText('合格', W - 250, 948);
+
+  return canvas.toDataURL('image/png');
+}
+async function ensureExamCertificate(result) {
+  if (!result || !result.passed) return;
+  const token = ++examCertToken;
+  try {
+    const url = await buildExamCertificate(result);
+    if (token !== examCertToken) return;
+    state.examCertUrl = url;
+    const box = $('#exam-cert-box');
+    if (box) box.innerHTML = `<img data-exam-cert-preview src="${url}" alt="電子獎狀" class="w-full h-auto cursor-pointer" />`;
+  } catch {
+    const box = $('#exam-cert-box');
+    if (box) box.innerHTML = '<p class="text-xs text-red-400 py-8 px-4 text-center">獎狀產生失敗，請稍後再試</p>';
+  }
+}
+function downloadExamCertificate() {
+  if (!state.examCertUrl) return toast('獎狀尚未產生完成');
+  const safe = (s) => String(s || '').replace(/[\\/:*?"<>|]/g, '_');
+  const a = document.createElement('a');
+  a.href = state.examCertUrl;
+  a.download = `電子獎狀_${safe(state.userDoc?.name || '學員')}_${safe(state.activeCourse?.name || '課程')}_${safe(state.examSubject?.name || '測驗')}.png`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 /* ===== 課程檔案（學員端） ===== */
@@ -2014,6 +2503,14 @@ function compressImage(file, maxSize = 256, quality = 0.7) {
   });
 }
 
+/* ===== 個人資料彈窗：停車資訊 ===== */
+function parkingOf(courseId) {
+  if (!courseId) return null;
+  const all = state.userDoc && state.userDoc.parking;
+  if (!all || typeof all !== 'object') return null;
+  return all[courseId] || null;
+}
+
 /* ===== 個人資料彈窗：載入我的課程 ===== */
 async function loadMyCourses() {
   const box = $('#pf-courses');
@@ -2022,19 +2519,69 @@ async function loadMyCourses() {
   box.innerHTML = '<p class="text-slate-400 text-center py-3 text-xs">載入中…</p>';
   try {
     const docs = await Promise.all(ids.map(id => getDoc(doc(db, 'courses', id))));
-    const rows = sortCoursesByDate(docs.filter(d => d.exists()).map(d => ({ id: d.id, ...d.data() })));
+    const rows = sortCoursesByDate(docs.filter(d => d.exists()).map(d => ({ id: d.id, ...d.data() }))).filter(c => c.archived !== true);
     state.myCourses = {};
     rows.forEach(c => { state.myCourses[c.id] = c; });
     if (!rows.length) { box.innerHTML = '<p class="text-slate-400 text-center py-3 text-xs">尚未指派課程</p>'; return; }
     box.innerHTML = rows.map(c => {
       const active = state.activeCourse && state.activeCourse.id === c.id;
+      const pk = parkingOf(c.id);
+      const pkOn = !!(pk && pk.plate);
       return `
-      <button data-pf-course="${c.id}" class="w-full text-left border rounded-xl p-3 ${active ? 'bg-brand/10 border-brand/40' : 'bg-slate-50 border-slate-200 active:bg-slate-100'}">
-        <p class="font-semibold text-sm truncate${active ? ' text-brand' : ''}">${c.name || '未命名課程'}</p>
-        <p class="text-xs text-slate-500 mt-0.5 truncate">${formatDisplayDate(c.date)}${courseTimeText(c) ? ' ' + courseTimeText(c) : ''}${c.instructor ? ' · ' + c.instructor : ''}</p>
-      </button>`;
+      <div class="w-full flex items-stretch gap-2">
+        <button data-pf-course="${c.id}" class="flex-1 min-w-0 text-left border rounded-xl p-3 ${active ? 'bg-brand/10 border-brand/40' : 'bg-slate-50 border-slate-200 active:bg-slate-100'}">
+          <p class="font-semibold text-sm truncate${active ? ' text-brand' : ''}">${escHtml(c.name || '未命名課程')}</p>
+          <p class="text-xs text-slate-500 mt-0.5 truncate">${formatDisplayDate(c.date)}${courseTimeText(c) ? ' ' + courseTimeText(c) : ''}</p>
+        </button>
+        <button type="button" data-pf-parking="${c.id}" title="登記停車資訊" class="shrink-0 w-14 rounded-xl border grid place-items-center content-center gap-0.5 px-1 ${pkOn ? 'border-brand/40 bg-brand/10 text-brand' : 'border-slate-200 bg-slate-50 text-slate-500 active:bg-slate-100'}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
+          <span class="text-[10px] font-semibold leading-tight text-center break-all">${pkOn ? escHtml(pk.plate) : '停車'}</span>
+        </button>
+      </div>`;
     }).join('');
   } catch { box.innerHTML = '<p class="text-slate-400 text-center py-3 text-xs">載入失敗</p>'; }
+}
+
+/* ===== 停車資訊登記彈窗 ===== */
+function renderParkingType() {
+  $$('.parking-type-btn').forEach(b => {
+    const on = b.dataset.parkingType === state.parkingType;
+    b.className = `parking-type-btn py-2 rounded-lg border font-semibold text-sm ${on ? 'bg-brand text-white border-brand' : 'border-slate-300 text-slate-600 active:bg-slate-100'}`;
+  });
+}
+function openParkingModal(courseId) {
+  const c = state.myCourses[courseId];
+  state.parkingCourseId = courseId;
+  const pk = parkingOf(courseId) || {};
+  state.parkingType = pk.type === 'moto' ? 'moto' : 'car';
+  $('#parking-course-name').textContent = c ? (c.name || '未命名課程') : '';
+  $('#parking-plate').value = pk.plate || '';
+  renderParkingType();
+  $('#modal-parking').classList.remove('hidden');
+  setTimeout(() => $('#parking-plate').focus(), 50);
+}
+function closeParkingModal() {
+  state.parkingCourseId = '';
+  $('#modal-parking').classList.add('hidden');
+}
+async function saveParking() {
+  const courseId = state.parkingCourseId;
+  if (!courseId || !state.currentUser) return;
+  const plate = String($('#parking-plate').value || '').replace(/\s+/g, '').toUpperCase();
+  try {
+    await setDoc(doc(db, 'users', state.currentUser.uid), {
+      parking: { [courseId]: plate ? { type: state.parkingType, plate } : deleteField() },
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    if (!state.userDoc.parking) state.userDoc.parking = {};
+    if (plate) state.userDoc.parking[courseId] = { type: state.parkingType, plate };
+    else delete state.userDoc.parking[courseId];
+    closeParkingModal();
+    loadMyCourses();
+    toast(plate ? '停車資訊已登記' : '已取消停車登記');
+  } catch (err) {
+    toast('儲存失敗：' + (err.message || ''));
+  }
 }
 
 /* ===== Auth 狀態監聽 ===== */
@@ -2073,6 +2620,7 @@ onAuthStateChanged(auth, async (user) => {
     cleanupListener('unsubCourseCheckin');
     cleanupCourseFileListeners();
     cleanupActivityListeners();
+    cleanupExamListeners();
     $('#btn-user-chip').classList.add('hidden');
     $('#modal-profile').classList.add('hidden');
     showView('auth');
@@ -2104,8 +2652,10 @@ $('#pf-avatar-file').addEventListener('change', async (e) => {
   } catch { toast('上傳失敗'); }
   e.target.value = '';
 });
-/* 我的課程 → 切換課程頁面 */
+/* 我的課程 → 切換課程頁面 / 登記停車資訊 */
 $('#pf-courses').addEventListener('click', (e) => {
+  const pk = e.target.closest('[data-pf-parking]');
+  if (pk) { openParkingModal(pk.dataset.pfParking); return; }
   const btn = e.target.closest('[data-pf-course]');
   if (!btn) return;
   const c = state.myCourses[btn.dataset.pfCourse];
@@ -2113,6 +2663,12 @@ $('#pf-courses').addEventListener('click', (e) => {
   $('#modal-profile').classList.add('hidden');
   showCourse(c);
 });
+/* 停車資訊彈窗 */
+$('#parking-cancel').addEventListener('click', closeParkingModal);
+$('#parking-save').addEventListener('click', saveParking);
+$('#parking-plate').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveParking(); } });
+$('#modal-parking').addEventListener('click', (e) => { if (e.target === $('#modal-parking')) closeParkingModal(); });
+$$('.parking-type-btn').forEach(b => b.addEventListener('click', () => { state.parkingType = b.dataset.parkingType; renderParkingType(); }));
 $$('.pf-goto').forEach(b => b.addEventListener('click', () => { location.href = b.dataset.goto; }));
 /* 檔案預覽 */
 $('#file-preview-close').addEventListener('click', closeCourseFilePreview);
@@ -2161,6 +2717,7 @@ function openCourseTab(tabId) {
   $('#course-tab-panel').classList.toggle('checkin-anim', tabId === 'checkin');
   if (tabId !== 'seat') cleanupSeatListener();
   if (tabId !== 'checkin') cleanupListener('unsubCertTitle');
+  if (tabId !== 'exam') cleanupExamListeners();
   if (tabId === 'checkin') { cleanupVoteListeners(); cleanupBuzzListeners(); cleanupCourseFileListeners(); cleanupActivityListeners(); renderCheckinStudent(); watchCertTitle(); return; }
   if (tabId === 'seat') { cleanupVoteListeners(); cleanupBuzzListeners(); cleanupCourseFileListeners(); cleanupActivityListeners(); openSeatStudent(); return; }
   if (tabId === 'vote') { cleanupBuzzListeners(); cleanupCourseFileListeners(); cleanupActivityListeners(); openVoteStudent(); return; }
@@ -2180,6 +2737,14 @@ function openCourseTab(tabId) {
     openCourseFilesStudent(tabId, label);
     return;
   }
+  if (tabId === 'exam') {
+    cleanupVoteListeners();
+    cleanupBuzzListeners();
+    cleanupCourseFileListeners();
+    cleanupActivityListeners();
+    openExamStudent();
+    return;
+  }
   cleanupVoteListeners();
   cleanupBuzzListeners();
   cleanupCourseFileListeners();
@@ -2195,6 +2760,16 @@ $('#course-buttons').addEventListener('click', (e) => {
   openCourseTab(b.dataset.tab);
 });
 $('#course-tab-panel').addEventListener('click', (e) => {
+  const examOpen = e.target.closest('[data-exam-open]');
+  if (examOpen) { openExamSubject(examOpen.dataset.examOpen); return; }
+  if (e.target.closest('[data-exam-back]')) { backExamList(); return; }
+  const examOpt = e.target.closest('[data-exam-option]');
+  if (examOpt) { selectExamOption(examOpt.dataset.examQid, examOpt.dataset.examOption); return; }
+  if (e.target.closest('[data-exam-start]')) { startExamQuiz(); return; }
+  if (e.target.closest('[data-exam-submit]')) { submitExamQuiz(); return; }
+  if (e.target.closest('[data-exam-cert]')) { downloadExamCertificate(); return; }
+  const certPreview = e.target.closest('[data-exam-cert-preview]');
+  if (certPreview) { openImageLightbox(certPreview.getAttribute('src'), '電子獎狀'); return; }
   const pick = e.target.closest('[data-vote-pick]');
   if (pick) { pickVoteOption(pick.dataset.votePick, pick.dataset.voteOption); return; }
   const submit = e.target.closest('[data-vote-submit]');

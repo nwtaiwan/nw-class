@@ -161,6 +161,19 @@ service cloud.firestore {
       allow delete: if isStaff();
     }
 
+    // ============ examResults 集合（測驗成績） ============
+    // 欄位：courseId, uid, name, community, title, score, total, percent, passed, attempts
+    match /examResults/{resultId} {
+      // 讀取：所有登入者（學員讀自己的成績；服務/管理員查看通過名單）
+      allow read: if isSignedIn();
+
+      // 建立/修改：學員僅能寫入自己的成績（uid 需與登入者一致）
+      allow create, update: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+
+      // 刪除：僅服務/管理員
+      allow delete: if isStaff();
+    }
+
     // ============ buzzRounds 集合（搶答紀錄） ============
     // 欄位：courseId, round, uid, name, buzzedAt
     match /buzzRounds/{roundId} {
@@ -172,6 +185,17 @@ service cloud.firestore {
 
       // 修改/刪除：僅服務/管理員（清除紀錄）
       allow update, delete: if isStaff();
+    }
+
+    // ============ parkingShares 集合（停車資訊分享頁） ============
+    // 欄位：courseId, courseName, courseDate, courseTime, items[], updatedAt
+    // 文件 ID 為隨機 token（不可猜測），供「停車資訊」分享頁免登入檢視
+    match /parkingShares/{token} {
+      // 讀取：免登入（分享連結持有者）
+      allow read: if true;
+
+      // 寫入：僅服務/管理員
+      allow create, update, delete: if isStaff();
     }
   }
 }

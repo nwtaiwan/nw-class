@@ -314,6 +314,34 @@
   </div>
 </div>
 
+<!-- 停車資訊 -->
+<div id="modal-parking-info" class="hidden fixed inset-0 z-[96] bg-black/40 grid place-items-center p-4">
+  <div class="w-[80vw] h-[80vh] bg-white rounded-2xl shadow-xl grid grid-rows-[auto_minmax(0,1fr)] overflow-hidden fade-in">
+    <div class="flex items-center justify-between gap-2 px-5 py-3 border-b border-slate-100">
+      <div class="min-w-0">
+        <p class="text-base font-bold text-slate-900">停車資訊</p>
+        <p id="parking-info-meta" class="text-[11px] text-slate-400 truncate"></p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        <button id="parking-info-share" class="px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">分享</button>
+        <button id="parking-info-close" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">關閉</button>
+      </div>
+    </div>
+    <div id="parking-info-body" class="min-h-0 overflow-y-auto overscroll-contain no-scrollbar p-4 space-y-2"></div>
+  </div>
+</div>
+
+<!-- 停車資訊分享 -->
+<div id="modal-parking-share" class="hidden fixed inset-0 z-[97] bg-black/50 grid place-items-center p-4">
+  <div class="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 fade-in flex flex-col max-h-[85vh]">
+    <p class="text-base font-bold text-slate-900 text-center">停車資訊分享</p>
+    <p id="parking-share-meta" class="mt-1 text-[11px] text-slate-400 text-center"></p>
+    <div id="parking-share-qr" class="mt-4 mx-auto w-56 h-56 max-w-full grid place-items-center text-slate-300 text-xs"></div>
+    <p id="parking-share-url" class="mt-3 text-[11px] text-slate-500 break-all text-center select-all"></p>
+    <button id="parking-share-close" class="mt-4 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">關閉</button>
+  </div>
+</div>
+
 <!-- 課表時間表編輯 -->
 <div id="modal-schedule-edit" class="hidden fixed inset-0 z-[96] bg-black/40 grid place-items-center p-4">
   <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 fade-in flex flex-col max-h-[85vh]">
@@ -491,6 +519,7 @@
 <script>if (window.pdfjsLib) { window.pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdf.worker.min.js', document.baseURI).href; }</script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="./vendor/qrcode.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -541,6 +570,8 @@ const state = {
   courseFiles: [],
   unsubActivities: null,
   activities: [],
+  unsubExamResults: null,
+  examResults: [],
   activeTabId: '',
   courseMap: {}, activeCourse: null,
   allCourses: [], courseFilter: 'active',
@@ -730,8 +761,9 @@ const DEFAULT_TABS = [
   { id: 'vote', label: '投票', enabled: true, order: 3 },
   { id: 'qa', label: '搶答', enabled: true, order: 4 },
   { id: 'handouts', label: '講義', enabled: true, order: 5 },
-  { id: 'download', label: '活動', enabled: true, order: 6 },
-  { id: 'settings', label: '設定', enabled: true, order: 7 },
+  { id: 'exam', label: '測驗', enabled: true, order: 6 },
+  { id: 'download', label: '活動', enabled: true, order: 7 },
+  { id: 'settings', label: '設定', enabled: true, order: 8 },
 ];
 const TAB_ICONS = {
   checkin: '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>',
@@ -740,6 +772,7 @@ const TAB_ICONS = {
   vote: '<path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>',
   qa: '<path d="M11 21H9.8l1.28-6H7.7c-.62 0-.96-.72-.57-1.2L13 3h1.2l-1.28 6h3.38c.62 0 .96.72.57 1.2L11 21z"/>',
   handouts: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>',
+  exam: '<path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2.2 14.2L6.6 14l1.4-1.4 2.8 2.8 5.9-5.9 1.4 1.4-7.3 7.3z"/>',
   download: '<path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z"/>',
   settings: '<path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>',
   default: '<path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>',
@@ -1012,7 +1045,7 @@ async function toggleCourseArchive(courseId) {
 function showCourse(course) {
   state.activeCourse = course;
   $('#course-view-name').textContent = course.name || '未命名課程';
-  $('#course-view-meta').textContent = [formatDisplayDate(course.date), courseTimeText(course), course.instructor].filter(Boolean).join(' · ');
+  $('#course-view-meta').textContent = [formatDisplayDate(course.date), courseTimeText(course)].filter(Boolean).join(' · ');
   renderCourseNav(course);
   showView('course');
   watchCourseDoc(course.id);
@@ -1033,7 +1066,7 @@ function watchCourseDoc(courseId) {
     const nameEl = $('#course-view-name');
     if (nameEl) nameEl.textContent = data.name || '未命名課程';
     const metaEl = $('#course-view-meta');
-    if (metaEl) metaEl.textContent = [formatDisplayDate(data.date), courseTimeText(data), data.instructor].filter(Boolean).join(' · ');
+    if (metaEl) metaEl.textContent = [formatDisplayDate(data.date), courseTimeText(data)].filter(Boolean).join(' · ');
     renderCourseNav(data);
     applyTabHighlight(state.activeTabId);
     initActiveSession();
@@ -1083,6 +1116,7 @@ function renderTabContent(id, label) {
   if (id !== 'qa') { cleanupListener('unsubBuzz'); state.buzzWinnerUids = []; closeBuzzLog(); }
   if (id !== 'handouts') { cleanupListener('unsubCourseFiles'); state.courseFiles = []; closeCourseFilePreview(); }
   if (id !== 'download') { cleanupListener('unsubActivities'); state.activities = []; closeActivityEdit(); }
+  if (id !== 'exam') { cleanupListener('unsubExamResults'); state.examResults = []; }
   if (id === 'checkin') {
     panel.innerHTML = `
       <div class="h-full flex flex-row gap-4 overflow-hidden max-md:flex-col max-md:overflow-y-auto max-md:gap-3">
@@ -1091,6 +1125,7 @@ function renderTabContent(id, label) {
             <div id="session-bar" class="flex-1 min-w-0 flex flex-wrap gap-1.5"></div>
             <button id="btn-session-setting" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">場次設定</button>
             <button id="btn-cert-setting" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">證件設定</button>
+            <button id="btn-parking-info" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">停車資訊</button>
           </div>
           <p id="checkin-session-hint" class="text-sm text-slate-500">掃描學員 QR Code 完成報到</p>
           <div class="shrink-0">
@@ -1246,6 +1281,10 @@ function renderTabContent(id, label) {
   }
   if (id === 'handouts') {
     renderCourseFilesAdminTab(id, label);
+    return;
+  }
+  if (id === 'exam') {
+    renderExamAdminTab();
     return;
   }
   if (id === 'download') {
@@ -2030,6 +2069,426 @@ async function moveActivity(id, dir) {
   } catch { toast('調整順序失敗', 2000, 'danger'); }
 }
 
+/* ===== 測驗（同一場會議可建立多科試卷：各科題庫／門檻／AB 卷） ===== */
+const EXAM_OPTION_LABELS = 'ABCDEFGH';
+let examDraft = null; /* { subjects: [...] } */
+function examUid(prefix) {
+  return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+function examNormPaper(arr) {
+  return (Array.isArray(arr) ? arr : [])
+    .map((q, i) => ({
+      id: String(q?.id || ('p' + (i + 1))),
+      text: String(q?.text || ''),
+      options: (Array.isArray(q?.options) ? q.options : [])
+        .map((o, j) => ({ id: String(o?.id || ('o' + (j + 1))), text: String(o?.text || '') }))
+        .filter(o => o.text),
+      answer: String(q?.answer || ''),
+    }))
+    .filter(q => q.text && q.options.length >= 2 && q.options.some(o => o.id === q.answer));
+}
+function examShuffle(arr, rnd = Math.random) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+/* 依單一科目題庫組卷：A／B 卷為同一批題目的不同排列，降低互相抄答案的機率 */
+function examBuildSubjectPapers(questions, abEnabled) {
+  const bank = examNormPaper(questions);
+  const makePaper = () => examShuffle(bank).map((q, k) => ({
+    id: 'p' + (k + 1),
+    text: q.text,
+    options: examShuffle(q.options).map(o => ({ id: o.id, text: o.text })),
+    answer: q.answer,
+  }));
+  return { A: makePaper(), B: abEnabled ? makePaper() : [] };
+}
+/* 編輯器用：保留空白題目／選項以便輸入，故不做過濾 */
+function examNormSubject(s, i) {
+  const raw = parseInt(s?.passPercent, 10);
+  return {
+    id: String(s?.id || examUid('sub')),
+    name: String(s?.name || `科目 ${i + 1}`),
+    passPercent: Number.isFinite(raw) ? Math.min(100, Math.max(0, raw)) : 60,
+    abEnabled: s?.abEnabled === true,
+    questions: (Array.isArray(s?.questions) ? s.questions : []).map((q, j) => ({
+      id: String(q?.id || examUid('q')),
+      text: String(q?.text || ''),
+      options: (Array.isArray(q?.options) && q.options.length ? q.options : [{}, {}, {}, {}]).map((o, k) => ({
+        id: String(o?.id || examUid('o')),
+        text: String(o?.text || ''),
+      })),
+      answer: String(q?.answer || ''),
+    })),
+    papers: { A: examNormPaper(s?.papers?.A), B: examNormPaper(s?.papers?.B) },
+  };
+}
+function courseExamAdmin(course) {
+  const hasExams = Array.isArray(course?.exams);
+  const list = hasExams ? course.exams : [];
+  let subjects = list.map((s, i) => examNormSubject(s, i));
+  if (!subjects.length && !hasExams && course?.exam) {
+    subjects = [examNormSubject({ ...course.exam, id: 'sub1', name: `${course.name || '本課程'}測驗` }, 0)];
+  }
+  return { subjects };
+}
+function renderExamAdminTab() {
+  const panel = $('#course-tab-panel');
+  if (!panel) return;
+  examDraft = courseExamAdmin(state.activeCourse || {});
+  panel.innerHTML = `
+    <div class="h-full bg-white rounded-2xl border border-slate-200 flex flex-col overflow-hidden">
+      <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-slate-700">測驗</p>
+          <p class="text-[11px] text-slate-400 truncate">同一場會議可建立多科試卷；各科為單選題，學員達該科門檻即可下載該科電子獎狀</p>
+        </div>
+        <div class="shrink-0 flex items-center gap-2">
+          <button id="btn-exam-add-subject" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">＋ 新增科目</button>
+          <button id="btn-exam-save" class="px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">儲存</button>
+        </div>
+      </div>
+      <div class="flex-1 min-h-0 overflow-auto no-scrollbar p-4 space-y-4">
+        <div id="exam-subject-list" class="space-y-4"></div>
+        <div class="rounded-2xl border border-slate-200">
+          <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+            <p class="text-sm font-semibold text-slate-700">測驗結果</p>
+            <span id="exam-result-count" class="text-[11px] text-slate-400"></span>
+          </div>
+          <div id="exam-result-list" class="p-4 space-y-2">
+            <p class="text-slate-400 text-center py-4 text-sm">載入中…</p>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  $('#btn-exam-add-subject').addEventListener('click', addExamSubject);
+  $('#btn-exam-save').addEventListener('click', () => saveExam());
+  const list = $('#exam-subject-list');
+  list.addEventListener('input', onExamSubjectInput);
+  list.addEventListener('change', onExamSubjectChange);
+  list.addEventListener('click', onExamSubjectClick);
+  renderExamSubjectDrafts();
+  loadExamResults();
+}
+function onExamSubjectInput(e) {
+  if (!examDraft) return;
+  const name = e.target.closest('[data-exam-sub-name]');
+  if (name) { examDraft.subjects[Number(name.dataset.examSubName)].name = name.value; return; }
+  const pass = e.target.closest('[data-exam-sub-pass]');
+  if (pass) { examDraft.subjects[Number(pass.dataset.examSubPass)].passPercent = pass.value; return; }
+  const qt = e.target.closest('[data-exam-q-text]');
+  if (qt) {
+    const [si, qi] = qt.dataset.examQText.split(':').map(Number);
+    examDraft.subjects[si].questions[qi].text = qt.value;
+    return;
+  }
+  const ot = e.target.closest('[data-exam-opt-text]');
+  if (ot) {
+    const [si, qi, oi] = ot.dataset.examOptText.split(':').map(Number);
+    examDraft.subjects[si].questions[qi].options[oi].text = ot.value;
+  }
+}
+function onExamSubjectChange(e) {
+  if (!examDraft) return;
+  const ab = e.target.closest('[data-exam-sub-ab]');
+  if (ab) {
+    examDraft.subjects[Number(ab.dataset.examSubAb)].abEnabled = ab.checked;
+    renderExamSubjectDrafts();
+    return;
+  }
+  const radio = e.target.closest('[data-exam-answer]');
+  if (radio) {
+    const [si, qi] = radio.dataset.examAnswer.split(':').map(Number);
+    examDraft.subjects[si].questions[qi].answer = radio.value;
+    renderExamSubjectDrafts();
+  }
+}
+function onExamSubjectClick(e) {
+  if (!examDraft) return;
+  const addQ = e.target.closest('[data-exam-sub-addq]');
+  if (addQ) return addExamQuestion(Number(addQ.dataset.examSubAddq));
+  const regen = e.target.closest('[data-exam-sub-regen]');
+  if (regen) return regenExamSubject(Number(regen.dataset.examSubRegen));
+  const subDel = e.target.closest('[data-exam-sub-del]');
+  if (subDel) return deleteExamSubject(Number(subDel.dataset.examSubDel));
+  const subUp = e.target.closest('[data-exam-sub-up]');
+  if (subUp) return moveExamSubject(Number(subUp.dataset.examSubUp), -1);
+  const subDown = e.target.closest('[data-exam-sub-down]');
+  if (subDown) return moveExamSubject(Number(subDown.dataset.examSubDown), 1);
+  const qDel = e.target.closest('[data-exam-q-del]');
+  if (qDel) { const [si, qi] = qDel.dataset.examQDel.split(':').map(Number); return deleteExamQuestion(si, qi); }
+  const qUp = e.target.closest('[data-exam-q-up]');
+  if (qUp) { const [si, qi] = qUp.dataset.examQUp.split(':').map(Number); return moveExamQuestion(si, qi, -1); }
+  const qDown = e.target.closest('[data-exam-q-down]');
+  if (qDown) { const [si, qi] = qDown.dataset.examQDown.split(':').map(Number); return moveExamQuestion(si, qi, 1); }
+  const optAdd = e.target.closest('[data-exam-opt-add]');
+  if (optAdd) { const [si, qi] = optAdd.dataset.examOptAdd.split(':').map(Number); return addExamOption(si, qi); }
+  const optDel = e.target.closest('[data-exam-opt-del]');
+  if (optDel) { const [si, qi, oi] = optDel.dataset.examOptDel.split(':').map(Number); return deleteExamOption(si, qi, oi); }
+}
+function renderExamSubjectDrafts() {
+  const box = $('#exam-subject-list');
+  if (!box || !examDraft) return;
+  if (!examDraft.subjects.length) {
+    box.innerHTML = '<div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center"><p class="text-slate-500 font-semibold">尚未建立科目</p><p class="text-xs text-slate-400 mt-1">點右上角「＋ 新增科目」開始建立試卷</p></div>';
+    return;
+  }
+  box.innerHTML = examDraft.subjects.map((s, si) => examSubjectCardHtml(s, si)).join('');
+}
+function examSubjectCardHtml(s, si) {
+  const paperA = (s.papers && s.papers.A) || [];
+  const paperB = (s.papers && s.papers.B) || [];
+  const paperInfo = paperA.length
+    ? `目前試卷 A 卷 ${paperA.length} 題${s.abEnabled && paperB.length ? `／B 卷 ${paperB.length} 題` : ''}`
+    : '尚未組卷，儲存時會依題庫自動組卷';
+  return `
+  <div class="rounded-2xl border border-slate-200">
+    <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-2">
+      <input data-exam-sub-name="${si}" type="text" value="${escAttr(s.name)}" placeholder="科目名稱，例如 學科 A" class="flex-1 min-w-[10rem] px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-semibold" />
+      <label class="shrink-0 flex items-center gap-1 text-xs text-slate-500">門檻
+        <input data-exam-sub-pass="${si}" type="number" min="0" max="100" step="1" value="${escAttr(s.passPercent)}" class="w-16 px-2 py-1.5 border border-slate-300 rounded-lg text-sm text-center tabular-nums" />分
+      </label>
+      <label class="shrink-0 flex items-center gap-1.5 text-xs text-slate-600 font-semibold cursor-pointer">
+        <input data-exam-sub-ab="${si}" type="checkbox" ${s.abEnabled ? 'checked' : ''} class="w-4 h-4 accent-brand" /> AB 卷
+      </label>
+      <button data-exam-sub-regen="${si}" class="shrink-0 px-3 py-1.5 rounded-lg bg-slate-800 text-white text-xs font-semibold">重新組卷</button>
+      <div class="shrink-0 flex items-center gap-1.5">
+        ${si > 0 ? `<button data-exam-sub-up="${si}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="上移">↑</button>` : ''}
+        ${si < examDraft.subjects.length - 1 ? `<button data-exam-sub-down="${si}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="下移">↓</button>` : ''}
+        <button data-exam-sub-del="${si}" class="w-8 h-8 rounded-lg border border-red-200 text-red-500 grid place-items-center" title="刪除科目">✕</button>
+      </div>
+    </div>
+    <div class="p-4 space-y-3">
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-sm font-semibold text-slate-700">題庫 <span class="text-[11px] font-normal text-slate-400">${s.questions.length} 題</span></p>
+        <button data-exam-sub-addq="${si}" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">＋ 新增題目</button>
+      </div>
+      <div class="space-y-3">${examQuestionsDraftHtml(s, si)}</div>
+      <details class="rounded-xl border border-slate-200">
+        <summary class="px-3 py-2 text-xs font-semibold text-slate-600 cursor-pointer">試卷預覽 <span class="text-[11px] font-normal text-slate-400 ml-1">${paperInfo}</span></summary>
+        <div class="px-3 pb-3">${examPaperPreviewHtml(s)}</div>
+      </details>
+    </div>
+  </div>`;
+}
+function examQuestionsDraftHtml(s, si) {
+  if (!s.questions.length) {
+    return '<div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-xs text-slate-400">尚未建立題目，點「＋ 新增題目」開始</div>';
+  }
+  return s.questions.map((q, qi) => `
+    <div class="rounded-xl border border-slate-200 p-3">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-xs font-semibold text-slate-400">第 ${qi + 1} 題</span>
+        <div class="flex items-center gap-1.5">
+          ${qi > 0 ? `<button data-exam-q-up="${si}:${qi}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="上移">↑</button>` : ''}
+          ${qi < s.questions.length - 1 ? `<button data-exam-q-down="${si}:${qi}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="下移">↓</button>` : ''}
+          <button data-exam-q-del="${si}:${qi}" class="w-8 h-8 rounded-lg border border-red-200 text-red-500 grid place-items-center" title="刪除">✕</button>
+        </div>
+      </div>
+      <input data-exam-q-text="${si}:${qi}" type="text" value="${escAttr(q.text)}" placeholder="輸入題目內容" class="w-full mt-2 px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      <p class="mt-3 text-[11px] text-slate-400">點選左側圓點標記正確答案（單選）</p>
+      <div class="mt-2 space-y-2">
+        ${q.options.map((o, oi) => `
+          <div class="flex items-center gap-2">
+            <label class="shrink-0 grid place-items-center w-7 h-7 rounded-full border-2 cursor-pointer ${q.answer === o.id ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300'}" title="設為正確答案">
+              <input type="radio" name="exam-answer-${si}-${qi}" data-exam-answer="${si}:${qi}" value="${escAttr(o.id)}" ${q.answer === o.id ? 'checked' : ''} class="sr-only" />
+              <span class="text-[11px] font-semibold ${q.answer === o.id ? 'text-emerald-600' : 'text-slate-400'}">${EXAM_OPTION_LABELS[oi] || (oi + 1)}</span>
+            </label>
+            <input data-exam-opt-text="${si}:${qi}:${oi}" type="text" value="${escAttr(o.text)}" placeholder="選項 ${EXAM_OPTION_LABELS[oi] || (oi + 1)}" class="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+            ${q.options.length > 2 ? `<button data-exam-opt-del="${si}:${qi}:${oi}" class="shrink-0 w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="移除選項">−</button>` : ''}
+          </div>`).join('')}
+      </div>
+      ${q.options.length < 6 ? `<button data-exam-opt-add="${si}:${qi}" class="mt-2 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">＋ 新增選項</button>` : ''}
+    </div>`).join('');
+}
+function examPaperPreviewHtml(s) {
+  const A = (s.papers && s.papers.A) || [];
+  const B = (s.papers && s.papers.B) || [];
+  if (!A.length) return '<p class="text-xs text-slate-400 py-2">尚未組卷。按「重新組卷」可先預覽，或直接「儲存」由系統依題庫組卷。</p>';
+  const listHtml = (label, arr) => `
+    <details class="rounded-lg border border-slate-200 mt-2">
+      <summary class="px-3 py-2 text-xs font-semibold text-slate-600 cursor-pointer">${label}（${arr.length} 題）</summary>
+      <ol class="px-5 pb-3 space-y-1.5 text-xs text-slate-500 list-decimal">
+        ${arr.map(q => `<li>${escAttr(q.text)}</li>`).join('')}
+      </ol>
+    </details>`;
+  return `${listHtml('A 卷', A)}${s.abEnabled && B.length ? listHtml('B 卷', B) : ''}`;
+}
+/* ===== 科目與題目／選項 CRUD（同一場會議多科試卷） ===== */
+function addExamSubject() {
+  if (!examDraft) return;
+  examDraft.subjects.push(examNormSubject({ name: `科目 ${examDraft.subjects.length + 1}`, questions: [{}] }, examDraft.subjects.length));
+  renderExamSubjectDrafts();
+}
+async function deleteExamSubject(si) {
+  const s = examDraft && examDraft.subjects[si];
+  if (!s) return;
+  if (!(await nwConfirm(`確定刪除科目「${s.name || '未命名'}」？`, { okText: '刪除', danger: true }))) return;
+  examDraft.subjects.splice(si, 1);
+  renderExamSubjectDrafts();
+}
+function moveExamSubject(si, delta) {
+  if (!examDraft) return;
+  const j = si + delta;
+  if (j < 0 || j >= examDraft.subjects.length) return;
+  const [s] = examDraft.subjects.splice(si, 1);
+  examDraft.subjects.splice(j, 0, s);
+  renderExamSubjectDrafts();
+}
+function regenExamSubject(si) {
+  const s = examDraft && examDraft.subjects[si];
+  if (!s) return;
+  const papers = examBuildSubjectPapers(s.questions, s.abEnabled === true);
+  if (!papers.A.length) return toast('此科尚無有效題目，請先建立題目並設定正確答案', 2600, 'warning');
+  s.papers = papers;
+  renderExamSubjectDrafts();
+  toast(`已重新組卷：A 卷 ${papers.A.length} 題${papers.B.length ? ` / B 卷 ${papers.B.length} 題` : ''}`, 2400, 'success');
+}
+function addExamQuestion(si) {
+  const s = examDraft && examDraft.subjects[si];
+  if (!s) return;
+  s.questions.push({
+    id: examUid('q'),
+    text: '',
+    options: [0, 1, 2, 3].map(() => ({ id: examUid('o'), text: '' })),
+    answer: '',
+  });
+  renderExamSubjectDrafts();
+  const inputs = $$(`#exam-subject-list [data-exam-q-text^="${si}:"]`);
+  const last = inputs[inputs.length - 1];
+  if (last) last.focus();
+}
+function deleteExamQuestion(si, qi) {
+  const s = examDraft && examDraft.subjects[si];
+  if (!s) return;
+  s.questions.splice(qi, 1);
+  renderExamSubjectDrafts();
+}
+function moveExamQuestion(si, qi, delta) {
+  const s = examDraft && examDraft.subjects[si];
+  if (!s) return;
+  const j = qi + delta;
+  if (j < 0 || j >= s.questions.length) return;
+  const [q] = s.questions.splice(qi, 1);
+  s.questions.splice(j, 0, q);
+  renderExamSubjectDrafts();
+}
+function addExamOption(si, qi) {
+  const q = examDraft && examDraft.subjects[si] && examDraft.subjects[si].questions[qi];
+  if (!q || q.options.length >= 6) return;
+  q.options.push({ id: examUid('o'), text: '' });
+  renderExamSubjectDrafts();
+}
+function deleteExamOption(si, qi, oi) {
+  const q = examDraft && examDraft.subjects[si] && examDraft.subjects[si].questions[qi];
+  if (!q || q.options.length <= 2) return;
+  const removed = q.options.splice(oi, 1)[0];
+  if (removed && q.answer === removed.id) q.answer = '';
+  renderExamSubjectDrafts();
+}
+/* 驗證並蒐集單一科目題庫；有誤時提示並回傳 null */
+function collectExamSubjectQuestions(s) {
+  const out = [];
+  for (let i = 0; i < s.questions.length; i++) {
+    const q = s.questions[i];
+    const text = String(q.text || '').trim();
+    if (!text) { toast(`${s.name}：第 ${i + 1} 題尚未輸入題目`, 2400, 'warning'); return null; }
+    const options = q.options
+      .map(o => ({ id: String(o.id), text: String(o.text || '').trim() }))
+      .filter(o => o.text);
+    if (options.length < 2) { toast(`${s.name}：第 ${i + 1} 題至少需要 2 個選項`, 2400, 'warning'); return null; }
+    if (!options.some(o => o.id === q.answer)) { toast(`請設定 ${s.name} 第 ${i + 1} 題的正確答案`, 2400, 'warning'); return null; }
+    out.push({ id: String(q.id), text, options, answer: String(q.answer) });
+  }
+  if (!out.length) { toast(`${s.name}：至少需要 1 題`, 2400, 'warning'); return null; }
+  return out;
+}
+async function saveExam() {
+  if (!state.activeCourse || !examDraft) return;
+  if (!examDraft.subjects.length) return toast('請至少新增一個科目', 2400, 'warning');
+  const exams = [];
+  for (const s of examDraft.subjects) {
+    const questions = collectExamSubjectQuestions(s);
+    if (!questions) return;
+    const rawPass = parseInt(s.passPercent, 10);
+    const passPercent = Number.isFinite(rawPass) ? Math.min(100, Math.max(0, rawPass)) : 60;
+    const abEnabled = s.abEnabled === true;
+    let papers = {
+      A: examNormPaper(s.papers && s.papers.A),
+      B: abEnabled ? examNormPaper(s.papers && s.papers.B) : [],
+    };
+    if (!papers.A.length || (abEnabled && !papers.B.length)) papers = examBuildSubjectPapers(questions, abEnabled);
+    if (!papers.A.length) { toast(`${s.name}：沒有可組卷的題目`, 2600, 'warning'); return; }
+    exams.push({
+      id: String(s.id),
+      name: String(s.name || '').trim() || '未命名科目',
+      passPercent,
+      abEnabled: abEnabled && papers.B.length > 0,
+      questions,
+      papers,
+    });
+  }
+  try {
+    await setDoc(doc(db, 'courses', state.activeCourse.id), { exams, updatedAt: serverTimestamp() }, { merge: true });
+    state.activeCourse.exams = exams;
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].exams = exams;
+    examDraft = courseExamAdmin(state.activeCourse);
+    renderExamSubjectDrafts();
+    toast('測驗已儲存', 2200, 'success');
+  } catch (err) {
+    toast('儲存失敗：' + (err.message || ''), 2400, 'danger');
+  }
+}
+function loadExamResults() {
+  cleanupListener('unsubExamResults');
+  state.examResults = [];
+  renderExamResults();
+  if (!state.activeCourse) return;
+  state.unsubExamResults = onSnapshot(query(collection(db, 'examResults'), where('courseId', '==', state.activeCourse.id)), (snap) => {
+    state.examResults = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (Number(b.percent) || 0) - (Number(a.percent) || 0));
+    renderExamResults();
+  }, () => {
+    const box = $('#exam-result-list');
+    if (box) box.innerHTML = '<p class="text-slate-400 text-center py-4 text-sm">結果載入失敗</p>';
+  });
+}
+function renderExamResults() {
+  const box = $('#exam-result-list');
+  if (!box) return;
+  const count = $('#exam-result-count');
+  if (count) count.textContent = state.examResults.length ? `${state.examResults.length} 筆作答` : '';
+  if (!state.examResults.length) {
+    box.innerHTML = '<p class="text-slate-400 text-center py-4 text-sm">尚無學員作答</p>';
+    return;
+  }
+  const groups = new Map();
+  state.examResults.forEach(r => {
+    const key = String(r.subjectName || r.subjectId || '測驗');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  });
+  box.innerHTML = [...groups.entries()].map(([name, rows]) => `
+    <div class="space-y-2">
+      <p class="text-xs font-semibold text-slate-500 px-1">${escAttr(name)} <span class="font-normal text-slate-400">${rows.length} 筆</span></p>
+      ${rows.map(r => `
+        <div class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2.5">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-slate-800 truncate">${escAttr(r.name || '未具名學員')}</p>
+            <p class="text-[11px] text-slate-400 truncate">${escAttr([r.community, r.title].filter(Boolean).join(' · ') || '—')}</p>
+          </div>
+          <div class="shrink-0 text-right">
+            <p class="text-sm font-bold tabular-nums ${r.passed ? 'text-emerald-600' : 'text-red-500'}">${Number(r.percent) || 0} 分</p>
+            <p class="text-[11px] text-slate-400">答對 ${Number(r.score) || 0}/${Number(r.total) || 0} · ${r.paper ? escAttr(r.paper) + ' 卷 · ' : ''}${r.passed ? '合格' : '未合格'} · ${escAttr(courseFileTimeText(r.updatedAt))}</p>
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
 /* ===== 設定（控制各分頁在學員端的顯示方式） ===== */
 const TAB_VISIBILITY = [
   { value: 'always', label: '一律顯示', cls: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
@@ -2490,6 +2949,115 @@ async function confirmCertSetting() {
     toast('儲存失敗：' + (err.message || ''), 2200, 'danger');
   }
 }
+
+/* 停車資訊：列出本課程已登記車牌的學員 */
+function parkingOfUser(u) {
+  if (!u || !state.activeCourse) return null;
+  const all = u.parking;
+  if (!all || typeof all !== 'object') return null;
+  const p = all[state.activeCourse.id];
+  return (p && p.plate) ? p : null;
+}
+function renderParkingInfo() {
+  const body = $('#parking-info-body');
+  if (!body) return;
+  const rows = state.courseStudents.filter(u => parkingOfUser(u));
+  const meta = $('#parking-info-meta');
+  if (meta) meta.textContent = `${state.activeCourse ? (state.activeCourse.name || '本課程') : ''} · 已登記 ${rows.length} 人`;
+  if (!rows.length) {
+    body.innerHTML = '<p class="text-slate-400 text-center py-8 text-sm">目前尚無學員登記停車資訊</p>';
+    return;
+  }
+  body.innerHTML = rows.map(u => {
+    const p = parkingOfUser(u);
+    const code = communityCodeOf(u);
+    const communityText = [code, u.community || u.unit || '—'].filter(Boolean).join(' ');
+    return `
+      <div class="flex items-center gap-3 rounded-xl px-3 py-3 border border-slate-100 bg-white">
+        ${u.avatar
+          ? `<img src="${escAttr(u.avatar)}" alt="" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 shrink-0" />`
+          : `<div class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0">${escAttr(initial(u.name || '學'))}</div>`}
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold truncate">${escAttr(u.name || '未命名學員')}</p>
+          <p class="text-[11px] text-slate-400 truncate">${escAttr(communityText)}</p>
+        </div>
+        <div class="shrink-0 flex flex-col items-end gap-1">
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${p.type === 'moto' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'}">${p.type === 'moto' ? '機車' : '汽車'}</span>
+          <span class="text-sm font-bold text-slate-900 tracking-wide">${escAttr(p.plate)}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+function openParkingInfo() {
+  if (!state.activeCourse) return;
+  $('#modal-parking-info').classList.remove('hidden');
+  renderParkingInfo();
+}
+function closeParkingInfo() { $('#modal-parking-info').classList.add('hidden'); }
+
+/* 停車資訊分享：產生免登入公開頁面連結與 QR Code */
+function newShareToken() {
+  if (window.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID().replace(/-/g, '');
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+function parkingShareUrl(token) {
+  return location.origin + location.pathname.replace(/[^/]*$/, '') + 'parking.html?s=' + token;
+}
+function parkingShareItems() {
+  return state.courseStudents.filter(u => parkingOfUser(u)).map(u => {
+    const p = parkingOfUser(u);
+    return {
+      name: u.name || '',
+      community: [communityCodeOf(u), u.community || u.unit || ''].filter(Boolean).join(' '),
+      type: p.type === 'moto' ? 'moto' : 'car',
+      plate: p.plate || '',
+    };
+  });
+}
+async function openParkingShare() {
+  const course = state.activeCourse;
+  if (!course) return;
+  const items = parkingShareItems();
+  try {
+    let token = course.parkingShareToken || '';
+    if (!token) {
+      token = newShareToken();
+      await setDoc(doc(db, 'courses', course.id), { parkingShareToken: token }, { merge: true });
+      state.activeCourse.parkingShareToken = token;
+      if (state.courseMap[course.id]) state.courseMap[course.id].parkingShareToken = token;
+    }
+    await setDoc(doc(db, 'parkingShares', token), {
+      courseId: course.id,
+      courseName: course.name || '未命名課程',
+      courseDate: formatDisplayDate(course.date),
+      courseTime: courseTimeText(course),
+      items,
+      updatedAt: serverTimestamp(),
+    });
+    const url = parkingShareUrl(token);
+    const qrBox = $('#parking-share-qr');
+    if (qrBox) {
+      if (typeof window.qrcode === 'function') {
+        const qr = window.qrcode(0, 'M');
+        qr.addData(url);
+        qr.make();
+        qrBox.innerHTML = qr.createSvgTag({ cellSize: 8, margin: 2, scalable: true });
+        const svg = qrBox.querySelector('svg');
+        if (svg) { svg.style.width = '100%'; svg.style.height = '100%'; }
+      } else {
+        qrBox.textContent = 'QR Code 產生失敗';
+      }
+    }
+    const urlEl = $('#parking-share-url');
+    if (urlEl) urlEl.textContent = url;
+    const metaEl = $('#parking-share-meta');
+    if (metaEl) metaEl.textContent = `${course.name || '本課程'} · 共 ${items.length} 筆 · 免登入可檢視`;
+    $('#modal-parking-share').classList.remove('hidden');
+  } catch (err) {
+    toast('分享失敗：' + (err.message || ''));
+  }
+}
+function closeParkingShare() { $('#modal-parking-share').classList.add('hidden'); }
 
 /* ===== 投票 ===== */
 function normalizeVotes(list) {
@@ -2976,6 +3544,7 @@ async function loadCourseStudents() {
         || String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hant'));
     renderCourseStudents();
     ensureSeatInfo();
+    if (!$('#modal-parking-info').classList.contains('hidden')) renderParkingInfo();
   }, () => {
     state.courseStudents = [];
     list.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入失敗</p>';
@@ -3034,6 +3603,7 @@ function wireCheckin() {
   $('#btn-stop-scan')?.addEventListener('click', stopScanner);
   $('#btn-session-setting')?.addEventListener('click', openSessionSetting);
   $('#btn-cert-setting')?.addEventListener('click', openCertSetting);
+  $('#btn-parking-info')?.addEventListener('click', openParkingInfo);
   $('#session-bar')?.addEventListener('click', (e) => {
     const b = e.target.closest('[data-session-id]');
     if (b) selectSession(b.dataset.sessionId);
@@ -3409,6 +3979,11 @@ $('#cert-setting-close').addEventListener('click', closeCertSetting);
 $('#cert-setting-confirm').addEventListener('click', confirmCertSetting);
 $('#cert-title-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmCertSetting(); });
 $('#modal-cert-setting').addEventListener('click', (e) => { if (e.target === $('#modal-cert-setting')) closeCertSetting(); });
+$('#parking-info-close').addEventListener('click', closeParkingInfo);
+$('#parking-info-share').addEventListener('click', openParkingShare);
+$('#modal-parking-info').addEventListener('click', (e) => { if (e.target === $('#modal-parking-info')) closeParkingInfo(); });
+$('#parking-share-close').addEventListener('click', closeParkingShare);
+$('#modal-parking-share').addEventListener('click', (e) => { if (e.target === $('#modal-parking-share')) closeParkingShare(); });
 
 /* 課表時間表編輯彈窗 */
 $('#schedule-edit-close').addEventListener('click', closeScheduleEdit);
