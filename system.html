@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#d32f2f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="NW Class" />
-<title>NW Class 管理後台</title>
+<meta name="apple-mobile-web-app-title" content="西北會議系統" />
+<title>西北會議系統 管理後台</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
@@ -26,9 +26,9 @@
 <script>
   const NW_BASE = (function(){ const p = window.location.pathname.replace(/\/[^/]*$/, '/'); return window.location.origin + p; })();
   let nwManifestUrl = '';
-  /* PWA 應用程式名稱與系統名稱設定（settings/system.name）保持一致 */
-  function applyManifest(name) {
-    const appName = (name || 'NW Class').trim() || 'NW Class';
+  /* PWA 應用程式名稱固定為「西北會議系統」 */
+  function applyManifest() {
+    const appName = '西北會議系統';
     const manifest = {
       name: appName, short_name: appName,
       start_url: NW_BASE + "system.html", scope: NW_BASE,
@@ -48,7 +48,7 @@
     const meta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
     if (meta) meta.setAttribute('content', appName);
   }
-  applyManifest('NW Class');
+  applyManifest();
 </script>
 
 <style>
@@ -84,7 +84,7 @@
     <div class="flex items-center gap-2">
       <img id="app-logo" src="logo.png" alt="NW Class" class="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200"
            onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
-      <span id="app-title" class="font-bold text-lg text-slate-900">NW Class</span>
+      <span id="app-title" class="font-bold text-lg text-slate-900">西北會議系統</span>
       <span class="px-1.5 py-0.5 bg-brand text-white text-[10px] rounded font-semibold">管理員</span>
     </div>
     <button id="btn-user-chip" class="hidden flex items-center gap-2">
@@ -144,7 +144,7 @@
       <div class="text-center mb-2">
         <img src="logo.png" alt="NW Class" class="w-16 h-16 mx-auto rounded-2xl object-cover shadow-lg"
              onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
-        <h1 id="auth-brand-name" class="text-base font-bold mt-1.5 text-slate-900">NW Class</h1>
+        <h1 id="auth-brand-name" class="text-base font-bold mt-1.5 text-slate-900">西北會議系統</h1>
         <p class="text-[11px] text-slate-500 mt-0.5">管理員後台</p>
       </div>
       <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
@@ -170,7 +170,7 @@
           </button>
         </form>
       </div>
-      <p class="text-center text-[11px] text-slate-400 mt-2 shrink-0">© NW Class · 管理後台</p>
+      <p class="text-center text-[11px] text-slate-400 mt-2 shrink-0">© 西北會議系統 · 管理後台</p>
     </section>
 
     <!-- 學員管理 -->
@@ -209,12 +209,6 @@
       </div>
 
       <div id="settings-general" class="flex-1 min-h-0 flex flex-col gap-3">
-        <div class="bg-white rounded-2xl border border-slate-200 p-4 shrink-0">
-          <label class="text-sm font-semibold text-slate-700">系統名稱</label>
-          <p class="text-[11px] text-slate-400 mt-0.5">顯示於 Header 與各頁面標題</p>
-          <input id="setting-system-name" type="text" class="w-full mt-2 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
-          <button id="btn-save-system-name" class="w-full mt-3 py-2.5 bg-brand text-white rounded-lg font-semibold">儲存</button>
-        </div>
         <div class="bg-white rounded-2xl border border-slate-200 p-4 shrink-0">
           <h3 class="font-semibold text-sm mb-2">目前登入者</h3>
           <div class="flex items-center gap-3">
@@ -582,7 +576,7 @@ function getSecondaryAuth() {
 
 const state = {
   currentUser: null, userDoc: null,
-  systemName: 'NW Class',
+  systemName: '西北會議系統',
   settingsTab: 'general',
   editingAccount: null, editingCourseId: null, editingInstructorId: null,
   editingRegionId: null, editingCommunityId: null, editingTitleId: null,
@@ -591,7 +585,7 @@ const state = {
   accountAvatar: '',
   assignStudentUid: null,
   confirmCallback: null,
-  unsubStudents: null, unsubService: null, unsubAdmin: null, unsubCourses: null, unsubInstructors: null, unsubSettings: null,
+  unsubStudents: null, unsubService: null, unsubAdmin: null, unsubCourses: null, unsubInstructors: null,
   unsubRegions: null, unsubCommunities: null, unsubTitles: null,
 };
 
@@ -716,31 +710,12 @@ async function handleEmailSubmit(e) {
   catch (err) { toast(authErrorText(err)); }
 }
 
-/* ===== 系統名稱（即時監聽） ===== */
-function loadSystemName() {
-  cleanupListener('unsubSettings');
-  state.unsubSettings = onSnapshot(doc(db, 'settings', 'system'), (snap) => {
-    if (snap.exists() && snap.data().name) state.systemName = snap.data().name;
-    applySystemName();
-  }, () => {});
-}
+/* ===== 系統名稱（固定） ===== */
 function applySystemName() {
   $('#app-title').textContent = state.systemName;
   $('#auth-brand-name').textContent = state.systemName;
-  const input = $('#setting-system-name');
-  if (input) input.value = state.systemName;
   document.title = state.systemName + ' 管理後台';
-  applyManifest(state.systemName);
-}
-async function saveSystemName() {
-  const name = $('#setting-system-name').value.trim();
-  if (!name) return toast('系統名稱不可為空');
-  state.systemName = name;
-  applySystemName();
-  try {
-    await setDoc(doc(db, 'settings', 'system'), { name, updatedAt: serverTimestamp() }, { merge: true });
-    toast('已儲存系統名稱');
-  } catch { toast('儲存失敗'); }
+  applyManifest();
 }
 
 function switchSettingsTab(tab) {
@@ -1562,11 +1537,11 @@ onAuthStateChanged(auth, async (user) => {
       return;
     }
     renderUser();
-    loadSystemName();
+    applySystemName();
     showView('students');
   } else {
     state.currentUser = null; state.userDoc = null;
-    cleanupListener('unsubSettings'); cleanupListener('unsubStudents');
+    cleanupListener('unsubStudents');
     cleanupListener('unsubService'); cleanupListener('unsubAdmin'); cleanupListener('unsubCourses');
     $('#btn-user-chip').classList.add('hidden');
     $('#modal-profile').classList.add('hidden');
@@ -1607,7 +1582,6 @@ $$('.toggle-pwd').forEach(b => b.addEventListener('click', () => {
 }));
 
 $$('.settings-tab').forEach(b => b.addEventListener('click', () => switchSettingsTab(b.dataset.settingsTab)));
-$('#btn-save-system-name').addEventListener('click', saveSystemName);
 
 $('#btn-add-service').addEventListener('click', () => { state._accTargetRole = 'service'; openAccountModal('service'); });
 $('#btn-add-admin').addEventListener('click', () => { state._accTargetRole = 'admin'; openAccountModal('admin'); });

@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#d32f2f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="NW Class" />
-<title>NW Class 服務端</title>
+<meta name="apple-mobile-web-app-title" content="西北會議系統" />
+<title>西北會議系統 服務端</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
@@ -27,9 +27,9 @@
 <script>
   const NW_BASE = (function(){ const p = window.location.pathname.replace(/\/[^/]*$/, '/'); return window.location.origin + p; })();
   let nwManifestUrl = '';
-  /* PWA 應用程式名稱與系統名稱設定（settings/system.name）保持一致 */
-  function applyManifest(name) {
-    const appName = (name || 'NW Class').trim() || 'NW Class';
+  /* PWA 應用程式名稱固定為「西北會議系統」 */
+  function applyManifest() {
+    const appName = '西北會議系統';
     const manifest = {
       name: appName, short_name: appName,
       start_url: NW_BASE + "admin.html", scope: NW_BASE,
@@ -49,7 +49,7 @@
     const meta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
     if (meta) meta.setAttribute('content', appName);
   }
-  applyManifest('NW Class');
+  applyManifest();
 </script>
 
 <style>
@@ -104,7 +104,7 @@
     <div class="flex items-center gap-2">
       <img id="app-logo" src="logo.png" alt="NW Class" class="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200"
            onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
-      <span id="app-title" class="font-bold text-lg text-slate-900">NW Class</span>
+      <span id="app-title" class="font-bold text-lg text-slate-900">西北會議系統</span>
       <span class="px-1.5 py-0.5 bg-slate-700 text-white text-[12px] rounded font-semibold">服務</span>
     </div>
     <button id="btn-user-chip" class="hidden flex items-center gap-2">
@@ -161,7 +161,7 @@
         <div class="text-center mb-4">
           <img src="logo.png" alt="NW Class" class="w-16 h-16 mx-auto rounded-2xl object-cover shadow-lg"
                onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
-          <h1 id="auth-brand-name" class="text-base font-bold mt-1.5 text-slate-900">NW Class</h1>
+          <h1 id="auth-brand-name" class="text-base font-bold mt-1.5 text-slate-900">西北會議系統</h1>
           <p class="text-[11px] text-slate-500 mt-0.5">服務端</p>
         </div>
         <form id="form-email" class="space-y-2">
@@ -185,7 +185,7 @@
             <span class="auth-submit-text">登入</span>
           </button>
         </form>
-        <p class="text-center text-[11px] text-slate-400 mt-4">© NW Class · 服務端</p>
+        <p class="text-center text-[11px] text-slate-400 mt-4">© 西北會議系統 · 服務端</p>
       </div>
     </section>
 
@@ -472,7 +472,7 @@ const db = getFirestore(app);
 
 const state = {
   currentUser: null, userDoc: null,
-  systemName: 'NW Class',
+  systemName: '西北會議系統',
   scanner: null, scanning: false,
   courseClockTimer: null,
   unsubRecent: null,
@@ -590,13 +590,7 @@ function applySystemName() {
   $('#app-title').textContent = state.systemName;
   $('#auth-brand-name').textContent = state.systemName;
   document.title = state.systemName + ' 服務端';
-  applyManifest(state.systemName);
-}
-
-function loadSystemName() {
-  onSnapshot(doc(db, 'settings', 'system'), (snap) => {
-    if (snap.exists() && snap.data().name) { state.systemName = snap.data().name; applySystemName(); }
-  }, () => {});
+  applyManifest();
 }
 
 function renderUser() {
@@ -2034,6 +2028,44 @@ function studentByUid(uid) {
   if (!uid) return null;
   return state.courseStudents.find(u => (u.uid || u.id) === uid) || null;
 }
+/* 座位人員顯示資訊（寫入課程文件 seatInfo，供學員端讀取） */
+function seatInfoOf(stu) {
+  return {
+    name: String(stu?.name || ''),
+    community: String(stu?.community || stu?.unit || ''),
+    title: String(stu?.title || '')
+  };
+}
+/* 補寫既有座位的 seatInfo（服務端載入學員名單後自動執行一次） */
+let _seatInfoWriting = false;
+async function ensureSeatInfo() {
+  if (_seatInfoWriting || !state.activeCourse) return;
+  if (!state.courseStudents.length) return;
+  const assignments = seatAssignmentsOf(state.activeCourse);
+  const uids = [...new Set(Object.values(assignments))].filter(Boolean);
+  if (!uids.length) return;
+  const info = (state.activeCourse.seatInfo && typeof state.activeCourse.seatInfo === 'object' && !Array.isArray(state.activeCourse.seatInfo)) ? state.activeCourse.seatInfo : {};
+  const payload = {};
+  uids.forEach(uid => {
+    const stu = studentByUid(uid);
+    if (!stu) return;
+    const next = seatInfoOf(stu);
+    const cur = info[uid];
+    if (!cur || cur.name !== next.name || cur.community !== next.community || cur.title !== next.title) {
+      payload['seatInfo.' + uid] = next;
+    }
+  });
+  if (!Object.keys(payload).length) return;
+  _seatInfoWriting = true;
+  try {
+    await updateDoc(doc(db, 'courses', state.activeCourse.id), payload);
+    const next = { ...info };
+    Object.keys(payload).forEach(k => { next[k.replace('seatInfo.', '')] = payload[k]; });
+    state.activeCourse.seatInfo = next;
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].seatInfo = next;
+  } catch { /* 補寫失敗不影響主流程 */ }
+  finally { _seatInfoWriting = false; }
+}
 function renderSeatMap() {
   const box = $('#seat-map');
   if (!box) return;
@@ -2047,6 +2079,7 @@ function renderSeatMap() {
   const occupancy = seatOccupancyOf(state.activeCourse);
   const assignedCount = Object.keys(occupancy).length;
   if (meta) meta.textContent = `${rows} 排 × ${cols} 列${aisles.length ? ' · 走道 ' + aisles.join('、') : ''} · 已指派 ${assignedCount} 人${allowSelfSelect ? ' · 開放自選' : ''}`;
+  ensureSeatInfo();
   const aisleSet = new Set(aisles);
   let colsTmpl = '1.75rem';
   for (let c = 1; c <= cols; c++) {
@@ -2189,6 +2222,9 @@ async function assignSeatToUser(uid) {
   const code = state.pendingSeatCode;
   const assignments = seatAssignmentsOf(state.activeCourse);
   const payload = { ['seatAssignments.' + code]: uid };
+  // 同步寫入學員顯示資訊（供學員端讀取，避免學員讀取他人 users 文件）
+  const stu = studentByUid(uid);
+  if (stu) payload['seatInfo.' + uid] = seatInfoOf(stu);
   Object.entries(assignments).forEach(([k, v]) => { if (v === uid && k !== code) payload['seatAssignments.' + k] = deleteField(); });
   // 服務指派優先：指派時同步移除該學員的自選座位
   if (seatSelfPicksOf(state.activeCourse)[uid]) payload['seatSelfPicks.' + uid] = deleteField();
@@ -2696,6 +2732,7 @@ async function loadCourseStudents() {
       .sort((a, b) => String(communitySortKey(a)).localeCompare(String(communitySortKey(b)), 'zh-Hant', { numeric: true })
         || String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hant'));
     renderCourseStudents();
+    ensureSeatInfo();
   }, () => {
     state.courseStudents = [];
     list.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入失敗</p>';
@@ -2992,7 +3029,7 @@ onAuthStateChanged(auth, async (user) => {
       return;
     }
     renderUser();
-    loadSystemName();
+    applySystemName();
     showView('course-select');
   } else {
     state.currentUser = null; state.userDoc = null; state.activeCourse = null;

@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#d32f2f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="NW Class" />
-<title>NW Class 學員端</title>
+<meta name="apple-mobile-web-app-title" content="西北會議系統" />
+<title>西北會議系統 學員端</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
@@ -27,9 +27,9 @@
 <script>
   const NW_BASE = (function(){ const p = window.location.pathname.replace(/\/[^/]*$/, '/'); return window.location.origin + p; })();
   let nwManifestUrl = '';
-  /* PWA 應用程式名稱與系統名稱設定（settings/system.name）保持一致 */
-  function applyManifest(name) {
-    const appName = (name || 'NW Class').trim() || 'NW Class';
+  /* PWA 應用程式名稱固定為「西北會議系統」 */
+  function applyManifest() {
+    const appName = '西北會議系統';
     const manifest = {
       name: appName, short_name: appName,
       start_url: NW_BASE + "index.html", scope: NW_BASE,
@@ -49,7 +49,7 @@
     const meta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
     if (meta) meta.setAttribute('content', appName);
   }
-  applyManifest('NW Class');
+  applyManifest();
 </script>
 
 <style>
@@ -71,6 +71,24 @@
     background-image: linear-gradient(120deg, #fee2e2, #fecaca, #fef2f2, #fca5a5);
     background-size: 300% 300%;
     animation: checkinBg 14s ease-in-out infinite;
+  }
+  /* 座位代號：依座位寬度自動縮放，確保文字完整顯示 */
+  .seat-cell { container-type: inline-size; }
+  .seat-code { font-size: 10px; font-size: clamp(6px, 40cqw, 12px); line-height: 1; }
+  /* 座位圖背景：緩慢流動的漸層動畫 */
+  .seat-map-anim {
+    background-image: linear-gradient(120deg, #f8fafc, #eff6ff, #f1f5f9, #e0e7ff);
+    background-size: 300% 300%;
+    animation: checkinBg 14s ease-in-out infinite;
+  }
+  /* 上課證標題：黑色立體感文字 */
+  .cert-title {
+    color: #111827;
+    text-shadow:
+      1px 1px 0 #cbd5e1,
+      2px 2px 0 #94a3b8,
+      3px 3px 0 #64748b,
+      4px 4px 6px rgba(0, 0, 0, .35);
   }
   #landscape-lock { display: none; }
   @media (orientation: landscape) and (max-height: 540px) {
@@ -99,11 +117,11 @@
     <div class="flex items-center gap-2">
       <img id="app-logo" src="logo.png" alt="NW Class" class="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200"
            onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
-      <span id="app-title" class="font-bold text-lg text-slate-900">NW Class</span>
+      <span id="app-title" class="font-bold text-lg text-slate-900">西北會議系統</span>
       <span class="px-1.5 py-0.5 bg-brand text-white text-[10px] rounded font-semibold">學員</span>
     </div>
     <button id="btn-user-chip" class="hidden flex items-center gap-2">
-      <span id="chip-name" class="text-sm font-medium text-slate-600 max-w-[7rem] truncate"></span>
+      <span id="chip-name" class="text-base font-medium text-slate-900 max-w-[7rem] truncate"></span>
       <img id="chip-avatar" alt="" class="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 hidden" />
       <span id="chip-avatar-fallback" class="w-8 h-8 rounded-full bg-brand text-white grid place-items-center text-xs font-bold">N</span>
     </button>
@@ -166,7 +184,7 @@
       <div class="text-center mb-2">
         <img src="logo.png" alt="NW Class" class="w-16 h-16 mx-auto rounded-2xl object-cover shadow-lg"
              onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
-        <h1 id="auth-brand-name" class="text-base font-bold mt-1.5 text-slate-900">NW Class</h1>
+        <h1 id="auth-brand-name" class="text-base font-bold mt-1.5 text-slate-900">西北會議系統</h1>
         <p class="text-[11px] text-slate-500 mt-0.5">學員端</p>
       </div>
       <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
@@ -192,7 +210,7 @@
           </button>
         </form>
       </div>
-      <p class="text-center text-[11px] text-slate-400 mt-2 shrink-0">© NW Class · 學員端</p>
+      <p class="text-center text-[11px] text-slate-400 mt-2 shrink-0">© 西北會議系統 · 學員端</p>
     </section>
 
     <!-- 選擇課程 -->
@@ -212,8 +230,8 @@
     <section id="view-dashboard" class="hidden h-full flex flex-col fade-in">
       <div class="shrink-0 flex items-center px-4 h-14 border-b border-slate-200 bg-white">
         <div class="flex-1 min-w-0">
-          <p id="course-view-name" class="text-sm font-bold text-slate-900 truncate">課程</p>
-          <p id="course-view-meta" class="text-[11px] text-slate-500 truncate"></p>
+          <p id="course-view-name" class="text-base font-bold text-slate-900 truncate">課程</p>
+          <p id="course-view-meta" class="text-sm text-slate-500 truncate"></p>
         </div>
       </div>
       <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 space-y-3">
@@ -285,6 +303,42 @@
   </div>
 </div>
 
+<!-- 確認彈窗 -->
+<div id="modal-confirm" class="hidden fixed inset-0 z-[99] bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-[80vw] max-w-sm p-5 fade-in">
+    <p id="confirm-title" class="text-base font-bold text-slate-900">確認</p>
+    <p id="confirm-msg" class="mt-2 text-sm text-slate-600 leading-relaxed whitespace-pre-line"></p>
+    <div class="mt-5 flex gap-2">
+      <button id="confirm-cancel" class="flex-1 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold text-sm">取消</button>
+      <button id="confirm-ok" class="flex-1 py-2.5 rounded-lg bg-brand text-white font-semibold text-sm">確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- 座位資訊彈窗 -->
+<div id="modal-seat-info" class="hidden fixed inset-0 z-[99] bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-[80vw] max-w-sm p-5 fade-in">
+    <p class="text-xs text-slate-400">座位編號</p>
+    <p id="seat-info-code" class="text-2xl font-bold text-slate-900 tracking-widest">—</p>
+    <div class="mt-4 space-y-2">
+      <div class="bg-slate-50 rounded-xl px-4 py-2.5"><p class="text-[11px] text-slate-400">社區</p><p id="seat-info-community" class="text-sm text-slate-700 break-words">—</p></div>
+      <div class="bg-slate-50 rounded-xl px-4 py-2.5"><p class="text-[11px] text-slate-400">職稱</p><p id="seat-info-title" class="text-sm text-slate-700 break-words">—</p></div>
+      <div class="bg-slate-50 rounded-xl px-4 py-2.5"><p class="text-[11px] text-slate-400">姓名</p><p id="seat-info-name" class="text-sm text-slate-700 break-words">—</p></div>
+    </div>
+    <button id="seat-info-close" class="mt-5 w-full py-2.5 rounded-lg bg-brand text-white font-semibold text-sm">關閉</button>
+  </div>
+</div>
+
+<!-- 報到成功慶祝（影片 + 字幕 + 語音） -->
+<div id="modal-celebrate" class="hidden fixed inset-0 z-[110] bg-black/85 flex flex-col items-center justify-center gap-4 p-4">
+  <video id="celebrate-video" src="./check-ok.mp4" playsinline webkit-playsinline preload="auto" class="max-w-full max-h-[72vh] rounded-2xl bg-black"></video>
+  <p id="celebrate-text" class="shrink-0 max-w-full px-4 text-center text-lg font-bold text-white drop-shadow"></p>
+  <div id="celebrate-actions" class="hidden shrink-0 flex items-center gap-3">
+    <button id="celebrate-replay" class="px-6 py-2.5 rounded-lg border border-white/60 text-white font-semibold text-sm">再看一次</button>
+    <button id="celebrate-ok" class="px-6 py-2.5 rounded-lg bg-brand text-white font-semibold text-sm">好的！</button>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast" class="hidden fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white text-sm px-4 py-2 rounded-lg shadow-lg"></div>
 
@@ -317,7 +371,7 @@ const db = getFirestore(app);
 
 const state = {
   currentUser: null, userDoc: null,
-  systemName: 'NW Class',
+  systemName: '西北會議系統',
   unsubCheckins: null,
   unsubVotes: null, unsubVoteCourse: null,
   voteResponses: {}, voteSelection: {},
@@ -347,10 +401,43 @@ const toast = (msg, ms = 2200) => { const t = $('#toast'); t.textContent = msg; 
 const initial = (name) => (name || 'N').trim().charAt(0).toUpperCase();
 const escHtml = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+/* ===== 通用彈窗 ===== */
+let _confirmResolve = null;
+function nwConfirm(message, title = '確認') {
+  $('#confirm-title').textContent = title;
+  $('#confirm-msg').textContent = message;
+  $('#modal-confirm').classList.remove('hidden');
+  return new Promise((resolve) => { _confirmResolve = resolve; });
+}
+function closeConfirm(result) {
+  $('#modal-confirm').classList.add('hidden');
+  const r = _confirmResolve; _confirmResolve = null;
+  if (r) r(result);
+}
+function showSeatInfoModal({ code, community, title, name }) {
+  $('#seat-info-code').textContent = code || '—';
+  $('#seat-info-community').textContent = community || '—';
+  $('#seat-info-title').textContent = title || '—';
+  $('#seat-info-name').textContent = name || '—';
+  $('#modal-seat-info').classList.remove('hidden');
+}
+
 function cleanupListener(key) { if (state[key]) { try { state[key](); } catch(e){} state[key] = null; } }
+
+function stopCheckinCelebration() {
+  if (_celebrationTimer) { clearTimeout(_celebrationTimer); _celebrationTimer = null; }
+  const overlay = $('#modal-celebrate');
+  const video = $('#celebrate-video');
+  const actions = $('#celebrate-actions');
+  if (overlay) overlay.classList.add('hidden');
+  if (actions) actions.classList.add('hidden');
+  if (video) { try { video.pause(); } catch {} }
+  try { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); } catch {}
+}
 
 function showView(name) {
   if (name === 'dashboard' && !state.activeCourse) name = 'course-select';
+  if (name !== 'dashboard') stopCheckinCelebration();
   if (name !== 'profile') cleanupListener('unsubCheckins');
   if (name !== 'dashboard') { cleanupListener('unsubCourseCheckin'); cleanupVoteListeners(); cleanupBuzzListeners(); cleanupCourseFileListeners(); cleanupActivityListeners(); cleanupSeatListener(); }
   $$('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
@@ -377,12 +464,7 @@ function applySystemName() {
   $('#app-title').textContent = state.systemName;
   $('#auth-brand-name').textContent = state.systemName;
   document.title = state.systemName + ' 學員端';
-  applyManifest(state.systemName);
-}
-function loadSystemName() {
-  onSnapshot(doc(db, 'settings', 'system'), (snap) => {
-    if (snap.exists() && snap.data().name) { state.systemName = snap.data().name; applySystemName(); }
-  }, () => {});
+  applyManifest();
 }
 
 function renderUser() {
@@ -594,7 +676,7 @@ function renderCourseButtons() {
     return `
     <button data-tab="${t.id}" data-tab-label="${escHtml(t.label || '功能')}" class="course-tab-btn flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 ${on ? 'text-brand' : 'text-slate-400'}">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24">${iconOf(t.id)}</svg>
-      <span class="text-[11px] truncate w-full text-center${on ? ' font-semibold' : ''}">${escHtml(t.label || '功能')}</span>
+      <span class="text-sm truncate w-full text-center${on ? ' font-semibold' : ''}">${escHtml(t.label || '功能')}</span>
     </button>`;
   }).join('');
 }
@@ -605,11 +687,21 @@ function watchCourseCheckin() {
   const q = query(collection(db, 'checkins'),
     where('uid', '==', state.currentUser.uid),
     where('courseId', '==', state.activeCourse.id));
+  let firstSnap = true;
   state.unsubCourseCheckin = onSnapshot(q, (snap) => {
     const has = !snap.empty;
+    // 首次快照僅記錄狀態，避免「進入課程時已報到」重複播放慶祝動畫
+    if (firstSnap) {
+      firstSnap = false;
+      state.courseCheckedIn = has;
+      renderCourseButtons();
+      return;
+    }
     if (has === state.courseCheckedIn) return;
+    const justCheckedIn = has && !state.courseCheckedIn;
     state.courseCheckedIn = has;
     renderCourseButtons();
+    if (justCheckedIn) playCheckinCelebration();
   }, () => {});
 }
 /* ===== 學員報到頁（一頁式：上課證 + QR Code） ===== */
@@ -618,16 +710,16 @@ function renderCheckinStudent() {
   const panel = $('#course-tab-panel');
   panel.innerHTML = `
     <div class="h-full flex flex-col items-center gap-2">
-      <p class="shrink-0 text-2xl font-bold text-slate-800 tracking-widest">上課證</p>
+      <p class="shrink-0 text-4xl font-bold tracking-widest cert-title">上課證</p>
       <div class="shrink-0 w-full min-w-0 space-y-1">
         <p class="text-lg text-slate-600 truncate">${escHtml(u.community || '—')}</p>
         <p class="text-lg text-slate-600 truncate">${escHtml(u.title || '—')}</p>
         <p class="text-xl font-bold text-slate-900 truncate">${escHtml(u.name || '學員')}</p>
       </div>
       <div class="flex-1 min-h-0 w-full flex items-center justify-center">
-        <div id="checkin-qr" class="h-full max-w-full aspect-square [&>svg]:w-full [&>svg]:h-full [&>svg]:block"></div>
+        <div id="checkin-qr" class="w-full aspect-square max-w-[50vw] max-h-full [&>svg]:w-full [&>svg]:h-full [&>svg]:block"></div>
       </div>
-      <p class="shrink-0 text-[11px] leading-relaxed text-slate-400 text-center">請於活動現場向服務人員出示此 QR Code，提供掃描後即完成報到。</p>
+      <p class="shrink-0 text-sm leading-relaxed text-slate-900 text-center">請於活動現場向服務人員出示此 QR Code，提供掃描後即完成報到。</p>
     </div>`;
   renderCheckinQr();
 }
@@ -644,9 +736,80 @@ function renderCheckinQr() {
     qr.addData(JSON.stringify({ uid }));
     qr.make();
     box.innerHTML = qr.createSvgTag({ cellSize: 8, margin: 2, scalable: true });
+    // QR Code 圖形始終水平（與垂直）置中
+    const svg = box.querySelector('svg');
+    if (svg) svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   } catch {
     box.innerHTML = '<p class="text-xs text-slate-400">QR Code 產生失敗</p>';
   }
+}
+/* ===== 報到成功：播放慶祝影片 + 語音，結束後自動切到「座位」分頁 ===== */
+let _celebrationTimer = null;
+function pickBoyVoice(voices) {
+  if (!voices || !voices.length) return null;
+  const zh = voices.filter(v => /^(zh|cmn)/i.test(v.lang || ''));
+  const pool = zh.length ? zh : voices;
+  // 優先挑選名稱含男童/男孩/男聲關鍵字的語音
+  return pool.find(v => /(child|kid|boy|young|male|童|男)/i.test(v.name || ''))
+    || pool.find(v => /zh[-_]TW|zh[-_]HK/i.test(v.lang || ''))
+    || pool[0] || null;
+}
+function speakCheckinCongratulations() {
+  try {
+    if (!('speechSynthesis' in window)) return;
+    const synth = window.speechSynthesis;
+    const name = (state.userDoc && state.userDoc.name) || '學員';
+    const text = `恭喜${name}完成報到，讓我們來找座位吧！`;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-TW';
+    u.pitch = 1.4;   // 提高音調，模擬男童聲
+    u.rate = 1.0;
+    const v = pickBoyVoice(synth.getVoices());
+    if (v) u.voice = v;
+    synth.cancel();
+    synth.speak(u);
+  } catch { /* 忽略語音失敗 */ }
+}
+function playCheckinCelebration() {
+  const overlay = $('#modal-celebrate');
+  const video = $('#celebrate-video');
+  if (!overlay || !video) return;
+  const txt = $('#celebrate-text');
+  if (txt) txt.textContent = `恭喜${(state.userDoc && state.userDoc.name) || '學員'}完成報到，讓我們來找座位吧！`;
+  const actions = $('#celebrate-actions');
+  const showActions = () => { if (actions) actions.classList.remove('hidden'); };
+  if (actions) actions.classList.add('hidden');
+  speakCheckinCongratulations();
+  overlay.classList.remove('hidden');
+  // 影片播放結束（或無法播放）→ 顯示「再看一次 / 好的！」按鈕
+  video.onended = showActions;
+  video.onerror = showActions;
+  replayCheckinCelebration();
+  // 保險：影片停滯時仍顯示按鈕，避免畫面卡住
+  const armSafety = (ms) => { if (_celebrationTimer) clearTimeout(_celebrationTimer); _celebrationTimer = setTimeout(showActions, ms); };
+  if (isFinite(video.duration) && video.duration > 0) armSafety(video.duration * 1000 + 1200);
+  else {
+    armSafety(12000);
+    video.addEventListener('loadedmetadata', () => {
+      if (actions && !actions.classList.contains('hidden')) return;
+      const d = isFinite(video.duration) && video.duration > 0 ? video.duration * 1000 : 8000;
+      armSafety(d + 1200);
+    }, { once: true });
+  }
+}
+function replayCheckinCelebration() {
+  const video = $('#celebrate-video');
+  const actions = $('#celebrate-actions');
+  if (!video) return;
+  if (actions) actions.classList.add('hidden');
+  try { video.currentTime = 0; } catch {}
+  const p = video.play();
+  if (p && typeof p.catch === 'function') p.catch(() => { if (actions) actions.classList.remove('hidden'); });
+  if (_celebrationTimer) { clearTimeout(_celebrationTimer); _celebrationTimer = null; }
+}
+function goToSeatFromCelebration() {
+  stopCheckinCelebration();
+  if ($('.course-tab-btn[data-tab="seat"]')) openCourseTab('seat');
 }
 /* ===== 座位（學員端） ===== */
 function seatConfigStudent(course) {
@@ -695,13 +858,15 @@ function openSeatStudent() {
         </div>
         <button id="seat-student-clear" class="hidden shrink-0 px-2.5 py-1 rounded-lg border border-slate-300 text-slate-500 text-xs font-semibold">取消我的座位</button>
       </div>
-      <div id="seat-student-map" class="flex-1 min-h-0 overflow-auto no-scrollbar"></div>
+      <div id="seat-student-map" class="seat-map-anim flex-1 min-h-0 overflow-auto no-scrollbar"></div>
     </div>`;
   cleanupSeatListener();
   const map = $('#seat-student-map');
   if (map) map.addEventListener('click', (e) => {
+    const info = e.target.closest('[data-seat-info]');
+    if (info) { showSeatOccupant(info.dataset.seatInfo); return; }
     const b = e.target.closest('[data-seat-pick]');
-    if (b) pickSeatStudent(b.dataset.seatPick);
+    if (b) requestSeatPick(b.dataset.seatPick);
   });
   const clearBtn = $('#seat-student-clear');
   if (clearBtn) clearBtn.addEventListener('click', clearSeatStudent);
@@ -742,9 +907,9 @@ function renderSeatStudent() {
   let colsTmpl = '2rem';
   for (let c2 = 1; c2 <= cols; c2++) {
     colsTmpl += ' minmax(0, 1fr)';
-    if (aisleSet.has(c2)) colsTmpl += ' 1.75rem';
+    if (aisleSet.has(c2)) colsTmpl += ' min-content';
   }
-  const gridStyle = `grid-template-columns: ${colsTmpl}; grid-template-rows: auto repeat(${rows}, minmax(2.5rem, 1fr));`;
+  const gridStyle = `grid-template-columns: ${colsTmpl}; grid-template-rows: auto repeat(${rows}, auto);`;
   const head = ['<div></div>'];
   for (let c2 = 1; c2 <= cols; c2++) {
     head.push(`<div class="grid place-items-center text-[12px] text-slate-400 tabular-nums truncate">${String(c2).padStart(2, '0')}</div>`);
@@ -758,13 +923,13 @@ function renderSeatStudent() {
       const entry = byCode[code];
       const isMine = !!(entry && entry.uid === state.currentUser?.uid);
       if (isMine) {
-        cells.push(`<div class="min-w-0 h-full rounded-md border border-brand bg-brand text-white grid place-items-center text-[12px] font-semibold tabular-nums overflow-hidden">${code}</div>`);
+        cells.push(`<div class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-brand bg-brand text-white grid place-items-center font-semibold tabular-nums overflow-hidden"><span class="seat-code">${code}</span></div>`);
       } else if (entry) {
-        cells.push(`<div class="min-w-0 h-full rounded-md border border-slate-300 bg-slate-100 grid place-items-center text-[12px] text-slate-400 tabular-nums overflow-hidden">${code}</div>`);
+        cells.push(`<button type="button" data-seat-info="${code}" class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-slate-300 bg-slate-100 grid place-items-center text-slate-400 tabular-nums overflow-hidden"><span class="seat-code">${code}</span></button>`);
       } else if (canSelfPick) {
-        cells.push(`<button type="button" data-seat-pick="${code}" class="min-w-0 h-full rounded-md border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 grid place-items-center text-[12px] text-emerald-700 tabular-nums overflow-hidden">${code}</button>`);
+        cells.push(`<button type="button" data-seat-pick="${code}" class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 grid place-items-center text-emerald-700 tabular-nums overflow-hidden"><span class="seat-code">${code}</span></button>`);
       } else {
-        cells.push(`<div class="min-w-0 h-full rounded-md border border-slate-200 bg-slate-50 grid place-items-center text-[12px] text-slate-400 tabular-nums overflow-hidden">${code}</div>`);
+        cells.push(`<div class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-slate-200 bg-slate-50 grid place-items-center text-slate-400 tabular-nums overflow-hidden"><span class="seat-code">${code}</span></div>`);
       }
       if (aisleSet.has(c2)) cells.push('<div class="rounded bg-slate-400 grid place-items-center text-[10px] font-semibold text-white/90 tracking-widest" style="writing-mode:vertical-rl;">走道</div>');
     }
@@ -773,12 +938,43 @@ function renderSeatStudent() {
   box.innerHTML = `
     <div class="h-full flex flex-col min-h-0">
       <div class="flex-1 min-h-0 overflow-auto no-scrollbar">
-        <div class="grid gap-1 min-h-full" style="${gridStyle}">${head.join('')}${body}</div>
-      </div>
-      <div class="shrink-0 pt-2 border-t border-slate-100">
-        <div class="h-10 rounded-lg bg-brand text-white grid place-items-center text-sm font-bold tracking-[0.5em]">講台</div>
+        <div class="grid gap-1" style="${gridStyle}">${head.join('')}${body}</div>
+        <div class="mt-1 h-10 rounded-lg bg-brand text-white grid place-items-center text-sm font-bold tracking-[0.5em]">講台</div>
       </div>
     </div>`;
+}
+async function requestSeatPick(code) {
+  if (!state.activeCourse || !state.currentUser || state.seatBusy) return;
+  const ok = await nwConfirm(`是否選擇座位「${code}」？`, '確認選位');
+  if (ok) pickSeatStudent(code);
+}
+async function showSeatOccupant(code) {
+  const byCode = seatOccupancyStudent(state.activeCourse);
+  const entry = byCode[code];
+  if (!entry) { toast('此座位尚無資料'); return; }
+  // 優先讀取課程文件內由服務端寫入的 seatInfo（學員無法讀取他人 users 文件）
+  const infoMap = (state.activeCourse && state.activeCourse.seatInfo && typeof state.activeCourse.seatInfo === 'object') ? state.activeCourse.seatInfo : {};
+  const info = infoMap[entry.uid] || null;
+  let name = info?.name || '';
+  let community = info?.community || '';
+  let title = info?.title || '';
+  if (!info) {
+    try {
+      const snap = await getDoc(doc(db, 'users', entry.uid));
+      if (snap.exists()) {
+        const u = snap.data() || {};
+        name = name || u.name || '';
+        community = community || u.community || u.unit || '';
+        title = title || u.title || '';
+      }
+    } catch { /* 權限不足時忽略，僅顯示已知資訊 */ }
+  }
+  showSeatInfoModal({
+    code,
+    community: community || '—',
+    title: title || '—',
+    name: name || '學員'
+  });
 }
 async function pickSeatStudent(code) {
   if (!state.activeCourse || !state.currentUser || state.seatBusy) return;
@@ -1581,7 +1777,7 @@ onAuthStateChanged(auth, async (user) => {
       return;
     }
     renderUser();
-    loadSystemName();
+    applySystemName();
     showView('course-select');
   } else {
     state.currentUser = null; state.userDoc = null;
@@ -1635,6 +1831,15 @@ $$('.pf-goto').forEach(b => b.addEventListener('click', () => { location.href = 
 /* 檔案預覽 */
 $('#file-preview-close').addEventListener('click', closeCourseFilePreview);
 $('#modal-file-preview').addEventListener('click', (e) => { if (e.target === $('#modal-file-preview')) closeCourseFilePreview(); });
+/* 通用彈窗 */
+$('#confirm-ok').addEventListener('click', () => closeConfirm(true));
+$('#confirm-cancel').addEventListener('click', () => closeConfirm(false));
+$('#modal-confirm').addEventListener('click', (e) => { if (e.target === $('#modal-confirm')) closeConfirm(false); });
+$('#seat-info-close').addEventListener('click', () => $('#modal-seat-info').classList.add('hidden'));
+$('#modal-seat-info').addEventListener('click', (e) => { if (e.target === $('#modal-seat-info')) $('#modal-seat-info').classList.add('hidden'); });
+/* 報到成功慶祝按鈕 */
+$('#celebrate-replay').addEventListener('click', replayCheckinCelebration);
+$('#celebrate-ok').addEventListener('click', goToSeatFromCelebration);
 setupPreviewZoom();
 $('#btn-save-profile').addEventListener('click', saveProfile);
 
