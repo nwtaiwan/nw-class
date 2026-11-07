@@ -269,6 +269,32 @@
   </div>
 </div>
 
+<!-- 通用二次確認 -->
+<div id="modal-confirm" class="hidden fixed inset-0 z-[99] bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-[80vw] max-w-sm p-5 fade-in">
+    <p id="confirm-title" class="text-base font-bold text-slate-900">確認</p>
+    <p id="confirm-msg" class="mt-2 text-sm text-slate-600 leading-relaxed whitespace-pre-line"></p>
+    <div class="mt-5 flex gap-2">
+      <button id="confirm-cancel" class="flex-1 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold text-sm">取消</button>
+      <button id="confirm-ok" class="flex-1 py-2.5 rounded-lg bg-brand text-white font-semibold text-sm">確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- 重新投票 -->
+<div id="modal-vote-reset" class="hidden fixed inset-0 z-[97] bg-black/50 grid place-items-center p-4">
+  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 fade-in flex flex-col max-h-[85vh]">
+    <p class="text-base font-bold text-slate-900 text-center">重新投票</p>
+    <p id="vote-reset-question" class="mt-1 text-xs text-slate-500 text-center break-words"></p>
+    <div class="mt-3 shrink-0 flex items-center justify-between gap-2">
+      <span id="vote-reset-count" class="text-[11px] text-slate-400"></span>
+      <button id="vote-reset-all" class="shrink-0 px-2.5 py-1 rounded-lg border border-red-200 text-red-500 text-[11px] font-semibold">全部重新投票</button>
+    </div>
+    <div id="vote-reset-list" class="mt-2 flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-2"></div>
+    <button id="vote-reset-close" class="mt-4 shrink-0 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">關閉</button>
+  </div>
+</div>
+
 <!-- 座位設定 -->
 <div id="modal-seat-setting" class="hidden fixed inset-0 z-[96] bg-black/40 grid place-items-center p-4">
   <div class="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 fade-in">
@@ -629,6 +655,24 @@ function toast(msg, ms = 2200, kind = 'dark') {
 }
 
 function cleanupListener(key) { if (state[key]) { try { state[key](); } catch(e){} state[key] = null; } }
+
+/* ===== 通用二次確認 ===== */
+let _confirmResolve = null;
+function nwConfirm(message, opts = {}) {
+  const { title = '確認', okText = '確認', danger = false } = typeof opts === 'string' ? { title: opts } : opts;
+  $('#confirm-title').textContent = title;
+  $('#confirm-msg').textContent = message;
+  const ok = $('#confirm-ok');
+  ok.textContent = okText;
+  ok.className = `flex-1 py-2.5 rounded-lg text-white font-semibold text-sm ${danger ? 'bg-red-500' : 'bg-brand'}`;
+  $('#modal-confirm').classList.remove('hidden');
+  return new Promise((resolve) => { _confirmResolve = resolve; });
+}
+function closeConfirm(result) {
+  $('#modal-confirm').classList.add('hidden');
+  const r = _confirmResolve; _confirmResolve = null;
+  if (r) r(result);
+}
 function formatNowText(date = new Date()) {
   return {
     day: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
@@ -1129,7 +1173,7 @@ function renderTabContent(id, label) {
   const panel = $('#course-tab-panel');
   /* 切換分頁會重建 #reader，必須先釋放相機並清掉掃描實例，否則「開始掃描」會失效 */
   if (state.scanner) stopScanner();
-  if (id !== 'vote') cleanupListener('unsubVoteResponses');
+  if (id !== 'vote') { cleanupListener('unsubVoteResponses'); closeVoteReset(); }
   if (id !== 'seat') cleanupListener('unsubSeatCourse');
   if (id !== 'qa') { cleanupListener('unsubBuzz'); state.buzzWinnerUids = []; closeBuzzLog(); }
   if (id !== 'handouts') { cleanupListener('unsubCourseFiles'); state.courseFiles = []; closeCourseFilePreview(); }
@@ -1296,6 +1340,8 @@ function renderTabContent(id, label) {
       if (del) return deleteVote(del.dataset.voteDel);
       const tgl = e.target.closest('[data-vote-toggle]');
       if (tgl) return toggleVoteOpen(tgl.dataset.voteToggle);
+      const rst = e.target.closest('[data-vote-reset]');
+      if (rst) return openVoteReset(rst.dataset.voteReset);
       const up = e.target.closest('[data-vote-move-up]');
       if (up) return moveVote(Number(up.dataset.voteMoveUp), -1);
       const down = e.target.closest('[data-vote-move-down]');
@@ -1466,6 +1512,8 @@ async function confirmScheduleEdit() {
 }
 async function deleteScheduleItem(id) {
   if (!state.activeCourse) return;
+  const item = courseSchedule(state.activeCourse).find(s => s.id === id);
+  if (!(await nwConfirm(`確定刪除${item && item.title ? `「${item.title}」` : ''}時間表項目？`, { okText: '刪除', danger: true }))) return;
   const list = courseSchedule(state.activeCourse).filter(s => s.id !== id);
   try {
     await saveSchedule(list);
@@ -1767,9 +1815,9 @@ function renderCourseFilesAdminList(tabId) {
           ${idx > 0 ? `<button data-file-move-up="${file.id}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="上移">↑</button>` : ''}
           ${idx < files.length - 1 ? `<button data-file-move-down="${file.id}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="下移">↓</button>` : ''}
           <button data-file-preview="${file.id}" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold ${canPreviewCourseFile(file) ? '' : 'opacity-50 pointer-events-none'}">預覽</button>
-          <button data-file-download="${file.id}" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">下載</button>
-          <button data-file-toggle="${file.id}" class="px-3 py-1.5 rounded-lg text-xs font-semibold ${file.allowDownload ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'}">${file.allowDownload ? '關閉下載' : '開放下載'}</button>
-          <button data-file-del="${file.id}" class="shrink-0 px-2.5 py-1 h-8 rounded-lg border border-red-300 text-red-500 text-xs font-semibold">刪除</button>
+          <button data-file-download="${file.id}" title="下載" class="shrink-0 w-8 h-8 rounded-lg border border-slate-300 text-slate-600 grid place-items-center"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></button>
+          <button data-file-del="${file.id}" title="刪除" class="shrink-0 w-8 h-8 rounded-lg border border-red-300 text-red-500 grid place-items-center"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+          <button data-file-toggle="${file.id}" role="switch" aria-checked="${!!file.allowDownload}" title="${file.allowDownload ? '已開放下載，點擊關閉' : '已關閉下載，點擊開放'}" class="shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${file.allowDownload ? 'bg-brand' : 'bg-slate-300'}"><span class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${file.allowDownload ? 'translate-x-[22px]' : 'translate-x-0.5'}"></span></button>
         </div>
       </div>
     </div>`).join('');
@@ -1881,6 +1929,8 @@ async function moveCourseFile(fileId, dir) {
 }
 async function deleteCourseFile(fileId) {
   if (!fileId) return;
+  const file = (state.courseFiles || []).find(f => f.id === fileId);
+  if (!(await nwConfirm(`確定刪除檔案「${file && file.name ? file.name : '未命名檔案'}」？`, { okText: '刪除', danger: true }))) return;
   try {
     const snap = await getDocs(collection(db, 'courseFiles', fileId, 'chunks'));
     await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
@@ -2085,6 +2135,8 @@ async function saveActivityEdit() {
 }
 async function deleteActivity(id) {
   if (!id) return;
+  const a = (state.activities || []).find(x => x.id === id);
+  if (!(await nwConfirm(`確定刪除主題「${a && a.title ? a.title : '未命名主題'}」？`, { okText: '刪除', danger: true }))) return;
   try {
     await deleteDoc(doc(db, 'courseActivities', id));
     toast('已刪除主題', 1800, 'success');
@@ -2203,6 +2255,7 @@ function renderExamAdminTab() {
   $('#btn-exam-save').addEventListener('click', () => saveExam());
   const list = $('#exam-subject-list');
   list.addEventListener('input', onExamSubjectInput);
+  list.addEventListener('mousedown', onExamAnswerMouseDown);
   list.addEventListener('change', onExamSubjectChange);
   list.addEventListener('click', onExamSubjectClick);
   renderExamSubjectDrafts();
@@ -2237,9 +2290,40 @@ function onExamSubjectChange(e) {
   const radio = e.target.closest('[data-exam-answer]');
   if (radio) {
     const [si, qi] = radio.dataset.examAnswer.split(':').map(Number);
-    examDraft.subjects[si].questions[qi].answer = radio.value;
-    renderExamSubjectDrafts();
+    const q = examDraft.subjects[si] && examDraft.subjects[si].questions[qi];
+    if (!q) return;
+    const scroller = radio.closest('.overflow-auto');
+    const keepScroll = scroller ? scroller.scrollTop : 0;
+    q.answer = radio.value;
+    updateExamAnswerMarks(si, qi);
+    /* sr-only radio 取得焦點時瀏覽器會嘗試捲入可視範圍，這裡還原捲動位置避免頁面位移 */
+    if (scroller) scroller.scrollTop = keepScroll;
   }
+}
+/* 阻止選項圓點 label 的 mousedown 預設聚焦，避免捲動隱藏的 sr-only input 造成頁面移位 */
+function onExamAnswerMouseDown(e) {
+  const label = e.target.closest('label');
+  if (label && label.querySelector('[data-exam-answer]')) e.preventDefault();
+}
+/* 只更新該題答案標記，避免整份重繪造成頁面位移 */
+function updateExamAnswerMarks(si, qi) {
+  const q = examDraft.subjects[si] && examDraft.subjects[si].questions[qi];
+  if (!q) return;
+  $$(`#exam-subject-list [data-exam-answer="${si}:${qi}"]`).forEach(input => {
+    const on = input.value === q.answer;
+    input.checked = on;
+    const label = input.closest('label');
+    if (label) {
+      label.classList.toggle('border-emerald-500', on);
+      label.classList.toggle('bg-emerald-50', on);
+      label.classList.toggle('border-slate-300', !on);
+      const span = label.querySelector('span');
+      if (span) {
+        span.classList.toggle('text-emerald-600', on);
+        span.classList.toggle('text-slate-400', !on);
+      }
+    }
+  });
 }
 function onExamSubjectClick(e) {
   if (!examDraft) return;
@@ -2267,11 +2351,14 @@ function onExamSubjectClick(e) {
 function renderExamSubjectDrafts() {
   const box = $('#exam-subject-list');
   if (!box || !examDraft) return;
+  const scroller = box.closest('.overflow-auto');
+  const keepScroll = scroller ? scroller.scrollTop : 0;
   if (!examDraft.subjects.length) {
     box.innerHTML = '<div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center"><p class="text-slate-500 font-semibold">尚未建立科目</p><p class="text-xs text-slate-400 mt-1">點右上角「＋ 新增科目」開始建立試卷</p></div>';
     return;
   }
   box.innerHTML = examDraft.subjects.map((s, si) => examSubjectCardHtml(s, si)).join('');
+  if (scroller) scroller.scrollTop = keepScroll;
 }
 function examSubjectCardHtml(s, si) {
   const paperA = (s.papers && s.papers.A) || [];
@@ -2396,9 +2483,10 @@ function addExamQuestion(si) {
   const last = inputs[inputs.length - 1];
   if (last) last.focus();
 }
-function deleteExamQuestion(si, qi) {
+async function deleteExamQuestion(si, qi) {
   const s = examDraft && examDraft.subjects[si];
   if (!s) return;
+  if (!(await nwConfirm('確定刪除此題目？', { okText: '刪除', danger: true }))) return;
   s.questions.splice(qi, 1);
   renderExamSubjectDrafts();
 }
@@ -2417,9 +2505,10 @@ function addExamOption(si, qi) {
   q.options.push({ id: examUid('o'), text: '' });
   renderExamSubjectDrafts();
 }
-function deleteExamOption(si, qi, oi) {
+async function deleteExamOption(si, qi, oi) {
   const q = examDraft && examDraft.subjects[si] && examDraft.subjects[si].questions[qi];
   if (!q || q.options.length <= 2) return;
+  if (!(await nwConfirm('確定移除此選項？', { okText: '移除', danger: true }))) return;
   const removed = q.options.splice(oi, 1)[0];
   if (removed && q.answer === removed.id) q.answer = '';
   renderExamSubjectDrafts();
@@ -3173,6 +3262,7 @@ function loadVotes() {
     });
     state.voteResponses = byVote;
     renderVoteList();
+    if (voteResetTarget) renderVoteReset();
   }, () => {});
 }
 
@@ -3217,9 +3307,10 @@ function renderVoteCard(v, idx = 0, totalCount = 1) {
         <div class="shrink-0 flex items-center gap-1.5">
           ${idx > 0 ? `<button data-vote-move-up="${idx}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="上移">↑</button>` : ''}
           ${idx < totalCount - 1 ? `<button data-vote-move-down="${idx}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="下移">↓</button>` : ''}
-          <button data-vote-toggle="${escAttr(v.id)}" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${v.open ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'}">${v.open ? '開放中' : '已關閉'}</button>
+          <button data-vote-reset="${escAttr(v.id)}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="重新投票">↺</button>
           <button data-vote-edit="${escAttr(v.id)}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="編輯">✎</button>
-          <button data-vote-del="${escAttr(v.id)}" class="w-8 h-8 rounded-lg border border-red-200 text-red-500 grid place-items-center" title="刪除">✕</button>
+          <button data-vote-del="${escAttr(v.id)}" title="刪除" class="shrink-0 w-8 h-8 rounded-lg border border-red-300 text-red-500 grid place-items-center"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+          <button data-vote-toggle="${escAttr(v.id)}" role="switch" aria-checked="${v.open}" title="${v.open ? '投票開放中，點擊關閉' : '投票已關閉，點擊開放'}" class="shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${v.open ? 'bg-brand' : 'bg-slate-300'}"><span class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${v.open ? 'translate-x-[22px]' : 'translate-x-0.5'}"></span></button>
         </div>
       </div>
       <div class="mt-3 space-y-2">${optionsHtml}</div>
@@ -3303,6 +3394,8 @@ async function confirmVoteEdit() {
 }
 async function deleteVote(voteId) {
   if (!state.activeCourse) return;
+  const v = courseVotes(state.activeCourse).find(x => x.id === voteId);
+  if (!(await nwConfirm(`確定刪除投票「${v && v.question ? v.question : '未命名'}」？`, { okText: '刪除', danger: true }))) return;
   const list = courseVotes(state.activeCourse).filter(v => v.id !== voteId);
   try { await saveVotes(list); toast('已刪除投票', 1800, 'success'); }
   catch { toast('刪除失敗', 2000, 'danger'); }
@@ -3315,6 +3408,80 @@ async function toggleVoteOpen(voteId) {
   v.open = !v.open;
   try { await saveVotes(list); }
   catch { toast('更新失敗', 2000, 'danger'); }
+}
+
+let voteResetTarget = null;
+function voteOptionTexts(vote, optionIds) {
+  const texts = (optionIds || [])
+    .map(id => (vote.options.find(o => o.id === id) || {}).text)
+    .filter(Boolean);
+  return texts.length ? texts.join('、') : '—';
+}
+function openVoteReset(voteId) {
+  if (!state.activeCourse) return;
+  voteResetTarget = voteId;
+  renderVoteReset();
+  $('#modal-vote-reset').classList.remove('hidden');
+}
+function closeVoteReset() {
+  voteResetTarget = null;
+  $('#modal-vote-reset').classList.add('hidden');
+}
+function renderVoteReset() {
+  const vote = courseVotes(state.activeCourse).find(v => v.id === voteResetTarget);
+  if (!vote) { closeVoteReset(); return; }
+  const responses = state.voteResponses[vote.id] || {};
+  const uids = Object.keys(responses);
+  $('#vote-reset-question').textContent = vote.question || '';
+  $('#vote-reset-count').textContent = `已投票 ${uids.length} 人`;
+  $('#vote-reset-all').classList.toggle('hidden', !uids.length);
+  if (!uids.length) {
+    $('#vote-reset-list').innerHTML = '<p class="text-slate-400 text-center py-6 text-sm">目前尚無人投票</p>';
+    return;
+  }
+  $('#vote-reset-list').innerHTML = uids.map(uid => {
+    const r = responses[uid];
+    return `
+      <div class="flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-slate-700 truncate">${escAttr(r.name || '未具名')}</p>
+          <p class="text-[11px] text-slate-400 truncate">${escAttr(voteOptionTexts(vote, r.optionIds))}</p>
+        </div>
+        <button data-vote-reset-one="${escAttr(uid)}" class="shrink-0 px-2.5 py-1 rounded-lg border border-brand text-brand text-[11px] font-semibold">重新投票</button>
+      </div>`;
+  }).join('');
+}
+async function resetVoteResponses(uids) {
+  if (!state.activeCourse || !voteResetTarget || !uids.length) return;
+  const voteId = voteResetTarget;
+  try {
+    await Promise.all(uids.map(uid =>
+      deleteDoc(doc(db, 'voteResponses', `${state.activeCourse.id}_${voteId}_${uid}`))
+    ));
+  } catch (err) {
+    toast('重新投票失敗：' + (err?.message || err), 2600, 'danger');
+    return;
+  }
+  const bucket = state.voteResponses[voteId];
+  if (bucket) uids.forEach(uid => { delete bucket[uid]; });
+  renderVoteList();
+  renderVoteReset();
+  toast(`${uids.length} 位已可重新投票`, 1800, 'success');
+}
+async function resetVoteOne(uid) {
+  const vote = courseVotes(state.activeCourse).find(v => v.id === voteResetTarget);
+  const r = (state.voteResponses[voteResetTarget] || {})[uid];
+  if (!vote || !r) return;
+  if (!(await nwConfirm(`確定讓「${r.name || '該學員'}」重新投票？`, { okText: '重新投票', danger: true }))) return;
+  resetVoteResponses([uid]);
+}
+async function resetVoteAll() {
+  const vote = courseVotes(state.activeCourse).find(v => v.id === voteResetTarget);
+  if (!vote) return;
+  const uids = Object.keys(state.voteResponses[vote.id] || {});
+  if (!uids.length) return;
+  if (!(await nwConfirm(`確定讓全部 ${uids.length} 位學員重新投票？`, { okText: '全部重投', danger: true }))) return;
+  resetVoteResponses(uids);
 }
 
 /* ===== 搶答 ===== */
@@ -3501,6 +3668,7 @@ async function confirmBuzzSetting() {
 }
 async function deleteBuzzRecord(id) {
   if (!id) return;
+  if (!(await nwConfirm('確定清除該筆紀錄？', { okText: '清除', danger: true }))) return;
   try {
     await deleteDoc(doc(db, 'buzzRounds', id));
     toast('已清除該筆紀錄', 1800, 'success');
@@ -3509,6 +3677,7 @@ async function deleteBuzzRecord(id) {
 async function clearAllBuzzLog() {
   const ids = buzzRowsSorted().map(v => v.id).filter(Boolean);
   if (!ids.length) return;
+  if (!(await nwConfirm(`確定清除全部 ${ids.length} 筆紀錄？`, { okText: '全部清除', danger: true }))) return;
   try {
     await Promise.all(ids.map(id => deleteDoc(doc(db, 'buzzRounds', id))));
     if (state.activeCourse) {
@@ -3928,6 +4097,7 @@ onAuthStateChanged(auth, async (user) => {
     closeSessionSetting();
     closeCertSetting();
     closeVoteEdit();
+    closeVoteReset();
     closeActivityEdit();
     $('#btn-user-chip').classList.add('hidden');
     $('#modal-profile').classList.add('hidden');
@@ -3995,6 +4165,7 @@ $('#btn-back-courses').addEventListener('click', () => {
   closeSessionSetting();
   closeCertSetting();
   closeVoteEdit();
+  closeVoteReset();
   closeActivityEdit();
   state.activeCourse = null;
   showView('course-select');
@@ -4046,10 +4217,13 @@ $('#session-list').addEventListener('input', (e) => {
   const i = Number(inp.dataset.sessionDraft);
   if (sessionDraft[i]) sessionDraft[i].label = inp.value;
 });
-$('#session-list').addEventListener('click', (e) => {
+$('#session-list').addEventListener('click', async (e) => {
   const del = e.target.closest('[data-session-del]');
   if (!del) return;
-  sessionDraft.splice(Number(del.dataset.sessionDel), 1);
+  const i = Number(del.dataset.sessionDel);
+  const label = (sessionDraft[i] && sessionDraft[i].label) || `第 ${i + 1} 場`;
+  if (!(await nwConfirm(`確定移除此場次「${label}」？`, { okText: '移除', danger: true }))) return;
+  sessionDraft.splice(i, 1);
   renderSessionDraft();
 });
 $('#modal-session-setting').addEventListener('click', (e) => { if (e.target === $('#modal-session-setting')) closeSessionSetting(); });
@@ -4086,11 +4260,14 @@ $('#vote-options').addEventListener('input', (e) => {
   const i = Number(inp.dataset.voteOpt);
   if (voteDraft.options[i]) voteDraft.options[i].text = inp.value;
 });
-$('#vote-options').addEventListener('click', (e) => {
+$('#vote-options').addEventListener('click', async (e) => {
   const del = e.target.closest('[data-vote-opt-del]');
   if (!del || !voteDraft) return;
   if (voteDraft.options.length <= 2) return toast('至少需要 2 個選項', 2000, 'warning');
-  voteDraft.options.splice(Number(del.dataset.voteOptDel), 1);
+  const i = Number(del.dataset.voteOptDel);
+  const opt = voteDraft.options[i];
+  if (!(await nwConfirm(`確定移除此選項${opt && opt.text ? `「${opt.text}」` : ''}？`, { okText: '移除', danger: true }))) return;
+  voteDraft.options.splice(i, 1);
   renderVoteEdit();
 });
 $$('.vote-type-btn').forEach(b => b.addEventListener('click', () => {
@@ -4101,6 +4278,18 @@ $$('.vote-type-btn').forEach(b => b.addEventListener('click', () => {
 $('#vote-toggle-open').addEventListener('click', () => { if (!voteDraft) return; voteDraft.open = !voteDraft.open; applyToggleState($('#vote-toggle-open'), voteDraft.open); });
 $('#vote-toggle-results').addEventListener('click', () => { if (!voteDraft) return; voteDraft.showResults = !voteDraft.showResults; applyToggleState($('#vote-toggle-results'), voteDraft.showResults); });
 $('#modal-vote-edit').addEventListener('click', (e) => { if (e.target === $('#modal-vote-edit')) closeVoteEdit(); });
+/* 重新投票 */
+$('#vote-reset-close').addEventListener('click', closeVoteReset);
+$('#vote-reset-all').addEventListener('click', resetVoteAll);
+$('#modal-vote-reset').addEventListener('click', (e) => { if (e.target === $('#modal-vote-reset')) closeVoteReset(); });
+$('#vote-reset-list').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-vote-reset-one]');
+  if (b) resetVoteOne(b.dataset.voteResetOne);
+});
+/* 通用二次確認 */
+$('#confirm-ok').addEventListener('click', () => closeConfirm(true));
+$('#confirm-cancel').addEventListener('click', () => closeConfirm(false));
+$('#modal-confirm').addEventListener('click', (e) => { if (e.target === $('#modal-confirm')) closeConfirm(false); });
 
 /* 活動主題編輯彈窗 */
 $('#activity-edit-close').addEventListener('click', closeActivityEdit);
@@ -4132,11 +4321,17 @@ $('#activity-links').addEventListener('input', (e) => {
   const l = activityDraft.links[Number(inp.dataset.activityLinkUrl)];
   if (l) l.url = inp.value;
 });
-$('#activity-links').addEventListener('click', (e) => {
+$('#activity-links').addEventListener('click', async (e) => {
   const img = e.target.closest('[data-activity-link-image]');
   if (img && activityDraft) { pendingActivityLinkIndex = Number(img.dataset.activityLinkImage); $('#activity-link-image-input').click(); return; }
   const del = e.target.closest('[data-activity-link-del]');
-  if (del && activityDraft) { activityDraft.links.splice(Number(del.dataset.activityLinkDel), 1); renderActivityLinks(); }
+  if (del && activityDraft) {
+    const i = Number(del.dataset.activityLinkDel);
+    const link = activityDraft.links[i];
+    if (!(await nwConfirm(`確定移除連結${link && link.url ? `「${link.url}」` : ''}？`, { okText: '移除', danger: true }))) return;
+    activityDraft.links.splice(i, 1);
+    renderActivityLinks();
+  }
 });
 $('#activity-link-image-input').addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
