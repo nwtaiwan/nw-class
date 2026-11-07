@@ -160,6 +160,10 @@
   }
   /* 僅保留裝置實際回報的底部安全距離，避免推算值撐高頁尾 */
   .safe-b { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  /* Android 獨立 PWA 切頁後可能不回報底部 inset，保留按鍵列高度 */
+  @media (display-mode: standalone), (display-mode: fullscreen) {
+    .safe-b { padding-bottom: max(env(safe-area-inset-bottom, 0px), 32px); }
+  }
   .safe-t { padding-top: env(safe-area-inset-top, 0px); }
   #file-preview-body table { border-collapse: collapse; font-size: 12px; }
   #file-preview-body td, #file-preview-body th { border: 1px solid #e2e8f0; padding: 4px 6px; }
@@ -804,17 +808,17 @@ async function loadCourseSelect() {
     list.innerHTML = rows.map(c => {
       const old = isCourseOutdated(c);
       return `
-      <button data-course-open="${c.id}" class="w-full text-left border rounded-xl px-4 py-5 ${old ? 'bg-slate-100 border-slate-300 active:bg-slate-200/70' : 'course-card bg-white active:bg-slate-50'}">
+      <button data-course-open="${c.id}" class="w-full text-left border rounded-xl px-4 py-1.5 ${old ? 'bg-slate-100 border-slate-300 active:bg-slate-200/70' : 'course-card bg-white/50 active:bg-slate-50'}">
         <div class="flex items-center justify-between gap-2">
           <div class="min-w-0">
-            <p class="font-bold text-lg truncate ${old ? 'text-slate-400' : 'text-slate-900'}">${c.name || '未命名課程'}</p>
-            <p class="text-base mt-1 ${old ? 'text-slate-400' : 'text-slate-600'}">${formatDisplayDate(c.date)}</p>
-            ${courseTimeText(c) ? `<p class="text-base mt-0.5 ${old ? 'text-slate-400' : 'text-slate-600'}">${courseTimeText(c)}</p>` : ''}
-            ${c.location ? `<div class="flex items-center gap-1.5 mt-1">
-              <p class="min-w-0 text-sm truncate ${old ? 'text-slate-400' : 'text-slate-500'}">📍 ${escHtml(c.location)}</p>
-              <span role="button" tabindex="0" data-map="${escHtml(c.address || c.location)}" class="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border border-brand text-brand text-xs font-semibold ${old ? 'opacity-60' : ''}">${MAP_ICON}地圖</span>
+            <p class="font-bold text-lg leading-tight truncate ${old ? 'text-slate-400' : 'text-slate-900'}">${c.name || '未命名課程'}</p>
+            <p class="text-base leading-tight mt-0 ${old ? 'text-slate-400' : 'text-slate-600'}">${formatDisplayDate(c.date)}</p>
+            ${courseTimeText(c) ? `<p class="text-base leading-tight mt-0 ${old ? 'text-slate-400' : 'text-slate-600'}">${courseTimeText(c)}</p>` : ''}
+            ${c.location ? `<div class="flex items-center gap-1 mt-0 leading-tight">
+              <p class="min-w-0 text-sm leading-tight truncate ${old ? 'text-slate-400' : 'text-slate-500'}">📍 ${escHtml(c.location)}</p>
+              <span role="button" tabindex="0" data-map="${escHtml(c.address || c.location)}" class="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border border-brand text-brand text-xs leading-tight font-semibold ${old ? 'opacity-60' : ''}">${MAP_ICON}地圖</span>
             </div>` : ''}
-            ${c.checkinTime ? `<p class="text-sm mt-1 ${old ? 'text-slate-400' : 'text-slate-500'}">報到開始時間：${escHtml(formatDisplayTime(c.checkinTime))}</p>` : ''}
+            ${c.checkinTime ? `<p class="text-sm leading-tight mt-0 ${old ? 'text-slate-400' : 'text-slate-500'}">報到開始時間：${escHtml(formatDisplayTime(c.checkinTime))}</p>` : ''}
           </div>
           <svg class="shrink-0 text-brand" xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 24 24"><path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
         </div>
