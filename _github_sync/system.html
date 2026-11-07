@@ -3,6 +3,18 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<script>
+(() => {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.navigator.standalone === true;
+  try {
+    const switched = sessionStorage.getItem('nw-pwa-role-switch') === '1';
+    sessionStorage.removeItem('nw-pwa-role-switch');
+    if (switched && isStandalone) document.documentElement.classList.add('pwa-role-switched');
+  } catch {}
+})();
+</script>
 <meta name="theme-color" content="#d32f2f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -67,10 +79,8 @@
   }
   /* 僅保留裝置實際回報的底部安全距離，避免推算值撐高頁尾 */
   .safe-b { padding-bottom: env(safe-area-inset-bottom, 0px); }
-  /* Android 獨立 PWA 切頁後可能不回報底部 inset，保留按鍵列高度 */
-  @media (display-mode: standalone), (display-mode: fullscreen) {
-    .safe-b { padding-bottom: max(env(safe-area-inset-bottom, 0px), 32px); }
-  }
+  /* 僅在 PWA 跨角色切頁後保留 Android 系統按鍵列高度 */
+  .pwa-role-switched .safe-b { padding-bottom: max(env(safe-area-inset-bottom, 0px), 32px); }
   .safe-t { padding-top: env(safe-area-inset-top, 0px); }
 </style>
 </head>
@@ -1571,7 +1581,13 @@ $('#pf-avatar-file').addEventListener('change', async (e) => {
   } catch (err) { console.error('[pf-avatar]', err); toast('上傳失敗'); }
   e.target.value = '';
 });
-$$('.pf-goto').forEach(b => b.addEventListener('click', () => { location.href = b.dataset.goto; }));
+$$('.pf-goto').forEach(b => b.addEventListener('click', () => {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.navigator.standalone === true;
+  if (isStandalone) { try { sessionStorage.setItem('nw-pwa-role-switch', '1'); } catch {} }
+  location.href = b.dataset.goto;
+}));
 $$('.nav-btn').forEach(b => b.addEventListener('click', () => showView(b.dataset.nav)));
 
 $$('.toggle-pwd').forEach(b => b.addEventListener('click', () => {
