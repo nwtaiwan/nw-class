@@ -61,8 +61,9 @@
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to {opacity:1; transform:none;} }
   .fade-in { animation: fadeIn .25s ease-out; }
-  .safe-b { padding-bottom: env(safe-area-inset-bottom); }
-  .safe-t { padding-top: env(safe-area-inset-top); }
+  /* 頁尾底部安全距離：優先採用 env()，若瀏覽器／WebView 回報 0 則使用 JS 量測的後備值 */
+  .safe-b { padding-bottom: env(safe-area-inset-bottom, 0px); padding-bottom: max(env(safe-area-inset-bottom, 0px), var(--nw-safe-b, 0px)); }
+  .safe-t { padding-top: env(safe-area-inset-top, 0px); }
   #reader { position: relative; width: 100%; height: 100%; margin-inline: auto; background: transparent !important; }
   #reader.reader-idle {
     background: #0f172a !important;
@@ -217,8 +218,8 @@
     <!-- 課程內容 -->
     <section id="view-course" class="hidden h-full flex flex-col fade-in">
       <div class="shrink-0 flex items-center gap-3 px-4 md:px-6 h-16 border-b border-slate-200 bg-white">
-        <button id="btn-back-courses" class="shrink-0 w-9 h-9 rounded-lg border border-slate-300 grid place-items-center text-slate-500 active:bg-slate-100" title="返回課程">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        <button id="btn-back-courses" class="shrink-0 w-11 h-11 rounded-lg border border-slate-300 grid place-items-center text-slate-500 active:bg-slate-100" title="返回課程">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
         </button>
         <div class="flex-1 min-w-0">
           <p id="course-view-name" class="text-base font-bold text-slate-900 truncate">課程</p>
@@ -1076,6 +1077,7 @@ function watchCourseDoc(courseId) {
     renderCourseStudents();
     renderBuzzControls();
     renderBuzzWinner();
+    syncTabVisToggles();
   }, () => {});
 }
 
@@ -1177,7 +1179,10 @@ function renderTabContent(id, label) {
             <p class="text-base font-semibold text-slate-700">座位表</p>
             <p id="seat-meta" class="text-[13px] text-slate-400 truncate">尚未設定</p>
           </div>
-          <button id="btn-seat-setting" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">設定</button>
+          <div class="shrink-0 flex items-center gap-2">
+            <button id="btn-seat-setting" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">設定</button>
+            ${tabVisToggleHtml('seat')}
+          </div>
         </div>
         <div class="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-slate-100 bg-slate-50/60">
           <span class="shrink-0 text-[11px] text-slate-400">場次</span>
@@ -1226,6 +1231,7 @@ function renderTabContent(id, label) {
             <button id="buzz-log" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">紀錄 <span id="buzz-log-count">0</span></button>
             <button id="buzz-toggle" class="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 text-slate-600">開放搶答</button>
             <button id="buzz-clear" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">清除</button>
+            ${tabVisToggleHtml('qa')}
           </div>
         </div>
         <div class="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60 min-w-0">
@@ -1259,7 +1265,10 @@ function renderTabContent(id, label) {
             <p class="text-sm font-semibold text-slate-700">投票</p>
             <p class="text-[11px] text-slate-400 truncate">即時顯示票數統計</p>
           </div>
-          <button id="btn-vote-add" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">＋ 新增投票</button>
+          <div class="shrink-0 flex items-center gap-2">
+            <button id="btn-vote-add" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">＋ 新增投票</button>
+            ${tabVisToggleHtml('vote')}
+          </div>
         </div>
         <div id="vote-list" class="flex-1 min-h-0 overflow-auto no-scrollbar p-4 space-y-4"></div>
       </div>`;
@@ -1337,7 +1346,10 @@ function renderCourseSchedule(panel) {
     <div class="h-full overflow-auto no-scrollbar">
       <div class="max-w-3xl mx-auto space-y-4">
         <div class="bg-white rounded-2xl border border-slate-200 p-5">
-          <p class="text-lg font-bold text-slate-800 break-words">${escAttr(c.name || '未命名課程')}</p>
+          <div class="flex items-start justify-between gap-2">
+            <p class="text-lg font-bold text-slate-800 break-words">${escAttr(c.name || '未命名課程')}</p>
+            ${tabVisToggleHtml('schedule')}
+          </div>
           <div class="mt-4 grid grid-cols-[4.5rem_1fr] gap-y-2.5 text-sm">
             <span class="text-slate-400">日期</span><span class="text-slate-700">${escAttr(formatDisplayDate(c.date))}</span>
             <span class="text-slate-400">時間</span><span class="text-slate-700">${escAttr(courseTimeText(c) || '未設定')}</span>
@@ -1684,7 +1696,10 @@ function renderCourseFilesAdminTab(tabId, label) {
           <p class="text-sm font-semibold text-slate-700">${escAttr(label)}</p>
           <p class="text-[11px] text-slate-400 truncate">支援 PDF / Word / Excel / PowerPoint，單檔上限 20MB；學員端可預覽，下載權限可逐檔設定</p>
         </div>
-        <button id="btn-file-upload" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">＋ 上傳檔案</button>
+        <div class="shrink-0 flex items-center gap-2">
+          <button id="btn-file-upload" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">＋ 上傳檔案</button>
+          ${tabVisToggleHtml(tabId)}
+        </div>
       </div>
       <input id="course-file-input" type="file" class="hidden" accept="${COURSE_FILE_ACCEPT}" multiple />
       <div id="course-file-list" class="flex-1 min-h-0 overflow-auto no-scrollbar p-4 space-y-3">
@@ -1911,7 +1926,10 @@ function renderActivityAdminTab() {
           <p class="text-sm font-semibold text-slate-700">活動</p>
           <p class="text-[11px] text-slate-400 truncate">新增主題（1:1 主題圖片）與連結按鈕（1:1 圖片＋網址）</p>
         </div>
-        <button id="btn-activity-add" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">＋ 新增主題</button>
+        <div class="shrink-0 flex items-center gap-2">
+          <button id="btn-activity-add" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">＋ 新增主題</button>
+          ${tabVisToggleHtml('download')}
+        </div>
       </div>
       <div id="activity-list" class="flex-1 min-h-0 overflow-auto no-scrollbar p-4 space-y-4">
         <p class="text-slate-400 text-center py-6 text-sm">載入中…</p>
@@ -2149,6 +2167,7 @@ function renderExamAdminTab() {
         <div class="shrink-0 flex items-center gap-2">
           <button id="btn-exam-add-subject" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">＋ 新增科目</button>
           <button id="btn-exam-save" class="px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">儲存</button>
+          ${tabVisToggleHtml('exam')}
         </div>
       </div>
       <div class="flex-1 min-h-0 overflow-auto no-scrollbar p-4 space-y-4">
@@ -2551,10 +2570,41 @@ async function setTabVisibility(id, visibility) {
     await setDoc(doc(db, 'courses', state.activeCourse.id), { tabs: payload, updatedAt: serverTimestamp() }, { merge: true });
     state.activeCourse.tabs = payload;
     if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].tabs = payload;
-    renderSettingsAdminTab();
+    if (state.activeTabId === 'settings') renderSettingsAdminTab();
+    syncTabVisToggles();
     const vLabel = (TAB_VISIBILITY.find(v => v.value === visibility) || {}).label || visibility;
     toast(`${t.label}：${vLabel}`, 1800, 'success');
   } catch { toast('設定失敗', 2000, 'danger'); }
+}
+/* 分頁顯示開關：一鍵切換該分頁在學員端的顯示（一律顯示 ⇄ 暫時隱藏） */
+function tabVisibilityOf(id) {
+  const t = tabsForSettings(state.activeCourse || {}).find(x => x.id === id);
+  return t ? t.visibility : 'always';
+}
+function tabToggleCls(on) {
+  return `shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${on ? 'bg-brand' : 'bg-slate-300'}`;
+}
+function tabKnobCls(on) {
+  return `inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-[22px]' : 'translate-x-0.5'}`;
+}
+function tabVisToggleHtml(id) {
+  const on = tabVisibilityOf(id) !== 'hidden';
+  return `<button type="button" data-tab-vis-toggle="${escAttr(id)}" role="switch" aria-checked="${on}" title="切換此分頁在學員端的顯示" class="${tabToggleCls(on)}"><span class="${tabKnobCls(on)}"></span></button>`;
+}
+async function toggleTabVisibility(id) {
+  if (!id) return;
+  const next = tabVisibilityOf(id) === 'hidden' ? 'always' : 'hidden';
+  await setTabVisibility(id, next);
+  syncTabVisToggles();
+}
+function syncTabVisToggles() {
+  $$('[data-tab-vis-toggle]').forEach(btn => {
+    const on = tabVisibilityOf(btn.dataset.tabVisToggle) !== 'hidden';
+    btn.setAttribute('aria-checked', String(on));
+    btn.className = tabToggleCls(on);
+    const knob = btn.firstElementChild;
+    if (knob) knob.className = tabKnobCls(on);
+  });
 }
 
 /* ===== 座位表（最靠近講台為 A 排，由左開始為 01 列） ===== */
@@ -3600,6 +3650,7 @@ async function confirmCancelCheckin() {
 /* ===== 報到掃描 ===== */
 function wireCheckin() {
   $('#btn-start-scan')?.addEventListener('click', startScanner);
+  $('#reader')?.addEventListener('click', () => { if (!state.scanning) startScanner(); });
   $('#btn-stop-scan')?.addEventListener('click', stopScanner);
   $('#btn-session-setting')?.addEventListener('click', openSessionSetting);
   $('#btn-cert-setting')?.addEventListener('click', openCertSetting);
@@ -3877,6 +3928,11 @@ $('#pf-logout').addEventListener('click', async () => {
   await signOut(auth); toast('已登出');
 });
 $$('.pf-goto').forEach(b => b.addEventListener('click', () => { location.href = b.dataset.goto; }));
+/* 分頁顯示開關（各分頁標頭，切換學員端顯示） */
+$('#course-tab-panel').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-tab-vis-toggle]');
+  if (b) toggleTabVisibility(b.dataset.tabVisToggle);
+});
 
 $$('.toggle-pwd').forEach(b => b.addEventListener('click', () => {
   const input = b.previousElementSibling;
@@ -4073,6 +4129,42 @@ $('#activity-link-image-input').addEventListener('change', async (e) => {
     renderActivityLinks();
   } catch { toast('圖片處理失敗', 2000, 'danger'); }
 });
+</script>
+
+<!-- 行動裝置底部安全區修正：避免頁尾被系統按鍵列（虛擬導覽列／手勢列）遮擋 -->
+<script>
+(function () {
+  var root = document.documentElement;
+  /* 以探針量測 env() 的實際數值（部分 Android WebView／瀏覽器一律回報 0） */
+  function measureEnv(prop, name) {
+    var probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;';
+    probe.style.setProperty(prop, 'env(safe-area-inset-' + name + ', 0px)');
+    (document.body || root).appendChild(probe);
+    var value = parseFloat(window.getComputedStyle(probe).getPropertyValue(prop)) || 0;
+    if (probe.parentNode) probe.parentNode.removeChild(probe);
+    return value;
+  }
+  function syncSafeBottom() {
+    var envTop = measureEnv('padding-top', 'top');
+    var envBottom = measureEnv('padding-bottom', 'bottom');
+    var screenH = window.screen.height || 0;
+    var availH = window.screen.availHeight || 0;
+    var sysBars = Math.max(0, screenH - availH);
+    /* 視窗高於螢幕可用高度 → 內容延伸到系統列之下（全螢幕／邊到邊模式） */
+    var edgeToEdge = availH > 0 && window.innerHeight > availH + 4;
+    var fallback = (edgeToEdge && envBottom < 1 && sysBars > 0)
+      ? Math.max(0, Math.round(sysBars - envTop))
+      : 0;
+    root.style.setProperty('--nw-safe-b', Math.max(envBottom, fallback) + 'px');
+  }
+  syncSafeBottom();
+  window.addEventListener('resize', syncSafeBottom);
+  window.addEventListener('orientationchange', syncSafeBottom);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', syncSafeBottom);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) syncSafeBottom(); });
+  setTimeout(syncSafeBottom, 300);
+})();
 </script>
 </body>
 </html>

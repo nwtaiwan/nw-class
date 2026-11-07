@@ -158,8 +158,9 @@
     #app-shell { filter: blur(2px); pointer-events: none; }
     #landscape-lock { display: flex !important; position: fixed; inset: 0; z-index: 9999; background: #0f172a; color: #fff; align-items: center; justify-content: center; flex-direction: column; gap: 14px; }
   }
-  .safe-b { padding-bottom: env(safe-area-inset-bottom); }
-  .safe-t { padding-top: env(safe-area-inset-top); }
+  /* 頁尾底部安全距離：優先採用 env()，若瀏覽器／WebView 回報 0 則使用 JS 量測的後備值 */
+  .safe-b { padding-bottom: env(safe-area-inset-bottom, 0px); padding-bottom: max(env(safe-area-inset-bottom, 0px), var(--nw-safe-b, 0px)); }
+  .safe-t { padding-top: env(safe-area-inset-top, 0px); }
   #file-preview-body table { border-collapse: collapse; font-size: 12px; }
   #file-preview-body td, #file-preview-body th { border: 1px solid #e2e8f0; padding: 4px 6px; }
   #file-preview-body img { max-width: 100%; }
@@ -309,7 +310,10 @@
 
     <!-- 首頁：課程內容主頁 -->
     <section id="view-dashboard" class="hidden h-full flex flex-col fade-in">
-      <div class="shrink-0 flex items-center px-4 h-[10dvh] border-b border-slate-200 bg-white">
+      <div class="shrink-0 flex items-center gap-3 px-4 h-[10dvh] border-b border-slate-200 bg-white">
+        <button id="btn-back-courses" class="shrink-0 w-11 h-11 rounded-lg border border-slate-300 grid place-items-center text-slate-500 active:bg-slate-100" title="返回課程">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        </button>
         <div class="flex-1 min-w-0">
           <p id="course-view-name" class="text-lg font-bold text-slate-900 truncate">課程</p>
           <p id="course-view-meta" class="text-base text-slate-500 truncate"></p>
@@ -810,7 +814,7 @@ async function loadCourseSelect() {
               <p class="min-w-0 text-sm truncate ${old ? 'text-slate-400' : 'text-slate-500'}">📍 ${escHtml(c.location)}</p>
               <span role="button" tabindex="0" data-map="${escHtml(c.address || c.location)}" class="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border border-brand text-brand text-xs font-semibold ${old ? 'opacity-60' : ''}">${MAP_ICON}地圖</span>
             </div>` : ''}
-            ${c.checkinTime ? `<p class="text-sm mt-1 ${old ? 'text-slate-400' : 'text-slate-500'}">報到時間：${escHtml(formatDisplayTime(c.checkinTime))}</p>` : ''}
+            ${c.checkinTime ? `<p class="text-sm mt-1 ${old ? 'text-slate-400' : 'text-slate-500'}">報到開始時間：${escHtml(formatDisplayTime(c.checkinTime))}</p>` : ''}
           </div>
           <svg class="shrink-0 text-brand" xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 24 24"><path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
         </div>
@@ -1416,8 +1420,8 @@ function renderVoteStudentCard(v, uid) {
       <div class="relative rounded-lg border ${picked ? 'border-brand' : 'border-slate-100'} overflow-hidden">
         ${showCounts ? `<div class="absolute inset-y-0 left-0 bg-brand/10" style="width:${((c / maxCount) * 100).toFixed(1)}%"></div>` : ''}
         <div class="relative flex items-center justify-between gap-2 px-3 py-2">
-          <span class="truncate text-sm ${picked ? 'text-brand font-semibold' : 'text-slate-700'}">${escHtml(o.text)}${picked ? '（我的選擇）' : ''}</span>
-          ${showCounts ? `<span class="shrink-0 text-slate-500 tabular-nums text-xs">${c} 票 · ${pct}%</span>` : ''}
+          <span class="truncate text-base ${picked ? 'text-brand font-semibold' : 'text-slate-700'}">${escHtml(o.text)}${picked ? '（我的選擇）' : ''}</span>
+          ${showCounts ? `<span class="shrink-0 text-slate-500 tabular-nums text-sm">${c} 票 · ${pct}%</span>` : ''}
         </div>
       </div>`;
   }).join('');
@@ -1425,21 +1429,21 @@ function renderVoteStudentCard(v, uid) {
   let footer = '';
   if (canVote) {
     const empty = !(state.voteSelection[v.id] || []).length;
-    footer = `<button data-vote-submit="${escHtml(v.id)}" class="mt-3 w-full py-2.5 rounded-lg bg-brand text-white font-semibold text-sm ${empty ? 'opacity-50' : ''}">送出投票</button>`;
+    footer = `<button data-vote-submit="${escHtml(v.id)}" class="mt-3 w-full py-2.5 rounded-lg bg-brand text-white font-semibold text-base ${empty ? 'opacity-50' : ''}">送出投票</button>`;
   } else if (voted) {
-    footer = '<p class="mt-3 text-xs text-emerald-600 font-semibold text-center">✓ 已投票</p>';
+    footer = '<p class="mt-3 text-sm text-emerald-600 font-semibold text-center">✓ 已投票</p>';
   } else if (!v.open) {
-    footer = '<p class="mt-3 text-xs text-slate-400 font-semibold text-center">投票已截止</p>';
+    footer = '<p class="mt-3 text-sm text-slate-400 font-semibold text-center">投票已截止</p>';
   }
 
   return `
     <div class="rounded-2xl border border-slate-200 p-4">
       <div class="flex items-center gap-2 flex-wrap mb-3">
-        <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[11px]">${v.type === 'multi' ? '多選' : '單選'}</span>
-        ${v.open ? '' : '<span class="px-1.5 py-0.5 rounded bg-slate-200 text-slate-500 text-[11px]">已截止</span>'}
-        <span class="text-[11px] text-slate-400">已有 ${total} 人投票</span>
+        <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-xs">${v.type === 'multi' ? '多選' : '單選'}</span>
+        ${v.open ? '' : '<span class="px-1.5 py-0.5 rounded bg-slate-200 text-slate-500 text-xs">已截止</span>'}
+        <span class="text-xs text-slate-400">已有 ${total} 人投票</span>
       </div>
-      <p class="font-semibold text-slate-800 break-words mb-3">${escHtml(v.question)}</p>
+      <p class="text-lg font-semibold text-slate-800 break-words mb-3">${escHtml(v.question)}</p>
       <div class="space-y-2">${optionsHtml}</div>
       ${footer}
     </div>`;
@@ -1776,8 +1780,8 @@ function examListHtml() {
   if (!subs.length) {
     return `
       <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-        <p class="text-slate-500 font-semibold">測驗尚未開放</p>
-        <p class="text-sm text-slate-400 mt-1">請等待服務人員開放測驗題目</p>
+        <p class="text-lg text-slate-500 font-semibold">測驗尚未開放</p>
+        <p class="text-base text-slate-400 mt-1">請等待服務人員開放測驗題目</p>
       </div>`;
   }
   return `
@@ -2358,16 +2362,16 @@ function renderCourseFilesStudentList(tabId) {
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[11px]">${courseFileTypeLabel(file)}</span>
-            <span class="px-1.5 py-0.5 rounded text-[11px] ${file.allowDownload ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}">${file.allowDownload ? '可下載' : '僅預覽'}</span>
+            <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-xs">${courseFileTypeLabel(file)}</span>
+            <span class="px-1.5 py-0.5 rounded text-xs ${file.allowDownload ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}">${file.allowDownload ? '可下載' : '僅預覽'}</span>
           </div>
-          <p class="mt-2 text-sm font-semibold text-slate-800 break-all">${escHtml(file.name || '未命名檔案')}</p>
-          <p class="mt-1 text-[11px] text-slate-400 break-all">${escHtml([courseFileSizeText(file.size), courseFileTimeText(file.createdAt)].filter(Boolean).join(' · '))}</p>
+          <p class="mt-2 text-base font-semibold text-slate-800 break-all">${escHtml(file.name || '未命名檔案')}</p>
+          <p class="mt-1 text-xs text-slate-400 break-all">${escHtml([courseFileSizeText(file.size), courseFileTimeText(file.createdAt)].filter(Boolean).join(' · '))}</p>
         </div>
       </div>
       <div class="mt-3 flex flex-wrap gap-2">
-        <button data-file-preview="${file.id}" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold ${canPreviewCourseFile(file) ? '' : 'opacity-50 pointer-events-none'}">預覽</button>
-        ${file.allowDownload ? `<button data-file-download="${file.id}" class="px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">下載</button>` : ''}
+        <button data-file-preview="${file.id}" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-sm font-semibold ${canPreviewCourseFile(file) ? '' : 'opacity-50 pointer-events-none'}">預覽</button>
+        ${file.allowDownload ? `<button data-file-download="${file.id}" class="px-3 py-1.5 rounded-lg bg-brand text-white text-sm font-semibold">下載</button>` : ''}
       </div>
     </div>`).join('');
 }
@@ -2382,33 +2386,33 @@ function openScheduleStudent() {
       <p class="text-xl font-bold text-slate-700">課表</p>
       <p class="text-lg text-slate-500 mb-3">課程資訊與場次</p>
       <div class="rounded-2xl border border-slate-200 p-4">
-        <p class="text-base font-bold text-slate-800 break-words">${escHtml(c.name || '未命名課程')}</p>
-        <div class="mt-3 grid grid-cols-[4.5rem_1fr] gap-y-2 text-sm">
+        <p class="text-lg font-bold text-slate-800 break-words">${escHtml(c.name || '未命名課程')}</p>
+        <div class="mt-3 grid grid-cols-[4.5rem_1fr] gap-y-2 text-base">
           <span class="text-slate-400">日期</span><span class="text-slate-700">${escHtml(formatDisplayDate(c.date))}</span>
           <span class="text-slate-400">時間</span><span class="text-slate-700">${escHtml(courseTimeText(c) || '未設定')}</span>
           <span class="text-slate-400">報到</span><span class="text-slate-700">${escHtml(c.checkinTime ? formatDisplayTime(c.checkinTime) : '未設定')}</span>
           <span class="text-slate-400">地點</span><span class="text-slate-700">${escHtml(c.location || '未設定')}</span>
         </div>
         <div class="mt-4 pt-3 border-t border-slate-100">
-          <p class="text-xs text-slate-400 mb-2">課程場次</p>
+          <p class="text-sm text-slate-400 mb-2">課程場次</p>
           ${sessions.length
-            ? `<div class="flex flex-wrap gap-1.5">${sessions.map((s, i) => `<span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-xs">${i + 1}. ${escHtml(s.label)}</span>`).join('')}</div>`
-            : '<p class="text-sm text-slate-400">尚未設定場次</p>'}
+            ? `<div class="flex flex-wrap gap-1.5">${sessions.map((s, i) => `<span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-sm">${i + 1}. ${escHtml(s.label)}</span>`).join('')}</div>`
+            : '<p class="text-base text-slate-400">尚未設定場次</p>'}
         </div>
       </div>
       <div class="mt-3 rounded-2xl border border-slate-200 p-4">
-        <p class="text-xs text-slate-400 mb-2">課程時間表</p>
+        <p class="text-sm text-slate-400 mb-2">課程時間表</p>
         ${(() => {
           const items = (Array.isArray(c.schedule) ? c.schedule : []).filter(s => s && (s.title || s.start || s.end || s.session || s.instructor || s.note));
-          if (!items.length) return '<p class="text-sm text-slate-400">尚未設定時間表</p>';
+          if (!items.length) return '<p class="text-base text-slate-400">尚未設定時間表</p>';
           return `<div class="divide-y divide-slate-100">${items.map(s => {
             const a = formatDisplayTime(s.start), b = formatDisplayTime(s.end);
             const time = (a && b) ? `${a}~${b}` : (a || b || '未設定時間');
             return `<div class="flex items-start gap-2 py-2">
-              <span class="w-36 shrink-0 text-sm text-slate-600 tabular-nums">${escHtml(time)}</span>
+              <span class="w-40 shrink-0 text-base text-slate-600 tabular-nums">${escHtml(time)}</span>
               <div class="flex-1 min-w-0">
-                <p class="text-sm text-slate-800 break-words">${escHtml(s.title || '—')}</p>
-                ${(s.session || s.instructor || s.note) ? `<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400">
+                <p class="text-base text-slate-800 break-words">${escHtml(s.title || '—')}</p>
+                ${(s.session || s.instructor || s.note) ? `<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-400">
                   ${s.session ? `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${escHtml(s.session)}</span>` : ''}
                   ${s.instructor ? `<span>講師：${escHtml(s.instructor)}</span>` : ''}
                   ${s.note ? `<span>備註：${escHtml(s.note)}</span>` : ''}
@@ -2477,9 +2481,8 @@ function renderActivityStudentList() {
       ${a.image ? `<img src="${escHtml(a.image)}" alt="" data-activity-image="${escHtml(a.image)}" data-activity-title="${escHtml(a.title || '活動')}" class="w-full aspect-square object-cover cursor-zoom-in active:opacity-90" draggable="false" />` : ''}
       <div class="p-4">
         <p class="text-sm font-semibold text-slate-800 break-words">${escHtml(a.title || '活動')}</p>
-        ${a.links.length ? `<div class="mt-3 flex flex-wrap gap-2">${a.links.map(l => `<a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border border-slate-200 bg-slate-50 active:bg-slate-100">
-          <span class="w-9 h-9 rounded-full overflow-hidden bg-white border border-slate-200 grid place-items-center">${l.image ? `<img src="${escHtml(l.image)}" alt="" class="w-full h-full object-cover" />` : '<span class="text-[11px] text-slate-400">連結</span>'}</span>
-          <span class="text-xs font-semibold text-slate-600">開啟連結</span>
+        ${a.links.length ? `<div class="mt-3 grid grid-cols-5 gap-2">${a.links.map(l => `<a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer" title="開啟連結" class="aspect-square w-full rounded-xl overflow-hidden border border-slate-200 bg-white grid place-items-center active:opacity-80">
+          ${l.image ? `<img src="${escHtml(l.image)}" alt="" class="w-full h-full object-cover" />` : '<span class="text-[11px] text-slate-400">連結</span>'}
         </a>`).join('')}</div>` : ''}
       </div>
     </div>`).join('');
@@ -2721,6 +2724,11 @@ onAuthStateChanged(auth, async (user) => {
 
 /* ===== 事件綁定 ===== */
 $('#form-email').addEventListener('submit', handleEmailSubmit);
+/* 返回課程選擇頁 */
+$('#btn-back-courses').addEventListener('click', () => {
+  state.activeCourse = null;
+  showView('course-select');
+});
 $('#btn-user-chip').addEventListener('click', () => {
   $('#modal-profile').classList.remove('hidden');
   loadMyCourses();
@@ -2875,6 +2883,42 @@ $('#course-tab-panel').addEventListener('click', (e) => {
   const download = e.target.closest('[data-file-download]');
   if (download) { triggerCourseFileDownload(state.courseFiles.find(f => f.id === download.dataset.fileDownload)); return; }
 });
+</script>
+
+<!-- 行動裝置底部安全區修正：避免頁尾被系統按鍵列（虛擬導覽列／手勢列）遮擋 -->
+<script>
+(function () {
+  var root = document.documentElement;
+  /* 以探針量測 env() 的實際數值（部分 Android WebView／瀏覽器一律回報 0） */
+  function measureEnv(prop, name) {
+    var probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;';
+    probe.style.setProperty(prop, 'env(safe-area-inset-' + name + ', 0px)');
+    (document.body || root).appendChild(probe);
+    var value = parseFloat(window.getComputedStyle(probe).getPropertyValue(prop)) || 0;
+    if (probe.parentNode) probe.parentNode.removeChild(probe);
+    return value;
+  }
+  function syncSafeBottom() {
+    var envTop = measureEnv('padding-top', 'top');
+    var envBottom = measureEnv('padding-bottom', 'bottom');
+    var screenH = window.screen.height || 0;
+    var availH = window.screen.availHeight || 0;
+    var sysBars = Math.max(0, screenH - availH);
+    /* 視窗高於螢幕可用高度 → 內容延伸到系統列之下（全螢幕／邊到邊模式） */
+    var edgeToEdge = availH > 0 && window.innerHeight > availH + 4;
+    var fallback = (edgeToEdge && envBottom < 1 && sysBars > 0)
+      ? Math.max(0, Math.round(sysBars - envTop))
+      : 0;
+    root.style.setProperty('--nw-safe-b', Math.max(envBottom, fallback) + 'px');
+  }
+  syncSafeBottom();
+  window.addEventListener('resize', syncSafeBottom);
+  window.addEventListener('orientationchange', syncSafeBottom);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', syncSafeBottom);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) syncSafeBottom(); });
+  setTimeout(syncSafeBottom, 300);
+})();
 </script>
 </body>
 </html>
