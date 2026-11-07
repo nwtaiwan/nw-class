@@ -61,8 +61,8 @@
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to {opacity:1; transform:none;} }
   .fade-in { animation: fadeIn .25s ease-out; }
-  /* 頁尾底部安全距離：優先採用 env()，若瀏覽器／WebView 回報 0 則使用 JS 量測的後備值 */
-  .safe-b { padding-bottom: env(safe-area-inset-bottom, 0px); padding-bottom: max(env(safe-area-inset-bottom, 0px), var(--nw-safe-b, 0px)); }
+  /* 僅保留裝置實際回報的底部安全距離，避免推算值撐高頁尾 */
+  .safe-b { padding-bottom: env(safe-area-inset-bottom, 0px); }
   .safe-t { padding-top: env(safe-area-inset-top, 0px); }
   #reader { position: relative; width: 100%; height: 100%; margin-inline: auto; background: transparent !important; }
   #reader.reader-idle {
@@ -4131,40 +4131,5 @@ $('#activity-link-image-input').addEventListener('change', async (e) => {
 });
 </script>
 
-<!-- 行動裝置底部安全區修正：避免頁尾被系統按鍵列（虛擬導覽列／手勢列）遮擋 -->
-<script>
-(function () {
-  var root = document.documentElement;
-  /* 以探針量測 env() 的實際數值（部分 Android WebView／瀏覽器一律回報 0） */
-  function measureEnv(prop, name) {
-    var probe = document.createElement('div');
-    probe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;';
-    probe.style.setProperty(prop, 'env(safe-area-inset-' + name + ', 0px)');
-    (document.body || root).appendChild(probe);
-    var value = parseFloat(window.getComputedStyle(probe).getPropertyValue(prop)) || 0;
-    if (probe.parentNode) probe.parentNode.removeChild(probe);
-    return value;
-  }
-  function syncSafeBottom() {
-    var envTop = measureEnv('padding-top', 'top');
-    var envBottom = measureEnv('padding-bottom', 'bottom');
-    var screenH = window.screen.height || 0;
-    var availH = window.screen.availHeight || 0;
-    var sysBars = Math.max(0, screenH - availH);
-    /* 視窗高於螢幕可用高度 → 內容延伸到系統列之下（全螢幕／邊到邊模式） */
-    var edgeToEdge = availH > 0 && window.innerHeight > availH + 4;
-    var fallback = (edgeToEdge && envBottom < 1 && sysBars > 0)
-      ? Math.max(0, Math.round(sysBars - envTop))
-      : 0;
-    root.style.setProperty('--nw-safe-b', Math.max(envBottom, fallback) + 'px');
-  }
-  syncSafeBottom();
-  window.addEventListener('resize', syncSafeBottom);
-  window.addEventListener('orientationchange', syncSafeBottom);
-  if (window.visualViewport) window.visualViewport.addEventListener('resize', syncSafeBottom);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) syncSafeBottom(); });
-  setTimeout(syncSafeBottom, 300);
-})();
-</script>
 </body>
 </html>
