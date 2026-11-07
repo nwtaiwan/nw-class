@@ -306,7 +306,7 @@
 
     <!-- 選擇課程 -->
     <section id="view-course-select" class="hidden h-full flex flex-col fade-in">
-      <div class="shrink-0 px-4 h-14 flex flex-col justify-center border-b border-slate-200 bg-white">
+      <div class="shrink-0 px-4 h-[10dvh] flex flex-col justify-center border-b border-slate-200 bg-white">
         <h2 class="text-base font-bold text-slate-900">選擇課程</h2>
         <p class="text-[11px] text-slate-500">請選擇要進入的課程</p>
       </div>
@@ -385,8 +385,8 @@
   </main>
 
   <!-- 底部導覽：課程功能分頁 -->
-  <nav id="bottom-nav" class="safe-b border-t border-slate-200 bg-white shrink-0">
-    <div id="course-buttons" class="flex items-stretch"></div>
+  <nav id="bottom-nav" class="safe-b h-[10dvh] border-t border-slate-200 bg-white shrink-0">
+    <div id="course-buttons" class="flex items-stretch h-full"></div>
   </nav>
 
 </div>
@@ -865,7 +865,7 @@ function renderCourseButtons() {
   box.innerHTML = tabs.map(t => {
     const on = state.activeTabId === t.id;
     return `
-    <button data-tab="${t.id}" data-tab-label="${escHtml(t.label || '功能')}" class="course-tab-btn flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 h-[10dvh] px-1 ${on ? 'text-brand' : 'text-slate-400'}">
+    <button data-tab="${t.id}" data-tab-label="${escHtml(t.label || '功能')}" class="course-tab-btn flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 h-full px-1 ${on ? 'text-brand' : 'text-slate-400'}">
       <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" viewBox="0 0 24 24">${iconOf(t.id)}</svg>
       <span class="text-base truncate w-full text-center${on ? ' font-semibold' : ''}">${escHtml(t.label || '功能')}</span>
     </button>`;

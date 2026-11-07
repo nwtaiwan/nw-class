@@ -123,7 +123,7 @@
 <div id="app-shell" class="w-full h-[100dvh] bg-white flex flex-col overflow-hidden">
 
   <!-- Header -->
-  <header class="safe-t flex items-center justify-between px-4 md:px-6 h-14 bg-white border-b border-slate-200 shrink-0">
+  <header class="safe-t flex items-center justify-between px-4 md:px-6 h-[10dvh] bg-white border-b border-slate-200 shrink-0">
     <div class="flex items-center gap-2">
       <img id="app-logo" src="logo.png" alt="NW Class" class="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200"
            onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
@@ -214,7 +214,7 @@
 
     <!-- 選擇課程 -->
     <section id="view-course-select" class="hidden h-full flex flex-col fade-in">
-      <div class="shrink-0 px-4 md:px-6 h-16 flex items-center justify-between gap-3 border-b border-slate-200 bg-white">
+      <div class="shrink-0 px-4 md:px-6 h-[10dvh] flex items-center justify-between gap-3 border-b border-slate-200 bg-white">
         <div class="min-w-0">
           <h2 class="text-base font-bold text-slate-900">選擇課程</h2>
           <p class="text-[11px] text-slate-500">請選擇要服務的課程</p>
@@ -233,7 +233,7 @@
 
     <!-- 課程內容 -->
     <section id="view-course" class="hidden h-full flex flex-col fade-in">
-      <div class="shrink-0 flex items-center gap-3 px-4 md:px-6 h-16 border-b border-slate-200 bg-white">
+      <div class="shrink-0 flex items-center gap-3 px-4 md:px-6 h-[10dvh] border-b border-slate-200 bg-white">
         <button id="btn-back-courses" class="shrink-0 w-11 h-11 rounded-lg border border-slate-300 grid place-items-center text-slate-500 active:bg-slate-100" title="返回課程">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
         </button>
@@ -251,8 +251,8 @@
   </main>
 
   <!-- 課程功能分頁（Footer） -->
-  <nav id="course-nav" class="hidden safe-b border-t border-slate-200 bg-white shrink-0">
-    <div id="course-nav-list" class="flex items-stretch"></div>
+  <nav id="course-nav" class="hidden safe-b h-[10dvh] border-t border-slate-200 bg-white shrink-0">
+    <div id="course-nav-list" class="flex items-stretch h-full"></div>
   </nav>
 
 </div>
@@ -1101,7 +1101,7 @@ function renderCourseNav(course) {
   const tabs = courseTabs(course);
   const nav = $('#course-nav-list');
   nav.innerHTML = tabs.map(t => `
-    <button data-course-tab="${t.id}" data-tab-label="${escAttr(t.label || '功能')}" class="course-nav-btn flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 text-slate-400">
+    <button data-course-tab="${t.id}" data-tab-label="${escAttr(t.label || '功能')}" class="course-nav-btn flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 h-full px-1 text-slate-400">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24">${iconOf(t.id)}</svg>
       <span class="text-[13px] truncate w-full text-center">${t.label || '功能'}</span>
     </button>`).join('');
