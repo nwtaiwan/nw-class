@@ -79,8 +79,10 @@
   }
   /* 僅保留裝置實際回報的底部安全距離，避免推算值撐高頁尾 */
   .safe-b { padding-bottom: env(safe-area-inset-bottom, 0px); }
-  /* 僅在 PWA 跨角色切頁後保留 Android 系統按鍵列高度 */
-  .pwa-role-switched .safe-b { padding-bottom: max(env(safe-area-inset-bottom, 0px), 32px); }
+  /* 管理端獨立 PWA 的視窗可能延伸至 Android 系統按鍵列下方 */
+  @media (display-mode: standalone), (display-mode: fullscreen) {
+    .safe-b { padding-bottom: max(env(safe-area-inset-bottom, 0px), 32px); }
+  }
   .safe-t { padding-top: env(safe-area-inset-top, 0px); }
 </style>
 </head>
