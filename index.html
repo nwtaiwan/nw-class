@@ -76,6 +76,24 @@
     background-size: 300% 300%;
     animation: checkinBg 14s ease-in-out infinite;
   }
+  /* 上課證四角紋飾：呼吸微光動畫（各角錯開延遲，形成環繞流動感） */
+  @keyframes cornerGlow {
+    0%, 100% { opacity: .45; filter: drop-shadow(0 0 0 rgba(211,47,47,0)); scale: 1; }
+    50%      { opacity: 1;   filter: drop-shadow(0 0 7px rgba(211,47,47,.6)); scale: 1.05; }
+  }
+  .checkin-corner {
+    animation: cornerGlow 2.8s ease-in-out infinite;
+    transform-origin: center;
+  }
+  /* 課程卡片：外框線條呼吸光暈動畫，讓卡片更明顯 */
+  @keyframes courseCardGlow {
+    0%, 100% { border-color: rgba(211,47,47,.35); box-shadow: 0 1px 3px rgba(15,23,42,.08); }
+    50%      { border-color: rgba(211,47,47,.9);  box-shadow: 0 4px 14px rgba(211,47,47,.25), 0 0 10px 1px rgba(211,47,47,.3); }
+  }
+  button.course-card {
+    border-width: 2px;
+    animation: courseCardGlow 2.6s ease-in-out infinite;
+  }
   /* 座位代號：依座位寬度自動縮放，確保文字完整顯示 */
   .seat-cell { container-type: inline-size; }
   .seat-code { font-size: 10px; font-size: clamp(6px, 40cqw, 12px); line-height: 1; }
@@ -162,21 +180,24 @@
   <!-- Header -->
   <header class="safe-t flex items-center justify-between px-4 h-[10dvh] bg-white border-b border-slate-200 shrink-0">
     <div class="flex items-center gap-2">
-      <img id="app-logo" src="logo.png" alt="NW Class" class="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200"
+      <img id="app-logo" src="logo.png" alt="NW Class" class="w-10 h-10 rounded-lg object-cover ring-1 ring-slate-200"
            onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
-      <span id="app-title" class="font-bold text-lg text-slate-900">西北會議系統</span>
-      <span class="px-1.5 py-0.5 bg-brand text-white text-[10px] rounded font-semibold">學員</span>
+      <span id="app-title" class="font-bold text-xl text-slate-900">西北會議系統</span>
+      <span class="px-2 py-0.5 bg-brand text-white text-xs rounded font-semibold">學員</span>
     </div>
     <button id="btn-user-chip" class="hidden flex items-center gap-2">
-      <span id="chip-name" class="text-base font-medium text-slate-900 max-w-[7rem] truncate"></span>
-      <img id="chip-avatar" alt="" class="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 hidden" />
-      <span id="chip-avatar-fallback" class="w-8 h-8 rounded-full bg-brand text-white grid place-items-center text-xs font-bold">N</span>
+      <span id="chip-name" class="text-lg font-medium text-slate-900 max-w-[7rem] truncate"></span>
+      <img id="chip-avatar" alt="" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 hidden" />
+      <span id="chip-avatar-fallback" class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center text-sm font-bold">N</span>
     </button>
   </header>
 
   <!-- 個人資料彈窗 -->
   <div id="modal-profile" class="hidden fixed inset-0 z-[95] bg-black/50 grid place-items-center p-4">
     <div class="bg-white rounded-2xl w-[80vw] max-w-md h-[80vh] max-h-[80vh] fade-in flex flex-col overflow-hidden">
+      <div class="shrink-0 px-6 py-3 border-b border-slate-100">
+        <p class="text-base font-bold text-slate-900 text-center">個人資訊</p>
+      </div>
       <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-6 py-8 flex flex-col items-center">
         <div id="pf-avatar-btn" title="點擊更換大頭照" class="w-28 h-28 rounded-full bg-brand text-white grid place-items-center text-4xl font-bold shrink-0 relative cursor-pointer">
           <span id="pf-avatar-fallback">N</span>
@@ -190,12 +211,20 @@
         <span id="pf-role" class="mt-2 px-2.5 py-0.5 bg-brand text-white text-[11px] rounded font-semibold">學員</span>
         <div class="w-full mt-6 space-y-3">
           <div class="bg-slate-50 rounded-xl px-4 py-3">
-            <p class="text-[11px] text-slate-400">帳號</p>
-            <p id="pf-account" class="text-sm text-slate-700 truncate">—</p>
+            <p class="text-sm text-slate-400">帳號</p>
+            <p id="pf-account" class="text-base text-slate-700 truncate">—</p>
           </div>
           <div class="bg-slate-50 rounded-xl px-4 py-3">
-            <p class="text-[11px] text-slate-400">姓名</p>
-            <p id="pf-name2" class="text-sm text-slate-700 truncate">—</p>
+            <p class="text-sm text-slate-400">社區名稱</p>
+            <p id="pf-community" class="text-base text-slate-700 truncate">—</p>
+          </div>
+          <div class="bg-slate-50 rounded-xl px-4 py-3">
+            <p class="text-sm text-slate-400">職稱</p>
+            <p id="pf-title" class="text-base text-slate-700 truncate">—</p>
+          </div>
+          <div class="bg-slate-50 rounded-xl px-4 py-3">
+            <p class="text-sm text-slate-400">姓名</p>
+            <p id="pf-name2" class="text-base text-slate-700 truncate">—</p>
           </div>
         </div>
         <!-- 我的課程 -->
@@ -266,9 +295,14 @@
         <h2 class="text-base font-bold text-slate-900">選擇課程</h2>
         <p class="text-[11px] text-slate-500">請選擇要進入的課程</p>
       </div>
-      <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4" style="background-image:url('bg-001.jpg');background-size:cover;background-position:center;background-repeat:no-repeat;">
-        <div id="course-select-list" class="space-y-2">
-          <p class="text-slate-400 text-center py-4 text-xs">載入中…</p>
+      <div class="relative flex-1 min-h-0 overflow-hidden">
+        <video id="course-select-bg" class="absolute inset-0 w-full h-full object-cover" muted autoplay loop playsinline webkit-playsinline preload="auto" disableremoteplayback>
+          <source src="bg-001.mp4" type="video/mp4" />
+        </video>
+        <div class="relative h-full w-full overflow-y-auto no-scrollbar p-4">
+          <div id="course-select-list" class="space-y-2">
+            <p class="text-slate-400 text-center py-4 text-xs">載入中…</p>
+          </div>
         </div>
       </div>
     </section>
@@ -277,8 +311,8 @@
     <section id="view-dashboard" class="hidden h-full flex flex-col fade-in">
       <div class="shrink-0 flex items-center px-4 h-[10dvh] border-b border-slate-200 bg-white">
         <div class="flex-1 min-w-0">
-          <p id="course-view-name" class="text-base font-bold text-slate-900 truncate">課程</p>
-          <p id="course-view-meta" class="text-sm text-slate-500 truncate"></p>
+          <p id="course-view-name" class="text-lg font-bold text-slate-900 truncate">課程</p>
+          <p id="course-view-meta" class="text-base text-slate-500 truncate"></p>
         </div>
       </div>
       <div class="h-[70dvh] overflow-y-auto no-scrollbar p-4 space-y-3">
@@ -508,6 +542,18 @@ function stopCheckinCelebration() {
   try { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); } catch {}
 }
 
+/* 選擇課程頁背景影片：進入時循環播放，離開時停止 */
+function toggleCourseSelectBg(active) {
+  const v = $('#course-select-bg');
+  if (!v) return;
+  if (active) {
+    const p = v.play();
+    if (p && p.catch) p.catch(() => {});
+  } else {
+    try { v.pause(); v.currentTime = 0; } catch {}
+  }
+}
+
 function showView(name) {
   if (name === 'dashboard' && !state.activeCourse) name = 'course-select';
   if (name !== 'dashboard') stopCheckinCelebration();
@@ -516,6 +562,7 @@ function showView(name) {
   $$('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
   const el = $(`#view-${name}`);
   if (el) el.classList.remove('hidden');
+  toggleCourseSelectBg(name === 'course-select');
   $('#bottom-nav').classList.toggle('hidden', name === 'auth' || name === 'course-select');
   if (name === 'course-select' && state.currentUser) loadCourseSelect();
   if (name === 'profile' && state.currentUser) loadMyCheckins();
@@ -561,6 +608,8 @@ function renderUser() {
     chipFb.textContent = initial(name); chipFb.classList.remove('hidden');
   }
   // 個人資料彈窗
+  $('#pf-community').textContent = u.community || '—';
+  $('#pf-title').textContent = u.title || '—';
   $('#pf-name').textContent = name;
   $('#pf-name2').textContent = name;
   $('#pf-account').textContent = account;
@@ -751,7 +800,7 @@ async function loadCourseSelect() {
     list.innerHTML = rows.map(c => {
       const old = isCourseOutdated(c);
       return `
-      <button data-course-open="${c.id}" class="w-full text-left border rounded-xl px-4 py-5 ${old ? 'bg-slate-100 border-slate-300 active:bg-slate-200/70' : 'bg-white border-slate-200 active:bg-slate-50'}">
+      <button data-course-open="${c.id}" class="w-full text-left border rounded-xl px-4 py-5 ${old ? 'bg-slate-100 border-slate-300 active:bg-slate-200/70' : 'course-card bg-white active:bg-slate-50'}">
         <div class="flex items-center justify-between gap-2">
           <div class="min-w-0">
             <p class="font-bold text-lg truncate ${old ? 'text-slate-400' : 'text-slate-900'}">${c.name || '未命名課程'}</p>
@@ -763,7 +812,7 @@ async function loadCourseSelect() {
             </div>` : ''}
             ${c.checkinTime ? `<p class="text-sm mt-1 ${old ? 'text-slate-400' : 'text-slate-500'}">報到時間：${escHtml(formatDisplayTime(c.checkinTime))}</p>` : ''}
           </div>
-          <svg class="shrink-0 text-slate-300" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+          <svg class="shrink-0 text-brand" xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 24 24"><path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
         </div>
       </button>`;
     }).join('');
@@ -799,8 +848,8 @@ function renderCourseButtons() {
     const on = state.activeTabId === t.id;
     return `
     <button data-tab="${t.id}" data-tab-label="${escHtml(t.label || '功能')}" class="course-tab-btn flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 h-[10dvh] px-1 ${on ? 'text-brand' : 'text-slate-400'}">
-      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 24 24">${iconOf(t.id)}</svg>
-      <span class="text-sm truncate w-full text-center${on ? ' font-semibold' : ''}">${escHtml(t.label || '功能')}</span>
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" viewBox="0 0 24 24">${iconOf(t.id)}</svg>
+      <span class="text-base truncate w-full text-center${on ? ' font-semibold' : ''}">${escHtml(t.label || '功能')}</span>
     </button>`;
   }).join('');
 }
@@ -834,17 +883,55 @@ function renderCheckinStudent() {
   const certTitle = String((state.activeCourse && state.activeCourse.certTitle) || '').trim() || '上課證';
   const panel = $('#course-tab-panel');
   panel.innerHTML = `
-    <div class="h-full flex flex-col items-center gap-2">
-      <p class="shrink-0 text-4xl font-bold tracking-widest text-slate-900">${escHtml(certTitle)}</p>
-      <div class="shrink-0 w-full min-w-0 space-y-1">
+    <div class="relative h-full w-full flex flex-col items-center gap-2 overflow-hidden">
+      <!-- 四角紋飾 -->
+      <svg viewBox="0 0 100 100" fill="none" aria-hidden="true" class="checkin-corner pointer-events-none absolute top-0 left-0 w-14 h-14 text-brand/25" style="animation-delay:0s">
+        <path d="M3 46C3 21 21 3 46 3" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <path d="M9 60C9 31 31 9 60 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".5"/>
+        <circle cx="15" cy="15" r="3.2" fill="currentColor"/>
+      </svg>
+      <svg viewBox="0 0 100 100" fill="none" aria-hidden="true" class="checkin-corner pointer-events-none absolute top-0 right-0 w-14 h-14 text-brand/25 rotate-90" style="animation-delay:.7s">
+        <path d="M3 46C3 21 21 3 46 3" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <path d="M9 60C9 31 31 9 60 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".5"/>
+        <circle cx="15" cy="15" r="3.2" fill="currentColor"/>
+      </svg>
+      <svg viewBox="0 0 100 100" fill="none" aria-hidden="true" class="checkin-corner pointer-events-none absolute bottom-0 right-0 w-14 h-14 text-brand/25 rotate-180" style="animation-delay:1.4s">
+        <path d="M3 46C3 21 21 3 46 3" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <path d="M9 60C9 31 31 9 60 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".5"/>
+        <circle cx="15" cy="15" r="3.2" fill="currentColor"/>
+      </svg>
+      <svg viewBox="0 0 100 100" fill="none" aria-hidden="true" class="checkin-corner pointer-events-none absolute bottom-0 left-0 w-14 h-14 text-brand/25 -rotate-90" style="animation-delay:2.1s">
+        <path d="M3 46C3 21 21 3 46 3" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <path d="M9 60C9 31 31 9 60 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".5"/>
+        <circle cx="15" cy="15" r="3.2" fill="currentColor"/>
+      </svg>
+
+      <!-- 標題與徽飾 -->
+      <div class="relative z-10 mt-1 flex w-full shrink-0 items-center justify-center gap-2">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="h-6 w-6 shrink-0 text-brand drop-shadow"><path d="M12 2Q13 11 22 12Q13 13 12 22Q11 13 2 12Q11 11 12 2Z"/></svg>
+        <p class="text-4xl font-bold tracking-widest text-slate-900">${escHtml(certTitle)}</p>
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="h-6 w-6 shrink-0 text-brand drop-shadow"><path d="M12 2Q13 11 22 12Q13 13 12 22Q11 13 2 12Q11 11 12 2Z"/></svg>
+      </div>
+
+      <!-- 分隔線 -->
+      <div class="relative z-10 flex w-full max-w-[15rem] shrink-0 items-center justify-center gap-2">
+        <span class="h-px flex-1 bg-gradient-to-r from-transparent to-brand/50"></span>
+        <span class="h-1.5 w-1.5 rotate-45 rounded-[1px] bg-brand/60"></span>
+        <span class="h-px flex-1 bg-gradient-to-l from-transparent to-brand/50"></span>
+      </div>
+
+      <div class="relative z-10 w-full min-w-0 shrink-0 space-y-1">
         <p class="text-lg text-slate-600 truncate">${escHtml(u.community || '—')}</p>
         <p class="text-lg text-slate-600 truncate">${escHtml(u.title || '—')}</p>
         <p class="text-xl font-bold text-slate-900 truncate">${escHtml(u.name || '學員')}</p>
       </div>
-      <div class="flex-1 min-h-0 w-full flex items-center justify-center">
-        <div id="checkin-qr" class="w-full aspect-square max-w-[50vw] max-h-full [&>svg]:w-full [&>svg]:h-full [&>svg]:block"></div>
+
+      <div class="relative flex w-full min-h-0 flex-1 items-center justify-center">
+        <div class="pointer-events-none absolute top-1/2 left-1/2 w-[70%] aspect-square -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/60 blur-2xl"></div>
+        <div id="checkin-qr" class="relative w-full aspect-square max-w-[50vw] max-h-full [&>svg]:w-full [&>svg]:h-full [&>svg]:block"></div>
       </div>
-      <p class="shrink-0 text-sm leading-relaxed text-slate-900 text-center">請於活動現場向服務人員出示此 QR Code，提供掃描後即完成報到。</p>
+
+      <p class="relative z-10 shrink-0 text-center text-sm leading-relaxed text-slate-900">請於活動現場向服務人員出示此 QR Code，提供掃描後即完成報到。</p>
     </div>`;
   renderCheckinQr();
 }
@@ -877,7 +964,12 @@ function renderCheckinQr() {
     box.innerHTML = qr.createSvgTag({ cellSize: 8, margin: 2, scalable: true });
     // QR Code 圖形始終水平（與垂直）置中
     const svg = box.querySelector('svg');
-    if (svg) svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    if (svg) {
+      svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      // 白色底改為透明背景
+      const bg = svg.querySelector('rect');
+      if (bg) bg.setAttribute('fill', 'transparent');
+    }
   } catch {
     box.innerHTML = '<p class="text-xs text-slate-400">QR Code 產生失敗</p>';
   }
@@ -2534,8 +2626,8 @@ async function loadMyCourses() {
           <p class="text-xs text-slate-500 mt-0.5 truncate">${formatDisplayDate(c.date)}${courseTimeText(c) ? ' ' + courseTimeText(c) : ''}</p>
         </button>
         <button type="button" data-pf-parking="${c.id}" title="登記停車資訊" class="shrink-0 w-14 rounded-xl border grid place-items-center content-center gap-0.5 px-1 ${pkOn ? 'border-brand/40 bg-brand/10 text-brand' : 'border-slate-200 bg-slate-50 text-slate-500 active:bg-slate-100'}">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
-          <span class="text-[10px] font-semibold leading-tight text-center break-all">${pkOn ? escHtml(pk.plate) : '停車'}</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
+          <span class="text-xs font-semibold leading-tight text-center break-all">${pkOn ? escHtml(pk.plate) : '停車'}</span>
         </button>
       </div>`;
     }).join('');
