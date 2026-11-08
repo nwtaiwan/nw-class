@@ -20,6 +20,13 @@ service cloud.firestore {
       return isSignedIn() && (currentUser().role == 'admin' || currentUser().role == 'service');
     }
 
+    // 課程是否已「發佈展示連結」：
+    //   管理員開啟展示頁（open.html?c=）時會寫入 openShareToken 與 openShareActive
+    //   關閉「設定 → 連結」開關時會將 openShareActive 設為 false（立即撤銷免登入讀取）
+    function openPublished(courseId) {
+      return get(/databases/$(database)/documents/courses/$(courseId)).data.get('openShareActive', false) == true;
+    }
+
     // ============ users 集合 ============
     // 欄位：uid, name, email, phone, unit, role, createdAt, updatedAt
     match /users/{userId} {
@@ -45,8 +52,9 @@ service cloud.firestore {
     // ============ checkins 集合（報到紀錄） ============
     // 欄位：uid, name, scannedBy, scannedByName, checkedInAt
     match /checkins/{checkinId} {
-      // 讀取：學員讀自己的；服務/管理員讀全部
-      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isStaff());
+      // 讀取：學員讀自己的；服務/管理員讀全部；展示頁免登入讀取（課程已發佈）
+      allow read: if (isSignedIn() && (resource.data.uid == request.auth.uid || isStaff()))
+        || (resource.data.courseId is string && openPublished(resource.data.courseId));
 
       // 建立：僅服務/管理員（掃描報到）
       allow create: if isStaff();
@@ -58,15 +66,17 @@ service cloud.firestore {
     // ============ courseFiles 集合（課程檔案） ============
     // 欄位：courseId, tabId, name, ext, size, contentType, chunkCount, allowDownload
     match /courseFiles/{fileId} {
-      // 讀取：所有登入者（學員端需瀏覽與預覽）
-      allow read: if isSignedIn();
+      // 讀取：所有登入者（學員端需瀏覽與預覽）；展示頁免登入讀取（課程已發佈）
+      allow read: if isSignedIn()
+        || (resource.data.courseId is string && openPublished(resource.data.courseId));
 
       // 建立 / 修改 / 刪除：僅服務 / 管理員
       allow create, update, delete: if isStaff();
 
       // 檔案內容：Base64 分塊（不用 Storage）
       match /chunks/{chunkId} {
-        allow read: if isSignedIn();
+        allow read: if isSignedIn()
+          || openPublished(get(/databases/$(database)/documents/courseFiles/$(fileId)).data.courseId);
         allow write: if isStaff();
       }
     }
@@ -84,8 +94,8 @@ service cloud.firestore {
     // ============ courses 集合（課程） ============
     // 欄位：name, instructor, date, location, notes, seat, seatAssignments, seatSelfPicks, createdAt, updatedAt
     match /courses/{courseId} {
-      // 讀取：所有登入者
-      allow read: if isSignedIn();
+      // 讀取：所有登入者；展示連結已發佈時，免登入（展示頁）亦可讀取
+      allow read: if isSignedIn() || openPublished(courseId);
 
       // 寫入：僅服務/管理員
       allow create, update, delete: if isStaff();
@@ -141,8 +151,9 @@ service cloud.firestore {
     // ============ courseActivities 集合（活動主題） ============
     // 欄位：courseId, title, image, links[], order, createdAt, updatedAt
     match /courseActivities/{activityId} {
-      // 讀取：所有登入者（學員端需瀏覽活動）
-      allow read: if isSignedIn();
+      // 讀取：所有登入者（學員端需瀏覽活動）；展示頁免登入讀取（課程已發佈）
+      allow read: if isSignedIn()
+        || (resource.data.courseId is string && openPublished(resource.data.courseId));
 
       // 寫入：僅服務/管理員
       allow create, update, delete: if isStaff();
@@ -151,8 +162,9 @@ service cloud.firestore {
     // ============ voteResponses 集合（投票紀錄） ============
     // 欄位：courseId, voteId, uid, name, optionIds, createdAt, updatedAt
     match /voteResponses/{responseId} {
-      // 讀取：所有登入者（學員端顯示即時結果）
-      allow read: if isSignedIn();
+      // 讀取：所有登入者（學員端顯示即時結果）；展示頁免登入讀取（課程已發佈）
+      allow read: if isSignedIn()
+        || (resource.data.courseId is string && openPublished(resource.data.courseId));
 
       // 建立/修改：學員僅能寫入自己的投票（uid 需與登入者一致）
       allow create, update: if isSignedIn() && request.resource.data.uid == request.auth.uid;
@@ -164,8 +176,9 @@ service cloud.firestore {
     // ============ examResults 集合（測驗成績） ============
     // 欄位：courseId, uid, name, community, title, score, total, percent, passed, attempts
     match /examResults/{resultId} {
-      // 讀取：所有登入者（學員讀自己的成績；服務/管理員查看通過名單）
-      allow read: if isSignedIn();
+      // 讀取：所有登入者（學員讀自己的成績；服務/管理員查看通過名單）；展示頁免登入讀取（課程已發佈）
+      allow read: if isSignedIn()
+        || (resource.data.courseId is string && openPublished(resource.data.courseId));
 
       // 建立/修改：學員僅能寫入自己的成績（uid 需與登入者一致）
       allow create, update: if isSignedIn() && request.resource.data.uid == request.auth.uid;
@@ -177,8 +190,9 @@ service cloud.firestore {
     // ============ buzzRounds 集合（搶答紀錄） ============
     // 欄位：courseId, round, uid, name, buzzedAt
     match /buzzRounds/{roundId} {
-      // 讀取：所有登入者
-      allow read: if isSignedIn();
+      // 讀取：所有登入者；展示頁免登入讀取（課程已發佈）
+      allow read: if isSignedIn()
+        || (resource.data.courseId is string && openPublished(resource.data.courseId));
 
       // 建立：學員搶答（uid 需與登入者一致）
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
@@ -192,6 +206,17 @@ service cloud.firestore {
     // 文件 ID 為隨機 token（不可猜測），供「停車資訊」分享頁免登入檢視
     match /parkingShares/{token} {
       // 讀取：免登入（分享連結持有者）
+      allow read: if true;
+
+      // 寫入：僅服務/管理員
+      allow create, update, delete: if isStaff();
+    }
+
+    // ============ openShares 集合（課程展示頁分享對照） ============
+    // 欄位：courseId, courseName, enabled, updatedAt
+    // 文件 ID 為隨機 token（不可猜測），供展示頁 open.html?s=<token> 免登入解析課程
+    match /openShares/{token} {
+      // 讀取：免登入（展示連結持有者）
       allow read: if true;
 
       // 寫入：僅服務/管理員

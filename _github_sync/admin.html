@@ -73,11 +73,11 @@
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to {opacity:1; transform:none;} }
   .fade-in { animation: fadeIn .25s ease-out; }
-  /* 僅保留裝置實際回報的底部安全距離，避免推算值撐高頁尾 */
-  .safe-b { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  /* 服務端 Footer：安全區以「增加高度」呈現，避免 padding 壓縮內容區導致按鈕無法垂直置中 */
+  #course-nav { height: calc(10vh + env(safe-area-inset-bottom, 0px)); height: calc(10dvh + env(safe-area-inset-bottom, 0px)); }
   /* 服務端獨立 PWA 的視窗可能延伸至 Android 系統按鍵列下方 */
   @media (display-mode: standalone), (display-mode: fullscreen) {
-    .safe-b { padding-bottom: max(env(safe-area-inset-bottom, 0px), 32px); }
+    #course-nav { height: calc(10vh + max(env(safe-area-inset-bottom, 0px), 32px)); height: calc(10dvh + max(env(safe-area-inset-bottom, 0px), 32px)); }
   }
   .safe-t { padding-top: env(safe-area-inset-top, 0px); }
   #reader { position: relative; width: 100%; height: 100%; margin-inline: auto; background: transparent !important; }
@@ -251,7 +251,7 @@
   </main>
 
   <!-- 課程功能分頁（Footer） -->
-  <nav id="course-nav" class="hidden safe-b h-[10dvh] border-t border-slate-200 bg-white shrink-0">
+  <nav id="course-nav" class="hidden border-t border-slate-200 bg-white shrink-0">
     <div id="course-nav-list" class="flex items-stretch h-full"></div>
   </nav>
 
@@ -270,7 +270,7 @@
 </div>
 
 <!-- 通用二次確認 -->
-<div id="modal-confirm" class="hidden fixed inset-0 z-[99] bg-black/50 grid place-items-center p-4">
+<div id="modal-confirm" class="hidden fixed inset-0 z-[130] bg-black/50 grid place-items-center p-4">
   <div class="bg-white rounded-2xl w-[80vw] max-w-sm p-5 fade-in">
     <p id="confirm-title" class="text-base font-bold text-slate-900">確認</p>
     <p id="confirm-msg" class="mt-2 text-sm text-slate-600 leading-relaxed whitespace-pre-line"></p>
@@ -540,6 +540,65 @@
       <button id="vote-edit-close" class="py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">取消</button>
       <button id="vote-edit-confirm" class="py-2.5 rounded-lg bg-brand text-white font-semibold">儲存</button>
     </div>
+  </div>
+</div>
+
+<!-- 座位表預覽（含投票選擇標記） -->
+<div id="modal-seat-pdf" class="hidden fixed inset-0 z-[97] bg-black/50 grid place-items-center p-4">
+  <div class="w-[90vw] h-[90vh] bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden">
+    <div class="shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-slate-800 truncate">座位表預覽</p>
+        <p id="seat-pdf-meta" class="text-[11px] text-slate-400 truncate"></p>
+      </div>
+      <button id="seat-pdf-close" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">關閉</button>
+    </div>
+    <div id="seat-pdf-votes" class="shrink-0 flex items-start gap-2 flex-wrap px-4 py-2.5 border-b border-slate-100 bg-slate-50/60"></div>
+    <div id="seat-pdf-body" class="flex-1 min-h-0 p-4"></div>
+  </div>
+</div>
+
+<!-- 投票時間順序 -->
+<div id="modal-vote-order" class="hidden fixed inset-0 z-[99] bg-black/50 grid place-items-center p-4">
+  <div class="w-[80vw] h-[80vh] bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden">
+    <div class="shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-slate-800 truncate">投票時間順序（快 → 慢）</p>
+        <p id="vote-order-meta" class="text-[11px] text-slate-400 truncate"></p>
+      </div>
+      <button id="vote-order-close" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">關閉</button>
+    </div>
+    <div id="vote-order-body" class="flex-1 min-h-0 overflow-auto p-3"></div>
+  </div>
+</div>
+
+<!-- 座位表測驗結果 -->
+<div id="modal-seat-exam-result" class="hidden fixed inset-0 z-[97] bg-black/50 grid place-items-center p-4">
+  <div class="w-[90vw] h-[90vh] bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden">
+    <div class="shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-slate-800 truncate">座位表測驗結果</p>
+        <p id="seat-exam-result-meta" class="text-[11px] text-slate-400 truncate"></p>
+      </div>
+      <button id="seat-exam-result-close" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">關閉</button>
+    </div>
+    <div id="seat-exam-result-subjects" class="shrink-0 flex items-start gap-2 flex-wrap px-4 py-2.5 border-b border-slate-100 bg-slate-50/60"></div>
+    <div id="seat-exam-result-body" class="flex-1 min-h-0 p-4"></div>
+  </div>
+</div>
+
+<!-- 測驗分數順序 -->
+<div id="modal-exam-score-order" class="hidden fixed inset-0 z-[99] bg-black/50 grid place-items-center p-4">
+  <div class="w-[80vw] h-[80vh] bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden">
+    <div class="shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-slate-800 truncate">測驗分數順序（高至低）</p>
+        <p id="exam-score-order-meta" class="text-[11px] text-slate-400 truncate"></p>
+        <div id="exam-score-order-summary" class="mt-1 flex flex-wrap items-center gap-2 text-[11px]"></div>
+      </div>
+      <button id="exam-score-order-close" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">關閉</button>
+    </div>
+    <div id="exam-score-order-body" class="flex-1 min-h-0 overflow-auto p-3"></div>
   </div>
 </div>
 
@@ -824,7 +883,8 @@ const DEFAULT_TABS = [
   { id: 'handouts', label: '講義', enabled: true, order: 5 },
   { id: 'exam', label: '測驗', enabled: true, order: 6 },
   { id: 'download', label: '活動', enabled: true, order: 7 },
-  { id: 'settings', label: '設定', enabled: true, order: 8 },
+  { id: 'live', label: '直播', enabled: true, order: 8 },
+  { id: 'settings', label: '設定', enabled: true, order: 9 },
 ];
 const TAB_ICONS = {
   checkin: '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>',
@@ -835,6 +895,7 @@ const TAB_ICONS = {
   handouts: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>',
   exam: '<path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2.2 14.2L6.6 14l1.4-1.4 2.8 2.8 5.9-5.9 1.4 1.4-7.3 7.3z"/>',
   download: '<path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z"/>',
+  live: '<path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/>',
   settings: '<path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>',
   default: '<path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>',
 };
@@ -1077,8 +1138,9 @@ function renderCourseSelect() {
   list.innerHTML = rows.map(c => {
     const old = isCourseOutdated(c);
     return `
-    <div data-course-open="${c.id}" class="relative text-left border rounded-xl p-4 flex flex-col gap-1 cursor-pointer ${old ? 'bg-slate-100 border-slate-300 active:bg-slate-200/70' : 'bg-white border-slate-200 active:bg-slate-50'}">
-      <button data-course-archive="${c.id}" class="absolute top-2 right-2 px-2 py-1 rounded-md text-[11px] font-semibold border border-slate-200 text-slate-400 active:bg-slate-100">${isCourseArchived(c) ? '取消封存' : '封存'}</button>
+    <div data-course-open="${c.id}" class="relative text-left border rounded-xl p-4 pr-14 flex flex-col gap-1 cursor-pointer ${old ? 'bg-slate-100 border-slate-300 active:bg-slate-200/70' : 'bg-white border-slate-200 active:bg-slate-50'}">
+      <button data-course-archive="${c.id}" class="absolute top-2 right-2 w-11 h-6 rounded-md text-[10px] font-semibold border border-slate-200 text-slate-400 active:bg-slate-100 grid place-items-center whitespace-nowrap px-0">${isCourseArchived(c) ? '取消封存' : '封存'}</button>
+      <button data-course-link="${c.id}" title="開啟展示連結" class="absolute bottom-2 right-2 w-11 h-11 rounded-lg border ${courseOpenLinkEnabled(c) ? 'border-brand/40 text-brand bg-brand/5 active:bg-brand/15' : 'border-slate-200 text-slate-400 active:bg-slate-100'} grid place-items-center text-[11px] font-semibold leading-none">連結</button>
       <p class="font-semibold text-sm truncate pr-16 ${old ? 'text-slate-400' : ''}">${c.name || '未命名課程'}</p>
       <p class="text-xs truncate ${old ? 'text-slate-400' : 'text-slate-500'}">${formatDisplayDate(c.date)}${courseTimeText(c) ? ' ' + courseTimeText(c) : ''}</p>
       ${c.location ? `<p class="text-[11px] text-slate-400 truncate">地點：${c.location}</p>` : ''}
@@ -1327,12 +1389,14 @@ function renderTabContent(id, label) {
           </div>
           <div class="shrink-0 flex items-center gap-2">
             <button id="btn-vote-add" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">＋ 新增投票</button>
+            <button id="btn-vote-pdf" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">結果</button>
             ${tabVisToggleHtml('vote')}
           </div>
         </div>
         <div id="vote-list" class="flex-1 min-h-0 overflow-auto no-scrollbar p-4 space-y-4"></div>
       </div>`;
     $('#btn-vote-add').addEventListener('click', () => openVoteEdit(''));
+    $('#btn-vote-pdf').addEventListener('click', openSeatPdfPreview);
     $('#vote-list').addEventListener('click', (e) => {
       const edit = e.target.closest('[data-vote-edit]');
       if (edit) return openVoteEdit(edit.dataset.voteEdit);
@@ -1360,6 +1424,10 @@ function renderTabContent(id, label) {
   }
   if (id === 'download') {
     renderActivityAdminTab();
+    return;
+  }
+  if (id === 'live') {
+    renderLiveAdminTab();
     return;
   }
   if (id === 'settings') {
@@ -1664,7 +1732,8 @@ function setupPreviewZoom() {
 }
 function closeCourseFilePreview() {
   previewRenderToken++;
-  $('#modal-file-preview')?.classList.add('hidden');
+  const modal = $('#modal-file-preview');
+  if (modal) { modal.classList.add('hidden'); modal.style.zIndex = ''; }
   resetPreviewZoom();
   const content = $('#file-preview-zoom');
   if (content) content.innerHTML = '';
@@ -1978,6 +2047,7 @@ function normalizeActivity(a) {
     title: String(a?.title || ''),
     image: String(a?.image || ''),
     order: Number.isFinite(a?.order) ? a.order : 0,
+    visible: a?.visible !== false,
     links: (Array.isArray(a?.links) ? a.links : [])
       .filter(l => l && (l.url || l.image))
       .map((l, i) => ({ id: String(l.id || ('l' + (i + 1))), url: String(l.url || ''), image: String(l.image || '') })),
@@ -2003,6 +2073,8 @@ function renderActivityAdminTab() {
     </div>`;
   $('#btn-activity-add').addEventListener('click', () => openActivityEdit(''));
   $('#activity-list').addEventListener('click', (e) => {
+    const toggle = e.target.closest('[data-activity-toggle]');
+    if (toggle) return toggleActivityVisibility(toggle.dataset.activityToggle);
     const up = e.target.closest('[data-activity-move-up]');
     if (up) return moveActivity(up.dataset.activityMoveUp, -1);
     const down = e.target.closest('[data-activity-move-down]');
@@ -2037,6 +2109,7 @@ function renderActivityAdminList() {
           ${idx < state.activities.length - 1 ? `<button data-activity-move-down="${escAttr(a.id)}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="下移">↓</button>` : ''}
           <button data-activity-edit="${escAttr(a.id)}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="編輯">✎</button>
           <button data-activity-del="${escAttr(a.id)}" class="w-8 h-8 rounded-lg border border-red-200 text-red-500 grid place-items-center" title="刪除">✕</button>
+          <button type="button" data-activity-toggle="${escAttr(a.id)}" role="switch" aria-checked="${a.visible}" title="學員端顯示：${a.visible ? '開啟' : '關閉'}" class="shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${a.visible ? 'bg-brand' : 'bg-slate-300'}"><span class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${a.visible ? 'translate-x-[22px]' : 'translate-x-0.5'}"></span></button>
         </div>
       </div>
     </div>`).join('');
@@ -2065,7 +2138,7 @@ function openActivityEdit(id) {
   const base = found ? normalizeActivity(found) : null;
   activityDraft = base
     ? { ...base, links: base.links.map(l => ({ ...l })) }
-    : { id: '', title: '', image: '', order: state.activities.length, links: [] };
+    : { id: '', title: '', image: '', order: state.activities.length, visible: true, links: [] };
   $('#activity-edit-heading').textContent = found ? '編輯主題' : '新增主題';
   $('#activity-edit-title').value = activityDraft.title;
   renderActivityEditImage();
@@ -2118,6 +2191,7 @@ async function saveActivityEdit() {
     image: activityDraft.image,
     links,
     order: Number.isFinite(activityDraft.order) ? activityDraft.order : state.activities.length,
+    visible: activityDraft.visible !== false,
     updatedAt: serverTimestamp(),
   };
   try {
@@ -2131,6 +2205,18 @@ async function saveActivityEdit() {
     toast('活動已儲存', 2000, 'success');
   } catch (err) {
     toast('儲存失敗：' + (err.message || ''), 2400, 'danger');
+  }
+}
+async function toggleActivityVisibility(id) {
+  const activity = state.activities.find(a => a.id === id);
+  if (!activity) return;
+  try {
+    await updateDoc(doc(db, 'courseActivities', id), {
+      visible: !activity.visible,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    toast('切換學員端顯示失敗：' + (err.message || ''), 2400, 'danger');
   }
 }
 async function deleteActivity(id) {
@@ -2230,10 +2316,11 @@ function renderExamAdminTab() {
       <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
         <div class="min-w-0">
           <p class="text-sm font-semibold text-slate-700">測驗</p>
-          <p class="text-[11px] text-slate-400 truncate">同一場會議可建立多科試卷；各科為單選題，學員達該科門檻即可下載該科電子獎狀</p>
+          <p class="text-[11px] text-slate-400 truncate">同一場會議可建立多科試卷；各科為單選題，學員達該科門檻即可下載該科電子證書</p>
         </div>
         <div class="shrink-0 flex items-center gap-2">
           <button id="btn-exam-add-subject" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">＋ 新增科目</button>
+          <button id="btn-exam-result-pdf" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">結果</button>
           <button id="btn-exam-save" class="px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">儲存</button>
           ${tabVisToggleHtml('exam')}
         </div>
@@ -2252,6 +2339,7 @@ function renderExamAdminTab() {
       </div>
     </div>`;
   $('#btn-exam-add-subject').addEventListener('click', addExamSubject);
+  $('#btn-exam-result-pdf').addEventListener('click', openSeatExamResult);
   $('#btn-exam-save').addEventListener('click', () => saveExam());
   const list = $('#exam-subject-list');
   list.addEventListener('input', onExamSubjectInput);
@@ -2576,6 +2664,8 @@ function loadExamResults() {
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (Number(b.percent) || 0) - (Number(a.percent) || 0));
     renderExamResults();
+    if (!$('#modal-seat-exam-result').classList.contains('hidden')) renderSeatExamResult();
+    if (!$('#modal-exam-score-order').classList.contains('hidden')) renderExamScoreOrder();
   }, () => {
     const box = $('#exam-result-list');
     if (box) box.innerHTML = '<p class="text-slate-400 text-center py-4 text-sm">結果載入失敗</p>';
@@ -2611,6 +2701,338 @@ function renderExamResults() {
           </div>
         </div>`).join('')}
     </div>`).join('');
+}
+
+/* ===== 測驗結果座位圖 ===== */
+let seatExamResultSubjectId = '';
+function openSeatExamResult() {
+  if (!state.activeCourse) return;
+  const { rows, cols } = seatConfig(state.activeCourse);
+  if (!rows || !cols) return toast('尚未設定座位表，請先於座位表設定', 2400, 'warning');
+  const subjects = courseExamAdmin(state.activeCourse).subjects;
+  if (!subjects.some(s => s.id === seatExamResultSubjectId)) seatExamResultSubjectId = '';
+  $('#modal-seat-exam-result').classList.remove('hidden');
+  renderSeatExamResult();
+  loadCourseStudents();
+}
+function closeSeatExamResult() { $('#modal-seat-exam-result').classList.add('hidden'); }
+function renderSeatExamResult() {
+  const body = $('#seat-exam-result-body');
+  if (!body || !state.activeCourse) return;
+  const { rows, cols, aisles } = seatConfig(state.activeCourse);
+  const subjects = courseExamAdmin(state.activeCourse).subjects;
+  const subject = subjects.find(s => s.id === seatExamResultSubjectId) || null;
+  const meta = $('#seat-exam-result-meta');
+  if (meta) {
+    const seated = Object.keys(seatOccupancyOf(state.activeCourse)).length;
+    meta.textContent = `${state.activeCourse.name || '本課程'} · ${rows} 排 × ${cols} 列 · 已安排座位 ${seated} 人${aisles.length ? ' · 走道 ' + aisles.join('、') : ''}`;
+  }
+
+  const bar = $('#seat-exam-result-subjects');
+  if (bar) {
+    if (!subjects.length) {
+      bar.innerHTML = '<span class="text-[11px] text-slate-400">尚未建立測驗科目</span>';
+    } else {
+      const btnClass = on => `text-left px-2.5 py-1.5 rounded-lg border max-w-[16rem] ${on ? 'bg-brand text-white border-brand' : 'bg-white text-slate-600 border-slate-300'}`;
+      const mutedClass = on => on ? 'text-white/80' : 'text-slate-400';
+      bar.innerHTML = [
+        '<span class="text-[11px] text-slate-400 shrink-0 pt-1">科目</span>',
+        `<button data-seat-exam-result-subject="" class="${btnClass(!seatExamResultSubjectId)} text-xs font-semibold whitespace-nowrap">不標記</button>`,
+        ...subjects.map(s => {
+          const on = seatExamResultSubjectId === s.id;
+          const count = state.examResults.filter(r => r.subjectId === s.id).length;
+          return `<div data-seat-exam-result-subject="${escAttr(s.id)}" title="${escAttr(s.name)}" class="${btnClass(on)} relative cursor-pointer pr-14">
+              <span class="block text-xs font-semibold truncate pr-10 ${on ? 'text-white' : 'text-slate-800'}">${escAttr(s.name)}</span>
+              <span class="block text-[10px] leading-tight ${mutedClass(on)}">已測 ${count} 人 · 門檻 ${Number(s.passPercent) || 0} 分</span>
+              <button data-seat-exam-score-order="${escAttr(s.id)}" title="依分數由高至低排列" class="absolute top-1 right-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500">順序</button>
+          </div>`;
+        })
+      ].join('');
+    }
+  }
+
+  const occupancy = seatOccupancyOf(state.activeCourse);
+  const aisleSet = new Set(aisles);
+  let colsTemplate = '1.75rem';
+  for (let c = 1; c <= cols; c++) {
+    colsTemplate += ' minmax(0, 1fr)';
+    if (aisleSet.has(c)) colsTemplate += ' 1.75rem';
+  }
+  const gridStyle = `grid-template-columns:${colsTemplate};grid-template-rows:auto repeat(${rows},minmax(2.75rem,1fr));`;
+  const head = ['<div></div>'];
+  for (let c = 1; c <= cols; c++) {
+    head.push(`<div class="grid place-items-center text-[12px] text-slate-400 tabular-nums">${String(c).padStart(2, '0')}</div>`);
+    if (aisleSet.has(c)) head.push('<div class="grid place-items-center text-[11px] text-slate-400">走道</div>');
+  }
+  const seatRows = Array.from({ length: rows }, (_, i) => rows - 1 - i).map(r => {
+    const letter = seatRowLetter(r);
+    const cells = [`<div class="grid place-items-center text-[13px] font-semibold text-slate-500">${letter}</div>`];
+    for (let c = 1; c <= cols; c++) {
+      const code = letter + String(c).padStart(2, '0');
+      const entry = occupancy[code];
+      const uid = entry?.uid || '';
+      const student = uid ? studentByUid(uid) : null;
+      let cellClass = 'border-slate-200 bg-slate-50';
+      let content = `<span class="text-xs text-slate-300 tabular-nums">${code}</span>`;
+      if (student) {
+        const result = subject && state.examResults.find(item => item.uid === uid && item.subjectId === subject.id);
+        const passed = result && (result.passed === true || Number(result.percent) >= (Number(subject.passPercent) || 0));
+        cellClass = entry.self ? 'border-sky-300 bg-sky-50' : 'border-brand/40 bg-brand/10';
+        content = `
+          <span class="text-[10px] leading-none text-slate-400 tabular-nums">${code}</span>
+          <span class="w-full truncate text-xs leading-tight font-bold text-slate-800">${escAttr(student.name || '未命名')}</span>
+          ${student.community || student.unit ? `<span class="w-full truncate text-[10px] leading-tight text-slate-500">${escAttr(student.community || student.unit)}</span>` : ''}
+          ${subject ? `<span class="w-full truncate text-[10px] leading-tight font-bold ${result ? (passed ? 'text-emerald-600' : 'text-red-500') : 'text-slate-300'}">${result ? `${Number(result.percent) || 0} 分` : '未測驗'}</span>` : ''}`;
+      } else if (uid) {
+        content = `<span class="text-[10px] text-slate-400">${code}</span><span class="text-[10px] text-slate-300">學員資料載入中</span>`;
+      }
+      cells.push(`<div class="min-w-0 h-full rounded-md border ${cellClass} flex flex-col items-center justify-center overflow-hidden px-0.5 py-0.5 text-center leading-tight">${content}</div>`);
+      if (aisleSet.has(c)) cells.push('<div class="rounded bg-slate-400 grid place-items-center text-[10px] font-semibold text-white/90" style="writing-mode:vertical-rl;">走道</div>');
+    }
+    return cells.join('');
+  }).join('');
+  body.innerHTML = `
+    <div class="h-full min-h-0 flex flex-col">
+      <div class="flex-1 min-h-0 overflow-auto no-scrollbar">
+        <div class="grid min-h-full gap-1" style="${gridStyle}">${head.join('')}${seatRows}</div>
+      </div>
+      <div class="shrink-0 border-t border-slate-100 pt-2">
+        <div class="grid h-10 place-items-center rounded-lg bg-brand text-sm font-bold tracking-[0.5em] text-white">講台</div>
+      </div>
+    </div>`;
+}
+
+let examScoreOrderSubjectId = '';
+function openExamScoreOrder(subjectId) {
+  examScoreOrderSubjectId = subjectId || '';
+  if (!courseExamAdmin(state.activeCourse).subjects.some(s => s.id === examScoreOrderSubjectId)) return;
+  $('#modal-exam-score-order').classList.remove('hidden');
+  renderExamScoreOrder();
+}
+function closeExamScoreOrder() { $('#modal-exam-score-order').classList.add('hidden'); }
+function renderExamScoreOrder() {
+  const body = $('#exam-score-order-body');
+  if (!body || !state.activeCourse) return;
+  const subject = courseExamAdmin(state.activeCourse).subjects.find(s => s.id === examScoreOrderSubjectId);
+  if (!subject) {
+    body.innerHTML = '<p class="py-6 text-center text-sm text-slate-400">找不到測驗科目</p>';
+    return;
+  }
+  const resultsByUid = new Map();
+  state.examResults.filter(r => r.subjectId === subject.id).forEach(r => {
+    if (!resultsByUid.has(r.uid)) resultsByUid.set(r.uid, r);
+  });
+  const studentsByUid = new Map();
+  state.courseStudents.forEach(student => studentsByUid.set(student.uid || student.id, student));
+  const rows = state.courseStudents.map(student => {
+    const uid = student.uid || student.id;
+    return { uid, student, result: resultsByUid.get(uid) || null };
+  });
+  resultsByUid.forEach((result, uid) => {
+    if (studentsByUid.has(uid)) return;
+    rows.push({ uid, student: { name: result.name || '未命名' }, result });
+  });
+  rows.sort((a, b) => {
+    const aScore = a.result ? Number(a.result.percent) : -Infinity;
+    const bScore = b.result ? Number(b.result.percent) : -Infinity;
+    return bScore - aScore || String(a.student.name || '').localeCompare(String(b.student.name || ''), 'zh-Hant');
+  });
+  const completed = rows.filter(row => row.result).length;
+  const passPercent = Number(subject.passPercent) || 0;
+  const passedCount = rows.filter(row => row.result
+    && (row.result.passed === true || Number(row.result.percent) >= passPercent)).length;
+  const failedCount = completed - passedCount;
+  const untestedCount = rows.length - completed;
+  const meta = $('#exam-score-order-meta');
+  if (meta) meta.textContent = `${state.activeCourse.name || '本課程'} · ${subject.name}`;
+  const summary = $('#exam-score-order-summary');
+  if (summary) summary.innerHTML = `
+    <span class="font-semibold text-emerald-600">合格 ${passedCount} 人</span>
+    <span class="font-semibold text-red-500">不合格 ${failedCount} 人</span>
+    <span class="font-semibold text-slate-400">未測驗 ${untestedCount} 人</span>
+    <span class="text-slate-400">已測 ${completed} / 應測 ${rows.length}</span>`;
+  if (!rows.length) {
+    body.innerHTML = '<p class="py-6 text-center text-sm text-slate-400">目前沒有課程學員</p>';
+    return;
+  }
+  body.innerHTML = rows.map((row, index) => {
+    const result = row.result;
+    const passed = result && (result.passed === true || Number(result.percent) >= (Number(subject.passPercent) || 0));
+    const rank = result ? index + 1 : '—';
+    const community = row.student.community || row.student.unit || '';
+    return `
+      <div class="flex items-center gap-3 px-3 py-2 rounded-lg ${index % 2 ? 'bg-slate-50' : ''}">
+        <span class="shrink-0 w-8 h-8 grid place-items-center rounded-full text-xs font-bold ${result && rank === 1 ? 'bg-brand text-white' : 'bg-slate-200 text-slate-600'}">${rank}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block truncate text-sm font-semibold text-slate-800">${escAttr(row.student.name || '未命名')}</span>
+          ${community ? `<span class="block truncate text-[11px] text-slate-400">${escAttr(community)}</span>` : ''}
+        </span>
+        <span class="shrink-0 min-w-16 text-right text-sm font-bold tabular-nums ${result ? (passed ? 'text-emerald-600' : 'text-red-500') : 'text-slate-300'}">${result ? `${Number(result.percent) || 0} 分` : '未測驗'}</span>
+        <span class="shrink-0 w-16 text-right text-xs font-semibold ${result ? (passed ? 'text-emerald-600' : 'text-red-500') : 'text-slate-300'}">${result ? (passed ? '合格' : '未達門檻') : '—'}</span>
+        ${result ? `
+          ${passed ? `<button data-exam-cert-view="${escAttr(row.uid)}" title="顯示該員證書" class="shrink-0 px-2 py-1 rounded-md text-[11px] font-semibold border border-amber-300 text-amber-600 bg-amber-50 active:bg-amber-100">證書</button>` : ''}
+          <button data-exam-record-clear="${escAttr(row.uid)}" title="清除該員所有測驗紀錄" class="shrink-0 px-2 py-1 rounded-md text-[11px] font-semibold border border-red-200 text-red-500 active:bg-red-50">清除</button>
+        ` : ''}
+      </div>`;
+  }).join('');
+}
+
+/* ===== 測驗分數順序：顯示該員證書 / 清除測驗紀錄 ===== */
+function examCertFont(size, weight) {
+  return `${weight ? weight + ' ' : ''}${size}px "Noto Sans TC","Microsoft JhengHei","PingFang TC","Heiti TC",sans-serif`;
+}
+function examCertTrim(text, max) {
+  const t = String(text || '');
+  return t.length > max ? `${t.slice(0, max)}…` : t;
+}
+function loadCertImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('load failed'));
+    img.src = src;
+  });
+}
+/* 依學員成績資料繪製電子證書 PNG（零外部相依） */
+async function buildStudentCertificate(result, course, subject) {
+  const W = 1600, H = 1131;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const name = examCertTrim(result?.name || '學員', 12);
+  const community = result?.community || '';
+  const title = result?.title || '';
+  const courseName = examCertTrim(course?.name || '本課程', 22);
+  const subjectName = examCertTrim(subject?.name || result?.subjectName || '測驗', 22);
+  const percent = Number(result?.percent) || 0;
+  const passPercent = subject?.passPercent ?? 60;
+
+  ctx.fillStyle = '#fffdf9'; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#c81e1e'; ctx.lineWidth = 16; ctx.strokeRect(28, 28, W - 56, H - 56);
+  ctx.strokeStyle = 'rgba(200,30,30,0.35)'; ctx.lineWidth = 3; ctx.strokeRect(58, 58, W - 116, H - 116);
+  ctx.fillStyle = '#c81e1e';
+  [[28, 28], [W - 28, 28], [28, H - 28], [W - 28, H - 28]].forEach(([x, y]) => {
+    ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI * 2); ctx.fill();
+  });
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#c81e1e';
+  ctx.font = examCertFont(104, '700');
+  const certificateTitle = '合格證書';
+  const titleMetrics = ctx.measureText(certificateTitle);
+  const titleWidth = titleMetrics.width;
+  const titleAscent = Number.isFinite(titleMetrics.actualBoundingBoxAscent) ? titleMetrics.actualBoundingBoxAscent : 83;
+  const titleDescent = Number.isFinite(titleMetrics.actualBoundingBoxDescent) ? titleMetrics.actualBoundingBoxDescent : 0;
+  const titleCenterY = 300 + (titleDescent - titleAscent) / 2;
+  const titleLogoSize = 82;
+  const titleLogoGap = 20;
+  const titleGroupWidth = titleLogoSize + titleLogoGap + titleWidth;
+  const titleGroupX = (W - titleGroupWidth) / 2;
+  try {
+    const logo = await loadCertImage('logo.png');
+    ctx.drawImage(logo, titleGroupX, titleCenterY - titleLogoSize / 2, titleLogoSize, titleLogoSize);
+  } catch {}
+  ctx.textAlign = 'left';
+  ctx.fillText(certificateTitle, titleGroupX + titleLogoSize + titleLogoGap, 300);
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(200,30,30,0.5)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(W / 2 - 260, 336); ctx.lineTo(W / 2 + 260, 336); ctx.stroke();
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = examCertFont(26, '400');
+  ctx.fillText('ELECTRONIC CERTIFICATE', W / 2, 378);
+
+  ctx.fillStyle = '#1e293b';
+  ctx.font = examCertFont(78, '700');
+  ctx.fillText(name, W / 2, 492);
+
+  const sub = [community, title].filter(Boolean).join(' · ');
+  if (sub) {
+    ctx.fillStyle = '#64748b';
+    ctx.font = examCertFont(34, '400');
+    ctx.fillText(examCertTrim(sub, 30), W / 2, 548);
+  }
+
+  ctx.fillStyle = '#334155';
+  ctx.font = examCertFont(36, '400');
+  ctx.fillText(`完成《${courseName}》`, W / 2, 620);
+  ctx.fillText(`「${subjectName}」測驗`, W / 2, 676);
+  ctx.fillText(`成績 ${percent} 分（合格門檻 ${passPercent} 分），`, W / 2, 732);
+  ctx.fillText('特頒此證書，以資鼓勵。', W / 2, 788);
+
+  ctx.strokeStyle = 'rgba(148,163,184,0.5)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(200, 880); ctx.lineTo(W - 200, 880); ctx.stroke();
+
+  const d = (result && typeof result.updatedAt?.toDate === 'function') ? result.updatedAt.toDate() : new Date();
+  const dateText = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#475569';
+  ctx.font = examCertFont(30, '400');
+  ctx.fillText(`頒發日期：${dateText}`, 200, 948);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = examCertFont(30, '600');
+  const companyName = '西北保全股份有限公司';
+  const companyMetrics = ctx.measureText(companyName);
+  const textWidth = companyMetrics.width;
+  let logo = null;
+  try {
+    logo = await loadCertImage('comlogo.png');
+  } catch {}
+  const logoHeight = 42;
+  const logoWidth = logo ? logoHeight * (logo.naturalWidth / logo.naturalHeight) : 0;
+  const logoGap = logo ? 12 : 0;
+  const companyWidth = logoWidth + logoGap + textWidth;
+  const companyX = (W - companyWidth) / 2;
+  const textAscent = Number.isFinite(companyMetrics.actualBoundingBoxAscent) ? companyMetrics.actualBoundingBoxAscent : 24;
+  const textDescent = Number.isFinite(companyMetrics.actualBoundingBoxDescent) ? companyMetrics.actualBoundingBoxDescent : 6;
+  const companyBaseline = 948;
+  const textCenterY = companyBaseline + (textDescent - textAscent) / 2;
+  if (logo) ctx.drawImage(logo, companyX, textCenterY - logoHeight / 2, logoWidth, logoHeight);
+  ctx.fillText(companyName, companyX + logoWidth + logoGap, companyBaseline);
+
+  ctx.strokeStyle = 'rgba(200,30,30,0.85)'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(W - 250, 930, 66, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = 'rgba(200,30,30,0.9)';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = examCertFont(42, '700');
+  ctx.fillText('合格', W - 250, 930);
+
+  return canvas.toDataURL('image/png');
+}
+/* 以 90% 燈箱預覽圖片（證書） */
+function openCertPreview(src, title) {
+  const modal = $('#modal-file-preview');
+  const content = $('#file-preview-zoom');
+  if (!modal || !content || !src) return;
+  previewRenderToken++;
+  modal.style.zIndex = '120';
+  $('#file-preview-name').textContent = title || '電子證書';
+  modal.classList.remove('hidden');
+  resetPreviewZoom();
+  content.innerHTML = `<img src="${src}" alt="電子證書" class="block w-full h-auto" draggable="false" />`;
+}
+async function viewStudentCertificate(uid) {
+  const subject = courseExamAdmin(state.activeCourse).subjects.find(s => s.id === examScoreOrderSubjectId);
+  const result = state.examResults.find(r => r.uid === uid && r.subjectId === examScoreOrderSubjectId);
+  if (!subject || !result) return toast('找不到證書資料', 1800, 'danger');
+  try {
+    const url = await buildStudentCertificate(result, state.activeCourse, subject);
+    openCertPreview(url, '電子證書');
+  } catch { toast('證書產生失敗，請稍後再試', 1800, 'danger'); }
+}
+async function clearStudentExamRecords(uid) {
+  if (!state.activeCourse) return;
+  const ids = state.examResults.filter(r => r.uid === uid).map(r => r.id);
+  if (!ids.length) return toast('查無測驗紀錄', 1600);
+  const student = state.courseStudents.find(s => (s.uid || s.id) === uid);
+  const name = (student && student.name) || (state.examResults.find(r => r.uid === uid) || {}).name || '該學員';
+  const ok = await nwConfirm(`確定清除「${name}」在本課程的所有測驗紀錄？清除後所有科目成績歸零，且不會再有測驗證書。`, { okText: '清除', danger: true });
+  if (!ok) return;
+  try {
+    await Promise.all(ids.map(id => deleteDoc(doc(db, 'examResults', id))));
+    toast('已清除該學員測驗紀錄', 1800, 'success');
+  } catch { toast('清除失敗', 1800, 'danger'); }
 }
 
 /* ===== 設定（控制各分頁在學員端的顯示方式） ===== */
@@ -2650,6 +3072,20 @@ function renderSettingsAdminTab() {
         <p class="text-[11px] text-slate-400">控制各功能分頁在學員端的顯示方式（服務端一律顯示）</p>
       </div>
       <div id="settings-list" class="flex-1 min-h-0 overflow-auto no-scrollbar p-4 space-y-2">
+        ${(() => {
+          const on = courseOpenLinkEnabled(state.activeCourse);
+          return `
+          <div class="rounded-xl border ${on ? 'border-brand/40 bg-brand/5' : 'border-slate-200'} px-4 py-3">
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-slate-700">連結</p>
+                <p class="text-[11px] text-slate-400">開啟後可由課程卡「連結」按鈕開啟展示頁；關閉時即使知道連結也無法瀏覽</p>
+              </div>
+              <button type="button" data-open-link-toggle role="switch" aria-checked="${on}" title="切換展示連結" class="${tabToggleCls(on)}"><span class="${tabKnobCls(on)}"></span></button>
+            </div>
+            <button type="button" data-open-link-view class="mt-2 w-full px-3 py-2 rounded-lg bg-brand text-white text-xs font-semibold active:opacity-90">開啟展示頁</button>
+          </div>`;
+        })()}
         ${tabs.map(t => `
           <div class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3">
             <span class="text-sm font-semibold text-slate-700">${escAttr(t.label)}</span>
@@ -2660,6 +3096,8 @@ function renderSettingsAdminTab() {
       </div>
     </div>`;
   $('#settings-list').addEventListener('click', (e) => {
+    if (e.target.closest('[data-open-link-toggle]')) return setCourseOpenLink(!courseOpenLinkEnabled(state.activeCourse));
+    if (e.target.closest('[data-open-link-view]')) return openCourseLink(state.activeCourse?.id);
     const b = e.target.closest('[data-tab-visibility]');
     if (b) setTabVisibility(b.dataset.tabVisibility, b.dataset.visibilityValue);
   });
@@ -2710,6 +3148,87 @@ function syncTabVisToggles() {
     const knob = btn.firstElementChild;
     if (knob) knob.className = tabKnobCls(on);
   });
+}
+
+/* ===== 直播（YouTube 連結設定） ===== */
+function youtubeIdOf(input) {
+  const s = String(input || '').trim();
+  if (!s) return '';
+  let m = s.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+  if (m) return m[1];
+  m = s.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);
+  if (m) return m[1];
+  m = s.match(/youtube\.com\/(?:embed|live|shorts)\/([A-Za-z0-9_-]{6,})/);
+  if (m) return m[1];
+  if (/^[A-Za-z0-9_-]{6,}$/.test(s)) return s;
+  return '';
+}
+function youtubeEmbedUrl(input) {
+  const id = youtubeIdOf(input);
+  return id ? `https://www.youtube.com/embed/${id}?rel=0` : '';
+}
+function renderLiveAdminTab() {
+  const panel = $('#course-tab-panel');
+  if (!panel) return;
+  const c = state.activeCourse || {};
+  const url = youtubeEmbedUrl(c.liveUrl);
+  panel.innerHTML = `
+    <div class="h-full bg-white rounded-2xl border border-slate-200 flex flex-col overflow-hidden">
+      <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-slate-700">直播</p>
+          <p class="text-[11px] text-slate-400 truncate">設定 YouTube 直播連結，學員端與展示連結將同步顯示</p>
+        </div>
+        <div class="shrink-0 flex items-center gap-2">${tabVisToggleHtml('live')}</div>
+      </div>
+      <div class="flex-1 min-h-0 overflow-auto no-scrollbar p-4 space-y-3">
+        <div class="flex items-center gap-2">
+          <input id="live-url-input" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=..." value="${escAttr(c.liveUrl || '')}" class="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+          <button id="live-url-save" class="shrink-0 px-4 py-2.5 bg-brand text-white rounded-lg text-sm font-semibold">儲存</button>
+          <button id="live-url-clear" class="shrink-0 px-3 py-2.5 rounded-lg border border-slate-300 text-slate-600 text-sm font-semibold">清除</button>
+        </div>
+        <div class="rounded-xl border border-slate-200 overflow-hidden bg-slate-900 aspect-video">
+          ${url ? `<iframe src="${escAttr(url)}" class="w-full h-full" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>` : '<div class="w-full h-full grid place-items-center text-slate-400 text-sm">尚未設定直播連結</div>'}
+        </div>
+      </div>
+    </div>`;
+  $('#live-url-save').addEventListener('click', saveLiveUrl);
+  $('#live-url-clear').addEventListener('click', () => { const i = $('#live-url-input'); if (i) i.value = ''; saveLiveUrl(); });
+  $('#live-url-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveLiveUrl(); } });
+}
+async function saveLiveUrl() {
+  if (!state.activeCourse) return;
+  const val = String($('#live-url-input')?.value || '').trim();
+  try {
+    await setDoc(doc(db, 'courses', state.activeCourse.id), { liveUrl: val, updatedAt: serverTimestamp() }, { merge: true });
+    state.activeCourse.liveUrl = val;
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].liveUrl = val;
+    toast(val ? '已儲存直播連結' : '已清除直播連結', 1800, 'success');
+    if (state.activeTabId === 'live') renderLiveAdminTab();
+  } catch { toast('儲存失敗', 2000, 'danger'); }
+}
+
+/* ===== 展示連結（open.html）：課程卡「連結」按鈕與 QR 免登入頁 ===== */
+function courseOpenLinkEnabled(c) { return c?.openLink !== false; }
+function openViewUrl(courseId) {
+  return location.origin + location.pathname.replace(/[^/]*$/, '') + 'open.html?c=' + encodeURIComponent(courseId);
+}
+function openCourseLink(courseId) {
+  const c = state.courseMap[courseId] || (state.activeCourse && state.activeCourse.id === courseId ? state.activeCourse : null);
+  if (!c) return;
+  window.open(openViewUrl(c.id), '_blank', 'noopener');
+}
+async function setCourseOpenLink(on) {
+  if (!state.activeCourse) return;
+  try {
+    // openShareActive 供 Firestore 規則判定「展示頁是否可免登入讀取」，關閉時立即撤銷
+    await setDoc(doc(db, 'courses', state.activeCourse.id), { openLink: on, openShareActive: on, updatedAt: serverTimestamp() }, { merge: true });
+    state.activeCourse.openLink = on;
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].openLink = on;
+    if (state.activeTabId === 'settings') renderSettingsAdminTab();
+    renderCourseSelect();
+    toast(on ? '已開啟展示連結' : '已關閉展示連結', 1800, 'success');
+  } catch { toast('設定失敗', 2000, 'danger'); }
 }
 
 /* ===== 座位表（最靠近講台為 A 排，由左開始為 01 列） ===== */
@@ -3258,11 +3777,14 @@ function loadVotes() {
       bucket[r.uid] = {
         name: r.name || '',
         optionIds: Array.isArray(r.optionIds) ? r.optionIds : (r.optionId ? [r.optionId] : []),
+        votedAt: r.votedAt || null,
       };
     });
     state.voteResponses = byVote;
     renderVoteList();
     if (voteResetTarget) renderVoteReset();
+    if (!$('#modal-seat-pdf').classList.contains('hidden')) renderSeatPdfPreview();
+    if (!$('#modal-vote-order').classList.contains('hidden')) renderVoteOrder();
   }, () => {});
 }
 
@@ -3315,6 +3837,156 @@ function renderVoteCard(v, idx = 0, totalCount = 1) {
       </div>
       <div class="mt-3 space-y-2">${optionsHtml}</div>
     </div>`;
+}
+
+/* ===== 座位表預覽（含投票選擇標記） ===== */
+let seatPdfVoteId = '';
+function openSeatPdfPreview() {
+  if (!state.activeCourse) return;
+  const { rows, cols } = seatConfig(state.activeCourse);
+  if (!rows || !cols) return toast('尚未設定座位表，請先於座位表設定', 2400, 'warning');
+  const votes = courseVotes(state.activeCourse);
+  if (!votes.some(v => v.id === seatPdfVoteId)) seatPdfVoteId = '';
+  $('#modal-seat-pdf').classList.remove('hidden');
+  renderSeatPdfPreview();
+  loadCourseStudents();
+}
+function closeSeatPdfPreview() { $('#modal-seat-pdf').classList.add('hidden'); }
+function seatPdfVoteLabel(vote, uid) {
+  if (!vote || !uid) return '';
+  const my = (state.voteResponses[vote.id] || {})[uid];
+  const ids = my ? (my.optionIds || []) : [];
+  if (!ids.length) return '';
+  const map = {};
+  vote.options.forEach(o => { map[o.id] = o.text; });
+  return ids.map(id => map[id]).filter(Boolean).join('、');
+}
+function renderSeatPdfPreview() {
+  const body = $('#seat-pdf-body');
+  if (!body || !state.activeCourse) return;
+  const { rows, cols, aisles } = seatConfig(state.activeCourse);
+  const votes = courseVotes(state.activeCourse);
+  const meta = $('#seat-pdf-meta');
+  if (meta) meta.textContent = `${state.activeCourse.name || '本課程'} · ${rows} 排 × ${cols} 列${aisles.length ? ' · 走道 ' + aisles.join('、') : ''}`;
+
+  const vote = seatPdfVoteId ? votes.find(v => v.id === seatPdfVoteId) : null;
+  const votesBar = $('#seat-pdf-votes');
+  if (votesBar) {
+    if (!votes.length) {
+      votesBar.innerHTML = '<span class="text-[11px] text-slate-400">尚未建立投票</span>';
+    } else {
+      const shouldVote = state.courseStudents.length;
+      const cls = (on) => `text-left px-2.5 py-1.5 rounded-lg border max-w-[16rem] ${on ? 'bg-brand text-white border-brand' : 'bg-white text-slate-600 border-slate-300'}`;
+      const sub = (on) => on ? 'text-white/80' : 'text-slate-400';
+      votesBar.innerHTML = [
+        '<span class="text-[11px] text-slate-400 shrink-0 pt-1">投票議題</span>',
+        `<button data-seat-pdf-vote="" class="${cls(seatPdfVoteId === '')} text-xs font-semibold whitespace-nowrap">不標記</button>`,
+        ...votes.map(v => {
+          const { counts, total } = tallyVotes(v);
+          const on = seatPdfVoteId === v.id;
+          const optLine = v.options.map(o => `<span class="inline-block mr-2 ${sub(on)}">${escAttr(o.text)} <b class="tabular-nums ${on ? 'text-white' : 'text-slate-600'}">${counts[o.id] || 0}</b></span>`).join('');
+          return `<div data-seat-pdf-vote="${escAttr(v.id)}" title="${escAttr(v.question)}" class="${cls(on)} relative cursor-pointer">
+            <span class="block text-xs font-semibold truncate pr-11 ${on ? 'text-white' : 'text-slate-800'}">${escAttr(v.question)}</span>
+            <button data-vote-order="${escAttr(v.id)}" class="absolute top-1 right-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${on ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-500'}">順序</button>
+            <span class="block text-[10px] leading-tight ${sub(on)}">應投 ${shouldVote} · 已投 ${total}</span>
+            <span class="block text-[10px] leading-tight ${sub(on)}">${optLine}</span>
+          </div>`;
+        })
+      ].join('');
+    }
+  }
+
+  const occupancy = seatOccupancyOf(state.activeCourse);
+  const aisleSet = new Set(aisles);
+  let colsTmpl = '1.75rem';
+  for (let c = 1; c <= cols; c++) { colsTmpl += ' minmax(0, 1fr)'; if (aisleSet.has(c)) colsTmpl += ' 1.75rem'; }
+  const gridStyle = `grid-template-columns: ${colsTmpl}; grid-template-rows: auto repeat(${rows}, minmax(2.75rem, 1fr));`;
+  const head = ['<div></div>'];
+  for (let c = 1; c <= cols; c++) {
+    head.push(`<div class="grid place-items-center text-[12px] text-slate-400 tabular-nums truncate">${String(c).padStart(2, '0')}</div>`);
+    if (aisleSet.has(c)) head.push('<div class="grid place-items-center text-[11px] text-slate-400 leading-none">走道</div>');
+  }
+  const grid = Array.from({ length: rows }, (_, i) => rows - 1 - i).map(r => {
+    const letter = seatRowLetter(r);
+    const cells = [`<div class="grid place-items-center text-[13px] font-semibold text-slate-500">${letter}</div>`];
+    for (let c = 1; c <= cols; c++) {
+      const code = letter + String(c).padStart(2, '0');
+      const entry = occupancy[code];
+      const uid = entry && entry.uid;
+      const student = uid ? studentByUid(uid) : null;
+      let inner = `<span class="text-[12px] text-slate-300 tabular-nums">${code}</span>`;
+      let cls = 'border-slate-200 bg-slate-50';
+      if (student) {
+        const name = student.name || '未命名';
+        const communityName = student.community || student.unit || '';
+        cls = entry.self ? 'border-sky-300 bg-sky-50' : 'border-brand/40 bg-brand/10';
+        const choice = seatPdfVoteLabel(vote, uid);
+        inner = `
+          <span class="text-[10px] leading-none text-slate-400 tabular-nums">${code}</span>
+          <span class="text-xs leading-tight font-bold text-slate-800 truncate w-full">${escAttr(name)}</span>
+          ${communityName ? `<span class="text-[10px] leading-tight text-slate-500 truncate w-full">${escAttr(communityName)}</span>` : ''}
+          ${vote ? `<span class="text-[10px] leading-tight font-semibold truncate w-full ${choice ? 'text-brand' : 'text-slate-300'}">${choice ? escAttr(choice) : '未投票'}</span>` : ''}`;
+      }
+      cells.push(`<div class="min-w-0 h-full rounded-md border ${cls} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">${inner}</div>`);
+      if (aisleSet.has(c)) cells.push('<div class="rounded bg-slate-400 grid place-items-center text-[10px] font-semibold text-white/90 tracking-widest" style="writing-mode:vertical-rl;">走道</div>');
+    }
+    return cells.join('');
+  }).join('');
+
+  body.innerHTML = `
+    <div class="h-full flex flex-col min-h-0">
+      <div class="flex-1 min-h-0 overflow-auto no-scrollbar">
+        <div class="grid gap-1 min-h-full" style="${gridStyle}">${head.join('')}${grid}</div>
+      </div>
+      <div class="shrink-0 pt-2 border-t border-slate-100">
+        <div class="h-10 rounded-lg bg-brand text-white grid place-items-center text-sm font-bold tracking-[0.5em]">講台</div>
+      </div>
+    </div>`;
+}
+
+/* ===== 投票時間順序（快 → 慢） ===== */
+let voteOrderVoteId = '';
+function openVoteOrder(voteId) {
+  if (!state.activeCourse) return;
+  voteOrderVoteId = voteId || '';
+  $('#modal-vote-order').classList.remove('hidden');
+  renderVoteOrder();
+}
+function closeVoteOrder() { $('#modal-vote-order').classList.add('hidden'); }
+function renderVoteOrder() {
+  const body = $('#vote-order-body');
+  const meta = $('#vote-order-meta');
+  if (!body || !state.activeCourse) return;
+  const vote = courseVotes(state.activeCourse).find(v => v.id === voteOrderVoteId);
+  if (!vote) {
+    if (meta) meta.textContent = '';
+    body.innerHTML = '<p class="text-slate-400 text-sm text-center py-6">投票不存在</p>';
+    return;
+  }
+  const resps = state.voteResponses[vote.id] || {};
+  const rows = Object.entries(resps).map(([uid, r]) => ({
+    uid,
+    name: r.name || studentByUid(uid)?.name || '未命名',
+    choice: seatPdfVoteLabel(vote, uid),
+    ts: r.votedAt?.toMillis ? r.votedAt.toMillis() : 0,
+    at: r.votedAt || null,
+  })).sort((a, b) => (a.ts || Infinity) - (b.ts || Infinity) || String(a.name).localeCompare(String(b.name), 'zh-Hant'));
+  if (meta) meta.textContent = `${state.activeCourse.name || '本課程'} · ${vote.question} · 已投 ${rows.length} / 應投 ${state.courseStudents.length}`;
+  if (!rows.length) { body.innerHTML = '<p class="text-slate-400 text-sm text-center py-6">尚無投票紀錄</p>'; return; }
+  const first = rows[0].ts;
+  body.innerHTML = rows.map((r, i) => {
+    const rank = i + 1;
+    const t = r.at ? formatCheckinTime(r.at) : '—';
+    const gap = (r.ts && first) ? `+${((r.ts - first) / 1000).toFixed(1)}s` : '';
+    return `
+      <div class="flex items-center gap-3 px-3 py-2 rounded-lg ${i % 2 ? 'bg-slate-50' : ''}">
+        <span class="shrink-0 w-7 h-7 grid place-items-center rounded-full text-xs font-bold ${rank === 1 ? 'bg-brand text-white' : 'bg-slate-200 text-slate-600'}">${rank}</span>
+        <span class="flex-1 min-w-0 truncate text-sm text-slate-800">${escAttr(r.name)}</span>
+        <span class="shrink-0 max-w-[40%] truncate text-xs text-brand font-semibold">${escAttr(r.choice || '—')}</span>
+        <span class="shrink-0 text-xs text-slate-400 tabular-nums">${gap}</span>
+        <span class="shrink-0 w-20 text-right text-xs text-slate-500 tabular-nums">${t}</span>
+      </div>`;
+  }).join('');
 }
 
 let voteDraft = null;
@@ -3763,11 +4435,11 @@ function loadRecentCheckins() {
 }
 
 async function loadCourseStudents() {
+  if (!state.activeCourse) return;
   const list = $('#course-students-list');
   const count = $('#course-students-count');
-  if (!list || !count || !state.activeCourse) return;
-  list.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入中…</p>';
-  count.textContent = '共 0 人';
+  if (list) list.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入中…</p>';
+  if (count) count.textContent = '共 0 人';
   cleanupListener('unsubCourseStudents');
   await loadCommunityCodeMap();
   const q = query(collection(db, 'users'), where('courses', 'array-contains', state.activeCourse.id));
@@ -3780,9 +4452,13 @@ async function loadCourseStudents() {
     renderCourseStudents();
     ensureSeatInfo();
     if (!$('#modal-parking-info').classList.contains('hidden')) renderParkingInfo();
+    if (!$('#modal-seat-pdf').classList.contains('hidden')) renderSeatPdfPreview();
+    if (!$('#modal-vote-order').classList.contains('hidden')) renderVoteOrder();
+    if (!$('#modal-seat-exam-result').classList.contains('hidden')) renderSeatExamResult();
+    if (!$('#modal-exam-score-order').classList.contains('hidden')) renderExamScoreOrder();
   }, () => {
     state.courseStudents = [];
-    list.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入失敗</p>';
+    if (list) list.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入失敗</p>';
     renderAttendanceSummary();
   });
 }
@@ -4137,6 +4813,8 @@ $$('.toggle-pwd').forEach(b => b.addEventListener('click', () => {
 $('#course-select-list').addEventListener('click', (e) => {
   const arch = e.target.closest('[data-course-archive]');
   if (arch) { e.stopPropagation(); toggleCourseArchive(arch.dataset.courseArchive); return; }
+  const link = e.target.closest('[data-course-link]');
+  if (link) { e.stopPropagation(); openCourseLink(link.dataset.courseLink); return; }
   const b = e.target.closest('[data-course-open]');
   if (!b) return;
   const c = state.courseMap[b.dataset.courseOpen];
@@ -4278,6 +4956,39 @@ $$('.vote-type-btn').forEach(b => b.addEventListener('click', () => {
 $('#vote-toggle-open').addEventListener('click', () => { if (!voteDraft) return; voteDraft.open = !voteDraft.open; applyToggleState($('#vote-toggle-open'), voteDraft.open); });
 $('#vote-toggle-results').addEventListener('click', () => { if (!voteDraft) return; voteDraft.showResults = !voteDraft.showResults; applyToggleState($('#vote-toggle-results'), voteDraft.showResults); });
 $('#modal-vote-edit').addEventListener('click', (e) => { if (e.target === $('#modal-vote-edit')) closeVoteEdit(); });
+/* 座位表 PDF 預覽 */
+$('#seat-pdf-close').addEventListener('click', closeSeatPdfPreview);
+$('#modal-seat-pdf').addEventListener('click', (e) => { if (e.target === $('#modal-seat-pdf')) closeSeatPdfPreview(); });
+$('#seat-pdf-votes').addEventListener('click', (e) => {
+  const ob = e.target.closest('[data-vote-order]');
+  if (ob) { openVoteOrder(ob.dataset.voteOrder); return; }
+  const b = e.target.closest('[data-seat-pdf-vote]');
+  if (!b) return;
+  seatPdfVoteId = b.dataset.seatPdfVote || '';
+  renderSeatPdfPreview();
+});
+/* 投票時間順序 */
+$('#vote-order-close').addEventListener('click', closeVoteOrder);
+$('#modal-vote-order').addEventListener('click', (e) => { if (e.target === $('#modal-vote-order')) closeVoteOrder(); });
+/* 測驗結果座位圖 */
+$('#seat-exam-result-close').addEventListener('click', closeSeatExamResult);
+$('#modal-seat-exam-result').addEventListener('click', (e) => { if (e.target === $('#modal-seat-exam-result')) closeSeatExamResult(); });
+$('#seat-exam-result-subjects').addEventListener('click', (e) => {
+  const order = e.target.closest('[data-seat-exam-score-order]');
+  if (order) { openExamScoreOrder(order.dataset.seatExamScoreOrder); return; }
+  const b = e.target.closest('[data-seat-exam-result-subject]');
+  if (!b) return;
+  seatExamResultSubjectId = b.dataset.seatExamResultSubject || '';
+  renderSeatExamResult();
+});
+$('#exam-score-order-close').addEventListener('click', closeExamScoreOrder);
+$('#modal-exam-score-order').addEventListener('click', (e) => { if (e.target === $('#modal-exam-score-order')) closeExamScoreOrder(); });
+$('#exam-score-order-body').addEventListener('click', (e) => {
+  const cert = e.target.closest('[data-exam-cert-view]');
+  if (cert) { viewStudentCertificate(cert.dataset.examCertView); return; }
+  const clr = e.target.closest('[data-exam-record-clear]');
+  if (clr) { clearStudentExamRecords(clr.dataset.examRecordClear); return; }
+});
 /* 重新投票 */
 $('#vote-reset-close').addEventListener('click', closeVoteReset);
 $('#vote-reset-all').addEventListener('click', resetVoteAll);

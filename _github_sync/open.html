@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#d32f2f" />
+<meta name="apple-mobile-web-app-title" content="西北會議系統" />
+<title>西北會議系統 · 展示</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: { brand: { DEFAULT: '#d32f2f', dark: '#b71c1c', light: '#ef5350' } },
+        fontFamily: { sans: ['-apple-system','BlinkMacSystemFont','Segoe UI','PingFang TC','Microsoft JhengHei','sans-serif'] },
+      },
+    },
+  };
+</script>
+<script src="vendor/qrcode.js"></script>
+
+<link rel="icon" type="image/png" sizes="192x192" href="logo.png" />
+<link rel="apple-touch-icon" href="logo.png" />
+
+<style>
+  body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; background: #f1f5f9; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .fade-in { animation: fadeIn .25s ease-out; }
+  @keyframes buzzSeatGlow {
+    0%, 100% { box-shadow: 0 0 0 2px #fbbf24, 0 0 8px 2px rgba(251,191,36,.85); }
+    50% { box-shadow: 0 0 0 2px #f59e0b, 0 0 18px 6px rgba(245,158,11,.95); }
+  }
+  .seat-buzz-win { animation: buzzSeatGlow 1.2s ease-in-out infinite; position: relative; z-index: 5; }
+  .menu-btn { transition: background-color .18s ease, color .18s ease, transform .18s ease; }
+  .menu-btn.on { background: #d32f2f; color: #fff; }
+  .menu-btn:active { transform: scale(.97); }
+</style>
+</head>
+
+<body class="font-sans text-slate-800">
+
+<div id="blocked" class="hidden fixed inset-0 z-[100] bg-slate-900 text-white flex-col items-center justify-center gap-3 px-6 text-center">
+  <img src="logo.png" alt="" class="w-14 h-14 rounded-xl object-cover ring-1 ring-white/20" onerror="this.style.display='none'" />
+  <p id="blocked-msg" class="text-lg font-bold">此頁面目前未開放</p>
+  <p class="text-sm text-white/60">請聯繫課程服務人員確認連結狀態</p>
+</div>
+
+<div id="app" class="hidden w-full h-[100dvh] flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
+
+  <!-- menu 區塊 -->
+  <aside id="menu" class="order-2 md:order-1 w-full md:w-[15%] md:min-w-[176px] h-[20dvh] md:h-full shrink-0 bg-white border-t md:border-t-0 md:border-r border-slate-200 flex flex-col overflow-hidden">
+    <div class="shrink-0 flex items-center gap-2 px-3 py-2.5 border-b border-slate-100">
+      <img src="logo.png" alt="" class="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200 shrink-0" onerror="this.style.display='none'" />
+      <div class="min-w-0">
+        <p class="text-sm font-bold text-slate-900 truncate">西北會議系統</p>
+        <p id="menu-course" class="text-[11px] text-slate-400 truncate">—</p>
+      </div>
+    </div>
+    <div id="menu-tabs" class="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-row flex-wrap md:flex-col gap-1 p-2"></div>
+    <div class="shrink-0 border-t border-slate-100 p-2 hidden md:block">
+      <div id="menu-qr" class="w-full aspect-square rounded-lg bg-slate-50 border border-slate-200 grid place-items-center overflow-hidden p-1.5"></div>
+      <p class="mt-1 text-[10px] text-center text-slate-400 leading-tight">掃碼瀏覽本頁內容</p>
+    </div>
+  </aside>
+
+  <!-- data 區塊 -->
+  <main id="data" class="order-1 md:order-2 w-full md:w-auto md:flex-1 min-w-0 h-[100dvh] md:h-full shrink-0 md:shrink flex flex-col bg-slate-100 overflow-hidden">
+    <div class="shrink-0 px-4 py-2.5 bg-white border-b border-slate-200 flex items-center justify-between gap-3">
+      <p id="data-title" class="text-lg font-bold text-slate-800 truncate">—</p>
+      <p id="data-now" class="shrink-0 text-sm font-semibold text-slate-500 tabular-nums"></p>
+    </div>
+    <div id="data-body" class="flex-1 min-h-0 overflow-auto no-scrollbar p-3"></div>
+  </main>
+</div>
+
+<!-- 檔案預覽 -->
+<div id="preview" class="hidden fixed inset-0 z-[80] bg-black/85 flex-col">
+  <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 text-white">
+    <p id="preview-name" class="text-sm font-semibold truncate">預覽</p>
+    <button id="preview-close" class="shrink-0 w-9 h-9 rounded-lg bg-white/15 grid place-items-center text-white">✕</button>
+  </div>
+  <div id="preview-body" class="flex-1 min-h-0 p-3"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD1QJxc-AFkS7RkbQOLCqk1LBMydCU067s",
+  authDomain: "nw-class.firebaseapp.com",
+  projectId: "nw-class",
+  storageBucket: "nw-class.firebasestorage.app",
+  messagingSenderId: "222147006846",
+  appId: "1:222147006846:web:f197cc75aa51879967232f",
+  measurementId: "G-0E1SRMQPRE"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+const DEFAULT_TABS = [
+  { id: 'checkin', label: '報到', order: 0 },
+  { id: 'seat', label: '座位', order: 1 },
+  { id: 'schedule', label: '課表', order: 2 },
+  { id: 'vote', label: '投票', order: 3 },
+  { id: 'qa', label: '搶答', order: 4 },
+  { id: 'handouts', label: '講義', order: 5 },
+  { id: 'exam', label: '測驗', order: 6 },
+  { id: 'download', label: '活動', order: 7 },
+  { id: 'live', label: '直播', order: 8 },
+];
+
+const params = new URLSearchParams(location.search);
+const S = {
+  mode: params.get('s') ? 's' : (params.get('c') ? 'c' : ''),
+  courseId: params.get('c') || '',
+  token: params.get('s') || '',
+  course: null,
+  students: [],
+  checkins: [],
+  voteResponses: {},
+  examResults: [],
+  activities: [],
+  files: [],
+  buzzRounds: {},
+  activeTab: '',
+  voteSel: '',
+  examSel: '',
+  showNames: false,
+  showSeatPreview: false,
+  started: false,
+  rosterCache: null,
+};
+const unsubs = [];
+
+/* ===== 共用工具 ===== */
+function showBlocked(msg) {
+  $('#blocked-msg').textContent = msg || '此頁面目前未開放';
+  $('#blocked').classList.remove('hidden');
+  $('#blocked').classList.add('flex');
+  $('#app').classList.add('hidden');
+}
+function showApp() {
+  $('#blocked').classList.add('hidden');
+  $('#blocked').classList.remove('flex');
+  $('#app').classList.remove('hidden');
+  $('#app').classList.add('flex');
+}
+function newToken() {
+  if (window.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID().replace(/-/g, '');
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+function publicUrl(token) {
+  return location.origin + location.pathname.replace(/[^/]*$/, '') + 'open.html?s=' + token;
+}
+function courseTimeText(c) {
+  const s = c?.startTime || '', e = c?.endTime || '';
+  if (s && e) return `${s}~${e}`;
+  return s || '';
+}
+function fmtDate(v) {
+  const t = String(v || '').trim();
+  if (!t) return '未排程';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  const d = new Date(t);
+  if (!isNaN(d.getTime())) return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return t;
+}
+function fmtTime(ts) {
+  const t = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
+  if (!t || isNaN(t.getTime())) return '—';
+  return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}:${String(t.getSeconds()).padStart(2, '0')}`;
+}
+function msOf(ts) {
+  const t = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
+  return t && !isNaN(t.getTime()) ? t.getTime() : 0;
+}
+function emptyState(text) {
+  return `<div class="h-full min-h-[8rem] grid place-items-center text-slate-400 text-sm">${esc(text)}</div>`;
+}
+function youtubeIdOf(input) {
+  const s = String(input || '').trim();
+  if (!s) return '';
+  let m = s.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+  if (m) return m[1];
+  m = s.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);
+  if (m) return m[1];
+  m = s.match(/youtube\.com\/(?:embed|live|shorts)\/([A-Za-z0-9_-]{6,})/);
+  if (m) return m[1];
+  if (/^[A-Za-z0-9_-]{6,}$/.test(s)) return s;
+  return '';
+}
+
+/* ===== 名單（服務端讀 users；公開頁讀課程文件的 roster） ===== */
+function rosterMap() {
+  if (S.rosterCache) return S.rosterCache;
+  const m = {};
+  (S.mode === 'c' ? S.students : (Array.isArray(S.course?.roster) ? S.course.roster : []))
+    .forEach(u => {
+      const uid = u.uid || u.id;
+      if (uid) m[uid] = { uid, name: u.name || '', community: u.community || u.unit || '', title: u.title || '' };
+    });
+  S.rosterCache = m;
+  return m;
+}
+function rosterList() {
+  return Object.values(rosterMap());
+}
+function uidInfo(uid) {
+  if (!uid) return null;
+  return rosterMap()[uid] || (S.course?.seatInfo && S.course.seatInfo[uid]) || null;
+}
+
+/* ===== 座位表 ===== */
+function seatConfig(c) {
+  const s = c && c.seat;
+  const rows = Math.min(26, Math.max(0, parseInt(s?.rows, 10) || 0));
+  const cols = Math.min(99, Math.max(0, parseInt(s?.cols, 10) || 0));
+  const aisles = (Array.isArray(s?.aisles) ? s.aisles : [])
+    .map(n => parseInt(n, 10)).filter(n => Number.isFinite(n) && n >= 1 && n < cols);
+  return { rows, cols, aisles: [...new Set(aisles)].sort((a, b) => a - b) };
+}
+function seatOccupancy(c) {
+  const staff = (c && c.seatAssignments && typeof c.seatAssignments === 'object') ? c.seatAssignments : {};
+  const picks = (c && c.seatSelfPicks && typeof c.seatSelfPicks === 'object') ? c.seatSelfPicks : {};
+  const staffUids = new Set(Object.values(staff));
+  const byCode = {};
+  Object.entries(staff).forEach(([code, uid]) => { if (uid) byCode[code] = { uid, self: false }; });
+  Object.entries(picks).forEach(([uid, code]) => {
+    if (!uid || !code || staffUids.has(uid) || byCode[code]) return;
+    byCode[code] = { uid, self: true };
+  });
+  return byCode;
+}
+function checkedInUids() {
+  const set = new Set();
+  S.checkins.forEach(c => { if (c.uid) set.add(c.uid); });
+  return set;
+}
+function seatGridHtml(cellRenderer) {
+  const c = S.course;
+  const cfg = seatConfig(c);
+  if (!cfg.rows || !cfg.cols) return emptyState('尚未設定座位表');
+  const occ = seatOccupancy(c);
+  const aisleSet = new Set(cfg.aisles);
+  let colsTmpl = '1.75rem';
+  for (let i = 1; i <= cfg.cols; i++) { colsTmpl += ' minmax(0, 1fr)'; if (aisleSet.has(i)) colsTmpl += ' 1.75rem'; }
+  const gridStyle = `grid-template-columns: ${colsTmpl}; grid-template-rows: auto repeat(${cfg.rows}, minmax(2.5rem, 1fr));`;
+  const head = ['<div></div>'];
+  for (let i = 1; i <= cfg.cols; i++) {
+    head.push(`<div class="grid place-items-center text-[12px] text-slate-400 tabular-nums truncate">${String(i).padStart(2, '0')}</div>`);
+    if (aisleSet.has(i)) head.push('<div class="grid place-items-center text-[11px] text-slate-400 leading-none">走道</div>');
+  }
+  const body = Array.from({ length: cfg.rows }, (_, i) => cfg.rows - 1 - i).map(r => {
+    const letter = String.fromCharCode(65 + r);
+    const cells = [`<div class="grid place-items-center text-[13px] font-semibold text-slate-500">${letter}</div>`];
+    for (let n = 1; n <= cfg.cols; n++) {
+      const code = letter + String(n).padStart(2, '0');
+      cells.push(cellRenderer(code, occ[code]));
+      if (aisleSet.has(n)) cells.push('<div class="rounded bg-slate-400 grid place-items-center text-[10px] font-semibold text-white/90" style="writing-mode:vertical-rl;">走道</div>');
+    }
+    return cells.join('');
+  }).join('');
+  return `<div class="flex flex-col min-h-full">
+    <div class="flex-1 min-h-0 overflow-auto no-scrollbar"><div class="grid gap-1 min-h-full" style="${gridStyle}">${head.join('')}${body}</div></div>
+    <div class="shrink-0"><div class="h-10 rounded-lg bg-brand text-white grid place-items-center text-sm font-bold tracking-[0.5em]">講台</div></div>
+  </div>`;
+}
+
+/* ===== 投票 / 測驗 / 搶答 模型 ===== */
+function normalizeVotes(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter(v => v && (v.question || (Array.isArray(v.options) && v.options.length)))
+    .map((v, i) => ({
+      id: String(v.id || ('v' + (i + 1))),
+      question: String(v.question || ''),
+      type: v.type === 'multi' ? 'multi' : 'single',
+      options: (Array.isArray(v.options) ? v.options : [])
+        .filter(o => o && (o.text || o.id))
+        .map((o, j) => ({ id: String(o.id || ('o' + (j + 1))), text: String(o.text || '') }))
+        .filter(o => o.text),
+    }))
+    .filter(v => v.question && v.options.length >= 2);
+}
+function courseVotes() { return normalizeVotes(S.course?.votes); }
+function tallyVotes(vote) {
+  const responses = S.voteResponses[vote.id] || {};
+  const voters = Object.values(responses);
+  const counts = {};
+  vote.options.forEach(o => { counts[o.id] = 0; });
+  voters.forEach(r => (r.optionIds || []).forEach(oid => { if (counts[oid] != null) counts[oid] += 1; }));
+  return { counts, total: voters.length };
+}
+function voteChoiceLabel(vote, uid) {
+  if (!vote || !uid) return '';
+  const my = (S.voteResponses[vote.id] || {})[uid];
+  const ids = my ? (my.optionIds || []) : [];
+  const map = {};
+  vote.options.forEach(o => { map[o.id] = o.text; });
+  return ids.map(id => map[id]).filter(Boolean).join('、');
+}
+function examSubjects() {
+  const list = Array.isArray(S.course?.exams) ? S.course.exams : [];
+  return list.map((s, i) => ({
+    id: String(s?.id || ('sub' + (i + 1))),
+    name: String(s?.name || `科目 ${i + 1}`),
+    passPercent: Number.isFinite(parseInt(s?.passPercent, 10)) ? parseInt(s.passPercent, 10) : 60,
+  }));
+}
+function buzzRound() {
+  const r = parseInt(S.course?.buzzRound, 10);
+  return Number.isFinite(r) && r >= 0 ? r : 0;
+}
+function buzzWinnerCount() {
+  const n = parseInt(S.course?.buzzWinnerCount, 10);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 20) : 1;
+}
+function buzzWinnerRecords() {
+  const list = (S.buzzRounds[String(buzzRound())] || []).slice();
+  list.sort((a, b) => (msOf(a.buzzedAt) || Number.MAX_SAFE_INTEGER) - (msOf(b.buzzedAt) || Number.MAX_SAFE_INTEGER));
+  return list.slice(0, buzzWinnerCount());
+}
+
+/* ===== 版面：menu 與 data ===== */
+function menuTabs() {
+  const list = Array.isArray(S.course?.tabs) ? S.course.tabs : [];
+  return DEFAULT_TABS.map(t => {
+    const e = list.find(x => x && x.id === t.id) || {};
+    const visibility = (e.visibility === 'always' || e.visibility === 'checkin' || e.visibility === 'hidden')
+      ? e.visibility : (e.enabled === false ? 'hidden' : 'always');
+    return { id: t.id, label: String(e.label || t.label), order: Number.isFinite(e.order) ? e.order : t.order, visibility };
+  }).filter(t => t.visibility !== 'hidden').sort((a, b) => a.order - b.order);
+}
+function renderMenu() {
+  const tabs = menuTabs();
+  if (!S.activeTab || !tabs.some(t => t.id === S.activeTab)) S.activeTab = tabs.length ? tabs[0].id : '';
+  const box = $('#menu-tabs');
+  box.innerHTML = tabs.map(t => `
+    <button data-tab="${esc(t.id)}" class="menu-btn ${t.id === S.activeTab ? 'on' : 'bg-slate-100 text-slate-600'} shrink-0 md:w-full px-2.5 py-1.5 rounded-lg text-xs font-semibold text-center">${esc(t.label)}</button>`).join('');
+  const nameEl = $('#menu-course');
+  if (nameEl) nameEl.textContent = S.course?.name || '—';
+  renderQr();
+}
+function renderQr() {
+  const box = $('#menu-qr');
+  if (!box) return;
+  if (!S.token) { box.innerHTML = '<span class="text-[10px] text-slate-400">—</span>'; return; }
+  const url = publicUrl(S.token);
+  if (typeof window.qrcode !== 'function') { box.innerHTML = '<span class="text-[10px] text-slate-400 text-center px-1 break-all">' + esc(url) + '</span>'; return; }
+  try {
+    const qr = window.qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    box.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 1, scalable: true });
+    const svg = box.querySelector('svg');
+    if (svg) { svg.style.width = '100%'; svg.style.height = '100%'; }
+  } catch { box.innerHTML = ''; }
+}
+function tickClock() {
+  const el = $('#data-now');
+  if (!el) return;
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  el.textContent = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+function renderData() {
+  const tabs = menuTabs();
+  const tab = tabs.find(t => t.id === S.activeTab);
+  $('#data-title').textContent = tab ? tab.label : '—';
+  const body = $('#data-body');
+  body.className = 'flex-1 min-h-0 overflow-hidden p-3 fade-in';
+  body.innerHTML = '<div id="data-fit" class="w-full"></div>';
+  const box = $('#data-fit');
+  if (!tab) box.innerHTML = emptyState('此課程尚未開放內容');
+  else if (tab.id === 'checkin') renderCheckin(box);
+  else if (tab.id === 'seat') renderSeat(box);
+  else if (tab.id === 'schedule') renderSchedule(box);
+  else if (tab.id === 'vote') renderVote(box);
+  else if (tab.id === 'qa') renderBuzz(box);
+  else if (tab.id === 'handouts') renderFiles(box);
+  else if (tab.id === 'exam') renderExam(box);
+  else if (tab.id === 'download') renderActivity(box);
+  else if (tab.id === 'live') renderLive(box);
+  else box.innerHTML = emptyState('內容建置中');
+  fitData();
+}
+
+/* 讓 data 區塊內容自動縮放，塞進一頁（不上下捲動） */
+function fitData() {
+  const body = $('#data-body');
+  const wrap = $('#data-fit');
+  if (!body || !wrap) return;
+  const cs = getComputedStyle(body);
+  const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+  const avail = body.clientHeight - padY;
+  wrap.style.transform = 'none';
+  wrap.style.width = '';
+  wrap.style.height = '';
+  if (avail <= 0) return;
+  // 先以自然高度量測實際內容高度，再塞進可用高度
+  wrap.style.height = 'auto';
+  const natural = wrap.scrollHeight;
+  wrap.style.height = avail + 'px';
+  if (natural > avail + 1) {
+    const scale = avail / natural;
+    wrap.style.transformOrigin = 'top left';
+    wrap.style.transform = `scale(${scale})`;
+    wrap.style.width = (100 / scale) + '%';
+  }
+}
+
+/* ===== 各 data 區塊 ===== */
+/* 報到 */
+function renderCheckin(box) {
+  const roster = rosterList();
+  const expected = roster.length;
+  const checked = checkedInUids();
+  const actual = roster.filter(u => checked.has(u.uid)).length || checked.size;
+  const absent = Math.max(expected - actual, 0);
+  const recent = S.checkins.slice().sort((a, b) => msOf(b.checkedInAt) - msOf(a.checkedInAt)).slice(0, 30);
+  box.innerHTML = `
+    <div class="space-y-3">
+      <div class="rounded-2xl bg-white border border-slate-200 px-4 py-3 flex items-center justify-between gap-3">
+        <div>
+          <p class="text-[12px] text-slate-400">目前時間</p>
+          <p id="checkin-clock" class="text-2xl font-bold text-slate-800 tabular-nums">—</p>
+        </div>
+        <div class="text-right">
+          <p class="text-sm font-semibold text-slate-700">${esc(S.course?.name || '未命名課程')}</p>
+          <p class="text-[12px] text-slate-400">${esc(fmtDate(S.course?.date))}${courseTimeText(S.course) ? ' ' + esc(courseTimeText(S.course)) : ''}</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div class="rounded-2xl bg-slate-50 border border-slate-200 px-3 py-4 text-center">
+          <p class="text-[13px] text-slate-400">應報到</p><p class="mt-1 text-3xl font-bold text-slate-900">${expected}</p>
+        </div>
+        <div class="rounded-2xl bg-emerald-50 border border-emerald-200 px-3 py-4 text-center">
+          <p class="text-[13px] text-emerald-600">已報到</p><p class="mt-1 text-3xl font-bold text-emerald-700">${actual}</p>
+        </div>
+        <div class="rounded-2xl bg-amber-50 border border-amber-200 px-3 py-4 text-center">
+          <p class="text-[13px] text-amber-600">未報到</p><p class="mt-1 text-3xl font-bold text-amber-700">${absent}</p>
+        </div>
+      </div>
+      <div class="rounded-2xl bg-white border border-slate-200 p-4">
+        <p class="text-sm font-semibold text-slate-700 mb-2">最近報到</p>
+        ${recent.length ? `<div class="divide-y divide-slate-100">${recent.map(r => {
+          const info = uidInfo(r.uid);
+          return `<div class="flex items-center justify-between gap-3 py-2">
+            <span class="min-w-0 truncate text-sm text-slate-700">${esc(info?.name || r.name || '學員')}</span>
+            <span class="shrink-0 text-xs text-emerald-600 tabular-nums">${esc(fmtTime(r.checkedInAt))}</span>
+          </div>`;
+        }).join('')}</div>` : '<p class="text-sm text-slate-400">尚無報到紀錄</p>'}
+      </div>
+    </div>`;
+  renderClock();
+}
+function renderClock() {
+  const el = $('#checkin-clock');
+  if (!el) return;
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  el.textContent = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/* 座位 */
+function renderSeat(box) {
+  const cfg = seatConfig(S.course);
+  box.innerHTML = `<div class="h-full bg-white rounded-2xl border border-slate-200 p-4 flex flex-col min-h-0">
+    <div class="shrink-0 mb-2">
+      <p class="text-sm font-semibold text-slate-700">座位表</p>
+      <p class="text-[12px] text-slate-400">${cfg.rows ? `${cfg.rows} 排 × ${cfg.cols} 列` : '尚未設定座位表'}</p>
+    </div>
+    <div class="flex-1 min-h-0">${seatGridHtml(seatCellBasic)}</div>
+  </div>`;
+}
+function seatCellBasic(code, entry) {
+  const info = entry && entry.uid ? uidInfo(entry.uid) : null;
+  if (!info) {
+    const cls = entry && entry.uid ? 'border-slate-300 bg-slate-100 text-slate-500' : 'border-slate-200 bg-slate-50 text-slate-400';
+    return `<div class="min-w-0 h-full rounded-md border ${cls} grid place-items-center text-[12px] tabular-nums">${code}</div>`;
+  }
+  const checked = checkedInUids().has(entry.uid);
+  const buzz = buzzWinnerRecords().some(w => w.uid === entry.uid);
+  const cls = entry.self
+    ? (checked ? 'border-sky-300 bg-sky-100' : 'border-sky-300 bg-sky-50')
+    : (checked ? 'border-emerald-300 bg-emerald-50' : 'border-brand/40 bg-brand/10');
+  return `<div class="min-w-0 h-full rounded-md border ${cls}${buzz ? ' seat-buzz-win' : ''} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">
+    <span class="text-[10px] leading-none text-slate-400 tabular-nums">${code}</span>
+    <span class="text-xs leading-tight font-bold text-slate-800 truncate w-full">${esc(info.name || '未命名')}</span>
+    ${info.community ? `<span class="text-[10px] leading-tight text-slate-500 truncate w-full">${esc(info.community)}</span>` : ''}
+  </div>`;
+}
+
+/* 課表 */
+function renderSchedule(box) {
+  const c = S.course || {};
+  const sessions = (Array.isArray(c.sessions) ? c.sessions : []).filter(s => s && s.label);
+  const items = (Array.isArray(c.schedule) ? c.schedule : [])
+    .filter(s => s && (s.title || s.start || s.end || s.session || s.instructor || s.note));
+  box.innerHTML = `
+    <div class="space-y-3">
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <p class="text-lg font-bold text-slate-800 break-words">${esc(c.name || '未命名課程')}</p>
+        <div class="mt-4 grid grid-cols-[4.5rem_1fr] gap-y-2.5 text-sm">
+          <span class="text-slate-400">日期</span><span class="text-slate-700">${esc(fmtDate(c.date))}</span>
+          <span class="text-slate-400">時間</span><span class="text-slate-700">${esc(courseTimeText(c) || '未設定')}</span>
+          <span class="text-slate-400">講師</span><span class="text-slate-700">${esc(c.instructor || '未指定')}</span>
+          <span class="text-slate-400">地點</span><span class="text-slate-700">${esc(c.location || '未設定')}</span>
+        </div>
+        <div class="mt-5 pt-4 border-t border-slate-100">
+          <p class="text-xs text-slate-400 mb-2">課程場次</p>
+          ${sessions.length ? `<div class="flex flex-wrap gap-1.5">${sessions.map((s, i) => `<span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-xs">${i + 1}. ${esc(s.label)}</span>`).join('')}</div>` : '<p class="text-sm text-slate-400">尚未設定場次</p>'}
+        </div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <p class="font-semibold text-sm text-slate-700 mb-3">課程時間表</p>
+        ${items.length ? `<div class="divide-y divide-slate-100">${items.map(s => {
+          const a = s.start || '', b = s.end || '';
+          const t = (a && b) ? `${a}~${b}` : (a || b || '');
+          return `<div class="flex items-start gap-3 py-2">
+            <span class="w-36 shrink-0 text-sm text-slate-600 tabular-nums">${esc(t)}</span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm text-slate-800 break-words">${esc(s.title || '—')}</p>
+              ${(s.session || s.instructor || s.note) ? `<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400">
+                ${s.session ? `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${esc(s.session)}</span>` : ''}
+                ${s.instructor ? `<span>講師：${esc(s.instructor)}</span>` : ''}
+                ${s.note ? `<span>備註：${esc(s.note)}</span>` : ''}
+              </div>` : ''}
+            </div>
+          </div>`;
+        }).join('')}</div>` : '<p class="text-sm text-slate-400">尚未設定時間表</p>'}
+      </div>
+    </div>`;
+}
+
+/* 投票 */
+function renderVote(box) {
+  const votes = courseVotes();
+  if (!votes.length) { box.innerHTML = emptyState('尚未建立投票議題'); return; }
+  if (S.voteSel && !votes.some(v => v.id === S.voteSel)) S.voteSel = '';
+  const selector = `
+    <div class="flex flex-wrap gap-1.5 mb-3">
+      <button data-vote-sel="" class="px-3 py-1.5 rounded-lg text-xs font-semibold border ${S.voteSel === '' ? 'bg-brand text-white border-brand' : 'bg-white text-slate-600 border-slate-300'}">全部議題</button>
+      ${votes.map(v => `<button data-vote-sel="${esc(v.id)}" class="px-3 py-1.5 rounded-lg text-xs font-semibold border max-w-[16rem] truncate ${S.voteSel === v.id ? 'bg-brand text-white border-brand' : 'bg-white text-slate-600 border-slate-300'}">${esc(v.question)}</button>`).join('')}
+    </div>`;
+  const shown = S.voteSel ? votes.filter(v => v.id === S.voteSel) : votes;
+  const shouldVote = rosterList().length;
+  const cards = shown.map(v => {
+    const { counts, total } = tallyVotes(v);
+    const maxCount = Math.max(1, ...Object.values(counts));
+    const rows = Object.entries(S.voteResponses[v.id] || {}).map(([uid, r]) => ({
+      uid, name: r.name || uidInfo(uid)?.name || '未命名', choice: voteChoiceLabel(v, uid),
+    })).sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh-Hant'));
+    return `
+      <div class="rounded-2xl border border-slate-200 bg-white p-4">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="font-semibold text-slate-800 break-words">${esc(v.question)}</p>
+            <p class="text-[12px] text-slate-400 mt-0.5">${v.type === 'multi' ? '多選' : '單選'} · 已投 ${total} / 應投 ${shouldVote}</p>
+          </div>
+          <button data-vote-seatview="${esc(v.id)}" class="shrink-0 px-3 py-1.5 rounded-lg border ${S.showSeatPreview && S.voteSel === v.id ? 'bg-brand text-white border-brand' : 'border-slate-300 text-slate-600'} text-xs font-semibold">座位圖</button>
+        </div>
+        <div class="mt-3 space-y-2">
+          ${v.options.map(o => {
+            const c = counts[o.id] || 0;
+            const pct = total ? Math.round((c / total) * 100) : 0;
+            const w = (c / maxCount) * 100;
+            return `<div class="relative rounded-lg border border-slate-100 overflow-hidden">
+              <div class="absolute inset-y-0 left-0 bg-brand/10" style="width:${w.toFixed(1)}%"></div>
+              <div class="relative flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                <span class="truncate text-slate-700">${esc(o.text)}</span>
+                <span class="shrink-0 text-slate-500 tabular-nums">${c} 票 · ${pct}%</span>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+        ${(S.showSeatPreview && S.voteSel === v.id) ? `
+          <div class="mt-3 rounded-xl border border-slate-200 p-3 h-[60vh]">
+            ${seatGridHtml((code, entry) => voteSeatCell(code, entry, v))}
+          </div>` : ''}
+        <details class="mt-3" ${S.showNames ? 'open' : ''}>
+          <summary class="cursor-pointer text-xs font-semibold text-slate-500">投票名單（${rows.length}）</summary>
+          <div class="mt-2 divide-y divide-slate-100">
+            ${rows.length ? rows.map(r => `<div class="flex items-center justify-between gap-3 py-1.5">
+              <span class="min-w-0 truncate text-sm text-slate-700">${esc(r.name)}</span>
+              <span class="shrink-0 max-w-[45%] truncate text-xs font-semibold text-brand">${esc(r.choice || '—')}</span>
+            </div>`).join('') : '<p class="text-sm text-slate-400 py-2">尚無投票紀錄</p>'}
+          </div>
+        </details>
+      </div>`;
+  }).join('');
+  box.innerHTML = selector + `<div class="space-y-3">${cards}</div>`;
+  box.querySelectorAll('[data-vote-sel]').forEach(b => b.addEventListener('click', () => {
+    S.voteSel = b.dataset.voteSel || ''; S.showSeatPreview = false; renderData();
+  }));
+  box.querySelectorAll('[data-vote-seatview]').forEach(b => b.addEventListener('click', () => {
+    S.voteSel = b.dataset.voteSeatview; S.showSeatPreview = !S.showSeatPreview; renderData();
+  }));
+}
+function voteSeatCell(code, entry, vote) {
+  const info = entry && entry.uid ? uidInfo(entry.uid) : null;
+  if (!info) return `<div class="min-w-0 h-full rounded-md border border-slate-200 bg-slate-50 grid place-items-center text-[11px] text-slate-300 tabular-nums">${code}</div>`;
+  const choice = voteChoiceLabel(vote, entry.uid);
+  return `<div class="min-w-0 h-full rounded-md border ${entry.self ? 'border-sky-300 bg-sky-50' : 'border-brand/40 bg-brand/10'} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">
+    <span class="text-[10px] leading-none text-slate-400 tabular-nums">${code}</span>
+    <span class="text-xs leading-tight font-bold text-slate-800 truncate w-full">${esc(info.name || '未命名')}</span>
+    <span class="text-[10px] leading-tight font-semibold truncate w-full ${choice ? 'text-brand' : 'text-slate-300'}">${choice ? esc(choice) : '未投票'}</span>
+  </div>`;
+}
+
+/* 搶答 */
+function renderBuzz(box) {
+  const winners = buzzWinnerRecords();
+  box.innerHTML = `
+    <div class="h-full flex flex-col gap-3">
+      <div class="shrink-0 bg-white rounded-2xl border border-slate-200 px-4 py-3">
+        <div class="flex items-center gap-2">
+          <p class="text-sm font-semibold text-slate-700">搶答</p>
+          <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold ${S.course?.buzzOpen ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${S.course?.buzzOpen ? `進行中 · 第 ${buzzRound() + 1} 回合` : '已關閉'}</span>
+        </div>
+        <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+          ${winners.length ? winners.map((w, i) => {
+            const info = uidInfo(w.uid) || { name: w.name, community: w.community, title: w.title };
+            return `<span class="inline-flex items-center gap-1 text-sm font-semibold text-brand">${winners.length > 1 ? `<span class="text-[11px] font-normal text-slate-400">${i + 1}.</span>` : ''}${esc(info.name || '學員')}<span class="text-[11px] font-normal text-slate-500">${esc([info.community, info.title].filter(Boolean).join(' · '))}</span></span>`;
+          }).join('') : `<span class="text-sm text-slate-400">${S.course?.buzzOpen ? '等待學員搶答…' : '尚未開始'}</span>`}
+        </div>
+      </div>
+      <div class="flex-1 min-h-0 bg-white rounded-2xl border border-slate-200 p-4">
+        ${seatGridHtml(seatCellBasic)}
+      </div>
+    </div>`;
+}
+
+/* 講義 */
+function renderFiles(box) {
+  const files = S.files.filter(f => f.tabId === 'handouts');
+  const list = files.length ? files : S.files;
+  if (!list.length) { box.innerHTML = emptyState('目前尚無講義檔案'); return; }
+  box.innerHTML = `<div class="space-y-2">${list.map(f => `
+    <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
+      <span class="shrink-0 w-10 h-10 rounded-lg bg-brand/10 text-brand grid place-items-center text-[11px] font-bold uppercase">${esc(String(f.ext || '').slice(0, 4) || 'FILE')}</span>
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-semibold text-slate-800 truncate">${esc(f.name || '未命名檔案')}</p>
+        <p class="text-[11px] text-slate-400">${f.size ? (f.size < 1024 ? f.size + ' B' : f.size < 1048576 ? (f.size / 1024).toFixed(1) + ' KB' : (f.size / 1048576).toFixed(1) + ' MB') : ''}</p>
+      </div>
+      <button data-file-preview="${esc(f.id)}" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">預覽</button>
+    </div>`).join('')}</div>`;
+  box.querySelectorAll('[data-file-preview]').forEach(b => b.addEventListener('click', () => {
+    openPreview(S.files.find(f => f.id === b.dataset.filePreview));
+  }));
+}
+async function fetchBlob(file) {
+  const snap = await getDocsCompat(collection(db, 'courseFiles', file.id, 'chunks'));
+  const parts = snap.docs.map(d => d.data()).sort((a, b) => (a.index || 0) - (b.index || 0));
+  if (!parts.length) throw new Error('找不到檔案內容');
+  const b64 = parts.map(p => p.base64 || '').join('');
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: file.contentType || 'application/octet-stream' });
+}
+async function getDocsCompat(ref) {
+  const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+  return getDocs(ref);
+}
+async function openPreview(file) {
+  if (!file) return;
+  $('#preview').classList.remove('hidden');
+  $('#preview').classList.add('flex');
+  $('#preview-name').textContent = file.name || '預覽';
+  const body = $('#preview-body');
+  body.innerHTML = '<div class="h-full grid place-items-center text-slate-300 text-sm">載入中…</div>';
+  try {
+    const blob = await fetchBlob(file);
+    const url = URL.createObjectURL(blob);
+    const ext = String(file.ext || '').toLowerCase();
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
+      body.innerHTML = `<div class="h-full overflow-auto no-scrollbar grid place-items-center"><img src="${url}" class="max-w-full max-h-full object-contain" /></div>`;
+    } else if (ext === 'pdf') {
+      body.innerHTML = `<iframe src="${url}" class="w-full h-full rounded-lg bg-white"></iframe>`;
+    } else {
+      body.innerHTML = '<div class="h-full grid place-items-center text-slate-300 text-sm">此格式不支援線上預覽</div>';
+    }
+  } catch {
+    body.innerHTML = '<div class="h-full grid place-items-center text-slate-300 text-sm">預覽失敗</div>';
+  }
+}
+
+/* 測驗 */
+function renderExam(box) {
+  const subjects = examSubjects();
+  if (!subjects.length) { box.innerHTML = emptyState('尚未建立測驗科目'); return; }
+  if (S.examSel && !subjects.some(s => s.id === S.examSel)) S.examSel = '';
+  const selector = `
+    <div class="flex flex-wrap gap-1.5 mb-3">
+      <button data-exam-sel="" class="px-3 py-1.5 rounded-lg text-xs font-semibold border ${S.examSel === '' ? 'bg-brand text-white border-brand' : 'bg-white text-slate-600 border-slate-300'}">全部科目</button>
+      ${subjects.map(s => `<button data-exam-sel="${esc(s.id)}" class="px-3 py-1.5 rounded-lg text-xs font-semibold border max-w-[16rem] truncate ${S.examSel === s.id ? 'bg-brand text-white border-brand' : 'bg-white text-slate-600 border-slate-300'}">${esc(s.name)}</button>`).join('')}
+    </div>`;
+  const shown = S.examSel ? subjects.filter(s => s.id === S.examSel) : subjects;
+  const roster = rosterList();
+  const cards = shown.map(sub => {
+    const results = new Map();
+    S.examResults.filter(r => r.subjectId === sub.id).forEach(r => { if (!results.has(r.uid)) results.set(r.uid, r); });
+    const passed = [], failed = [], untested = [];
+    roster.forEach(u => {
+      const r = results.get(u.uid);
+      if (!r) { untested.push({ name: u.name, community: u.community, percent: null, passed: false }); return; }
+      const ok = r.passed === true || (Number(r.percent) || 0) >= sub.passPercent;
+      (ok ? passed : failed).push({ name: r.name || u.name, community: r.community || u.community, percent: Number(r.percent) || 0, passed: ok });
+    });
+    results.forEach((r, uid) => {
+      if (roster.some(u => u.uid === uid)) return;
+      const ok = r.passed === true || (Number(r.percent) || 0) >= sub.passPercent;
+      (ok ? passed : failed).push({ name: r.name || '未命名', community: r.community || '', percent: Number(r.percent) || 0, passed: ok });
+    });
+    const total = passed.length + failed.length + untested.length;
+    const showingSeat = S.showSeatPreview && S.examSel === sub.id;
+    const nameList = (title, arr, cls) => `
+      <div class="mt-2">
+        <p class="text-xs font-semibold ${cls}">${title}（${arr.length}）</p>
+        <div class="mt-1 flex flex-wrap gap-1.5">${arr.length ? arr.map(r => `<span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[12px]">${esc(r.name)}${r.percent != null ? ` <b class="tabular-nums">${r.percent}</b>` : ''}</span>`).join('') : '<span class="text-[12px] text-slate-300">—</span>'}</div>
+      </div>`;
+    return `
+      <div class="rounded-2xl border border-slate-200 bg-white p-4">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="font-semibold text-slate-800 break-words">${esc(sub.name)}</p>
+            <p class="text-[12px] text-slate-400 mt-0.5">合格門檻 ${sub.passPercent} 分 · 應測 ${total}</p>
+          </div>
+          <button data-exam-seatview="${esc(sub.id)}" class="shrink-0 px-3 py-1.5 rounded-lg border ${showingSeat ? 'bg-brand text-white border-brand' : 'border-slate-300 text-slate-600'} text-xs font-semibold">預覽</button>
+        </div>
+        <div class="mt-3 grid grid-cols-3 gap-2 text-center">
+          <div class="rounded-xl bg-emerald-50 border border-emerald-200 py-2"><p class="text-[12px] text-emerald-600">合格</p><p class="text-xl font-bold text-emerald-700">${passed.length}</p></div>
+          <div class="rounded-xl bg-red-50 border border-red-200 py-2"><p class="text-[12px] text-red-500">不合格</p><p class="text-xl font-bold text-red-600">${failed.length}</p></div>
+          <div class="rounded-xl bg-slate-50 border border-slate-200 py-2"><p class="text-[12px] text-slate-400">未測驗</p><p class="text-xl font-bold text-slate-500">${untested.length}</p></div>
+        </div>
+        ${showingSeat ? `<div class="mt-3 rounded-xl border border-slate-200 p-3 h-[60vh]">${seatGridHtml((code, entry) => examSeatCell(code, entry, results, sub))}</div>` : ''}
+        <div class="mt-3 rounded-xl border border-slate-200 p-3">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs font-semibold text-slate-500">名單</p>
+            <button data-exam-names-toggle role="switch" aria-checked="${S.showNames}" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${S.showNames ? 'bg-brand' : 'bg-slate-300'}">
+              <span class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${S.showNames ? 'translate-x-[22px]' : 'translate-x-0.5'}"></span>
+            </button>
+          </div>
+          <div class="${S.showNames ? '' : 'hidden'}">
+            ${nameList('合格', passed, 'text-emerald-600')}
+            ${nameList('不合格', failed, 'text-red-500')}
+            ${nameList('未測驗', untested, 'text-slate-400')}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+  box.innerHTML = selector + `<div class="space-y-3">${cards}</div>`;
+  box.querySelectorAll('[data-exam-sel]').forEach(b => b.addEventListener('click', () => {
+    S.examSel = b.dataset.examSel || ''; S.showSeatPreview = false; renderData();
+  }));
+  box.querySelectorAll('[data-exam-seatview]').forEach(b => b.addEventListener('click', () => {
+    S.examSel = b.dataset.examSeatview; S.showSeatPreview = !S.showSeatPreview; renderData();
+  }));
+  const tgl = box.querySelector('[data-exam-names-toggle]');
+  if (tgl) tgl.addEventListener('click', () => { S.showNames = !S.showNames; renderData(); });
+}
+function examSeatCell(code, entry, results, sub) {
+  const info = entry && entry.uid ? uidInfo(entry.uid) : null;
+  if (!info) return `<div class="min-w-0 h-full rounded-md border border-slate-200 bg-slate-50 grid place-items-center text-[11px] text-slate-300 tabular-nums">${code}</div>`;
+  const r = results.get(entry.uid);
+  const passed = r ? (r.passed === true || (Number(r.percent) || 0) >= sub.passPercent) : false;
+  const scoreCls = !r ? 'text-slate-300' : (passed ? 'text-emerald-600' : 'text-red-500');
+  return `<div class="min-w-0 h-full rounded-md border ${entry.self ? 'border-sky-300 bg-sky-50' : 'border-brand/40 bg-brand/10'} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">
+    <span class="text-[10px] leading-none text-slate-400 tabular-nums">${code}</span>
+    <span class="text-xs leading-tight font-bold text-slate-800 truncate w-full">${esc(info.name || '未命名')}</span>
+    <span class="text-[11px] leading-tight font-bold tabular-nums ${scoreCls}">${r ? `${Number(r.percent) || 0} 分` : '未測驗'}</span>
+  </div>`;
+}
+
+/* 活動 */
+function renderActivity(box) {
+  const acts = S.activities;
+  if (!acts.length) { box.innerHTML = emptyState('目前沒有活動'); return; }
+  box.innerHTML = `
+    <div>
+      <div id="act-list" class="flex gap-4 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-1"></div>
+      <div id="act-dots" class="mt-3 flex items-center justify-center gap-1.5"></div>
+    </div>`;
+  const list = $('#act-list');
+  list.innerHTML = acts.map(a => `
+    <div class="w-full flex-shrink-0 snap-center rounded-2xl border border-slate-200 overflow-hidden bg-white">
+      ${a.image ? `<img src="${esc(a.image)}" alt="" class="w-full aspect-square object-cover" draggable="false" />` : ''}
+      <div class="p-4">
+        <p class="text-sm font-semibold text-slate-800 break-words">${esc(a.title || '活動')}</p>
+        ${a.links.length ? `<div class="mt-3 grid grid-cols-5 gap-2">${a.links.map(l => `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer" class="aspect-square w-full rounded-xl overflow-hidden border border-slate-200 bg-white grid place-items-center active:opacity-80">
+          ${l.image ? `<img src="${esc(l.image)}" alt="" class="w-full h-full object-cover" />` : '<span class="text-[11px] text-slate-400">連結</span>'}
+        </a>`).join('')}</div>` : ''}
+      </div>
+    </div>`).join('');
+  const dots = $('#act-dots');
+  const updateDots = () => {
+    const total = acts.length;
+    if (!total) { dots.innerHTML = ''; return; }
+    const center = list.scrollLeft + list.clientWidth / 2;
+    let idx = 0, best = Infinity;
+    Array.from(list.children).forEach((el, i) => {
+      const d = Math.abs((el.offsetLeft + el.offsetWidth / 2) - center);
+      if (d < best) { best = d; idx = i; }
+    });
+    dots.innerHTML = Array.from({ length: total }, (_, i) => `<span class="w-2 h-2 rounded-full transition-colors ${i === idx ? 'bg-brand' : 'bg-slate-300'}"></span>`).join('');
+  };
+  list.addEventListener('scroll', updateDots, { passive: true });
+  updateDots();
+}
+
+/* 直播 */
+function renderLive(box) {
+  const id = youtubeIdOf(S.course?.liveUrl);
+  box.innerHTML = `
+    <div class="h-full flex flex-col">
+      <div class="flex-1 min-h-0 rounded-2xl border border-slate-200 overflow-hidden bg-slate-900 aspect-video max-h-full">
+        ${id
+          ? `<iframe src="https://www.youtube.com/embed/${esc(id)}?rel=0" class="w-full h-full" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`
+          : '<div class="w-full h-full grid place-items-center text-slate-400 text-sm">目前尚未設定直播連結</div>'}
+      </div>
+      <p class="shrink-0 mt-2 text-center text-sm text-slate-500">${esc(S.course?.name || '')} 直播</p>
+    </div>`;
+}
+
+/* ===== 資料載入 ===== */
+function startListeners(courseId) {
+  if (S.started) return;
+  S.started = true;
+  const C = courseId;
+
+  unsubs.push(onSnapshot(doc(db, 'courses', C), (snap) => {
+    if (!snap.exists()) return showBlocked('此頁面目前未開放');
+    S.course = { id: snap.id, ...snap.data() };
+    if (S.course.openLink === false) return showBlocked('此頁面目前未開放');
+    if (!S.token && S.course.openShareToken) S.token = S.course.openShareToken;
+    S.rosterCache = null;
+    showApp();
+    afterCourseUpdate();
+  }, () => showBlocked('此頁面目前未開放')));
+
+  // users 集合僅登入者可讀（公開展示頁改以課程文件的 roster 顯示姓名）
+  if (S.mode === 'c') {
+    unsubs.push(onSnapshot(query(collection(db, 'users'), where('courses', 'array-contains', C)), (snap) => {
+      S.students = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => u.role === 'student');
+      S.rosterCache = null;
+      writeRoster();
+      renderData();
+    }, () => {}));
+  }
+
+  unsubs.push(onSnapshot(query(collection(db, 'checkins'), where('courseId', '==', C)), (snap) => {
+    S.checkins = snap.docs.map(d => d.data());
+    renderData();
+  }, () => {}));
+
+  unsubs.push(onSnapshot(query(collection(db, 'voteResponses'), where('courseId', '==', C)), (snap) => {
+    const byVote = {};
+    snap.docs.forEach(d => {
+      const r = d.data();
+      if (!r.voteId || !r.uid) return;
+      (byVote[r.voteId] || (byVote[r.voteId] = {}))[r.uid] = r;
+    });
+    S.voteResponses = byVote;
+    renderData();
+  }, () => {}));
+
+  unsubs.push(onSnapshot(query(collection(db, 'examResults'), where('courseId', '==', C)), (snap) => {
+    S.examResults = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderData();
+  }, () => {}));
+
+  unsubs.push(onSnapshot(query(collection(db, 'courseActivities'), where('courseId', '==', C)), (snap) => {
+    S.activities = snap.docs.map(d => {
+      const a = d.data() || {};
+      return {
+        id: d.id,
+        title: String(a.title || ''),
+        image: String(a.image || ''),
+        order: Number.isFinite(a.order) ? a.order : 0,
+        visible: a.visible !== false,
+        links: (Array.isArray(a.links) ? a.links : []).filter(l => l && (l.url || l.image))
+          .map((l, i) => ({ id: String(l.id || ('l' + (i + 1))), url: String(l.url || ''), image: String(l.image || '') })),
+      };
+    }).filter(a => a.visible).sort((a, b) => (a.order - b.order) || a.id.localeCompare(b.id));
+    renderData();
+  }, () => {}));
+
+  unsubs.push(onSnapshot(query(collection(db, 'courseFiles'), where('courseId', '==', C)), (snap) => {
+    S.files = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+    renderData();
+  }, () => {}));
+
+  unsubs.push(onSnapshot(query(collection(db, 'buzzRounds'), where('courseId', '==', C)), (snap) => {
+    const byRound = {};
+    snap.docs.forEach(d => {
+      const r = d.data() || {};
+      const key = String(r.round);
+      (byRound[key] || (byRound[key] = [])).push(r);
+    });
+    S.buzzRounds = byRound;
+    renderData();
+  }, () => {}));
+}
+
+function afterCourseUpdate() {
+  if (S.mode === 'c') { ensureShareToken(); writeRoster(); }
+  renderMenu();
+  renderData();
+}
+
+/* 服務端：確保分享 token 與 openShares 文件（供免登入 QR 頁讀取） */
+let _shareWriting = false;
+async function ensureShareToken() {
+  if (_shareWriting || !S.course) return;
+  _shareWriting = true;
+  try {
+    const active = S.course.openLink !== false;
+    if (!S.token) {
+      S.token = newToken();
+      S.course.openShareToken = S.token;
+    }
+    // openShareActive 為 Firestore 規則判定免登入讀取的依據
+    await setDoc(doc(db, 'courses', S.course.id), { openShareToken: S.token, openShareActive: active }, { merge: true });
+    await setDoc(doc(db, 'openShares', S.token), {
+      courseId: S.course.id,
+      courseName: S.course.name || '未命名課程',
+      enabled: active,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    renderQr();
+  } catch {}
+  finally { _shareWriting = false; }
+}
+
+/* 服務端：把學員名單寫入課程文件 roster（供免登入頁顯示姓名） */
+let _rosterWriting = false;
+async function writeRoster() {
+  if (_rosterWriting || !S.course || !S.students.length) return;
+  const roster = S.students.map(u => ({
+    uid: u.uid || u.id,
+    name: String(u.name || ''),
+    community: String(u.community || u.unit || ''),
+    title: String(u.title || ''),
+  }));
+  if (JSON.stringify(S.course.roster || []) === JSON.stringify(roster)) return;
+  _rosterWriting = true;
+  try {
+    await updateDoc(doc(db, 'courses', S.course.id), { roster, updatedAt: serverTimestamp() });
+    S.course.roster = roster;
+  } catch {}
+  finally { _rosterWriting = false; }
+}
+
+/* ===== 啟動 ===== */
+async function boot() {
+  if (!S.mode) return showBlocked('此頁面目前未開放');
+  if (S.mode === 's') return bootPublic();
+  return bootAdmin();
+}
+async function bootPublic() {
+  try {
+    const snap = await getDoc(doc(db, 'openShares', S.token));
+    if (!snap.exists()) return showBlocked('此頁面目前未開放');
+    const d = snap.data() || {};
+    if (d.enabled === false) return showBlocked('此頁面目前未開放');
+    if (!d.courseId) return showBlocked('此頁面目前未開放');
+    S.courseId = d.courseId;
+    unsubs.push(onSnapshot(doc(db, 'openShares', S.token), (s) => {
+      if (!s.exists() || (s.data() || {}).enabled === false) showBlocked('此頁面目前未開放');
+    }, () => {}));
+    startListeners(S.courseId);
+  } catch { showBlocked('此頁面目前未開放'); }
+}
+function bootAdmin() {
+  if (!S.courseId) return showBlocked('此頁面目前未開放');
+  let fired = false;
+  onAuthStateChanged(auth, (user) => {
+    if (!user) { if (!fired) { fired = true; showBlocked('請先登入系統後再開啟此展示連結'); } return; }
+    if (fired) return;
+    fired = true;
+    startListeners(S.courseId);
+  });
+}
+
+/* 事件綁定 */
+$('#menu-tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-tab]');
+  if (!b) return;
+  S.activeTab = b.dataset.tab;
+  S.showSeatPreview = false;
+  renderMenu();
+  renderData();
+});
+$('#preview-close').addEventListener('click', () => {
+  $('#preview').classList.add('hidden');
+  $('#preview').classList.remove('flex');
+  $('#preview-body').innerHTML = '';
+});
+
+let _fitTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_fitTimer);
+  _fitTimer = setTimeout(fitData, 120);
+});
+window.addEventListener('orientationchange', () => setTimeout(fitData, 200));
+
+tickClock();
+setInterval(tickClock, 1000);
+setInterval(renderClock, 1000);
+boot();
+</script>
+
+</body>
+</html>
