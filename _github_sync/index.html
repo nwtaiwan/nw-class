@@ -279,36 +279,38 @@
 
     <!-- 登入頁 -->
     <section id="view-auth" class="h-full flex flex-col px-4 py-2 fade-in">
-      <div class="text-center mb-2">
+      <div class="text-center my-8">
         <img src="logo.png" alt="NW Class" class="w-16 h-16 mx-auto rounded-2xl object-cover shadow-lg"
              onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
-        <h1 id="auth-brand-name" class="text-base font-bold mt-1.5 text-slate-900">西北會議系統</h1>
-        <p class="text-[11px] text-slate-500 mt-0.5">學員端</p>
+        <h1 id="auth-brand-name" class="text-2xl font-bold mt-1.5 text-slate-900">西北會議系統</h1>
+        <p class="text-sm text-slate-500 mt-0.5">學員端</p>
       </div>
       <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-        <form id="form-email" class="space-y-2 pb-2">
+        <form id="form-email" class="space-y-2 px-4 pb-2">
           <div>
-            <label class="text-xs font-medium text-slate-500">帳號（代號 / Email / 手機號碼）</label>
-            <input name="email" type="text" placeholder="例如 nw001 或 you@example.com" class="w-full mt-0.5 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
-            <p class="text-[11px] text-slate-400 mt-0.5">代號或手機號碼會自動對應為 @nwclass.app 帳號</p>
+            <label class="text-sm font-medium text-slate-500">帳號（代號 / Email / 手機號碼）</label>
+            <input name="email" type="text" placeholder="例如 nw001 或 you@example.com" class="w-full mt-0.5 px-3 py-2 text-base border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
           </div>
           <div>
-            <label class="text-xs font-medium text-slate-500">密碼</label>
+            <label class="text-sm font-medium text-slate-500">密碼</label>
             <div class="relative">
-              <input name="password" type="password" placeholder="至少 6 碼" class="w-full mt-0.5 px-3 py-2 pr-14 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
-              <button type="button" class="toggle-pwd absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium px-1">顯示</button>
+              <input name="password" type="password" placeholder="至少 6 碼" class="w-full mt-0.5 px-3 py-2 pr-14 text-base border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+              <button type="button" class="toggle-pwd absolute right-2 top-1/2 -translate-y-1/2 text-sm text-slate-400 font-medium px-1">顯示</button>
             </div>
           </div>
-          <div class="flex items-center gap-2 text-sm text-slate-600">
-            <input id="remember-me" type="checkbox" class="w-4 h-4 accent-brand" />
+          <div class="flex items-center gap-2 text-base text-slate-600">
+            <input id="remember-me" type="checkbox" class="w-5 h-5 accent-brand" />
             <label for="remember-me">記住我</label>
           </div>
-          <button type="submit" class="w-full py-2.5 bg-brand text-white rounded-lg font-semibold shadow-md active:scale-[0.98]">
+          <button type="submit" class="w-full py-2.5 text-lg bg-brand text-white rounded-lg font-semibold shadow-md active:scale-[0.98]">
             <span class="auth-submit-text">登入</span>
           </button>
+          <video class="w-1/2 mx-auto rounded-lg object-cover" autoplay muted loop playsinline preload="auto">
+            <source src="bg-002.mp4" type="video/mp4">
+          </video>
         </form>
       </div>
-      <p class="text-center text-[11px] text-slate-400 mt-2 shrink-0">© 西北會議系統 · 學員端</p>
+      <p class="text-center text-sm text-slate-400 mt-2 shrink-0">© 西北會議系統 · 學員端</p>
     </section>
 
     <!-- 選擇課程 -->
