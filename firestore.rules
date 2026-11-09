@@ -213,14 +213,20 @@ service cloud.firestore {
     }
 
     // ============ openShares 集合（課程展示頁分享對照） ============
-    // 欄位：courseId, courseName, enabled, updatedAt
+    // 欄位：courseId, courseName, enabled, tab, recent, updatedAt
     // 文件 ID 為隨機 token（不可猜測），供展示頁 open.html?s=<token> 免登入解析課程
     match /openShares/{token} {
       // 讀取：免登入（展示連結持有者）
       allow read: if true;
 
-      // 寫入：僅服務/管理員
-      allow create, update, delete: if isStaff();
+      // 建立 / 刪除：僅服務/管理員
+      allow create, delete: if isStaff();
+
+      // 更新：服務/管理員可完整管理；
+      // 持有 token 的展示頁（免登入）僅能更新「顯示狀態」欄位（tab / recent）以實現跨裝置遙控同步
+      allow update: if isStaff()
+        || (resource.data.get('enabled', false) == true
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tab', 'recent', 'updatedAt']));
     }
   }
 }

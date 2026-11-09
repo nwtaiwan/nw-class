@@ -4,8 +4,40 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#d32f2f" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="西北會議系統" />
 <title>西北會議系統 · 展示</title>
+
+<script>
+  // 依角色產生 standalone manifest：PWA 內以 window.open 開啟本頁時，
+  // 同 scope 會由瀏覽器開成「獨立 App 視窗（無網址列）」。
+  // menu（遙控器）用直向 portrait、data（內容）用橫向 landscape。
+  (function () {
+    const base = (function () { const p = window.location.pathname.replace(/\/[^/]*$/, '/'); return window.location.origin + p; })();
+    const role = new URLSearchParams(window.location.search).get('role');
+    const appName = '西北會議系統';
+    const manifest = {
+      name: appName,
+      short_name: appName,
+      start_url: window.location.href,
+      scope: base,
+      display: 'standalone',
+      orientation: role === 'menu' ? 'portrait' : 'landscape',
+      background_color: '#ffffff',
+      theme_color: '#d32f2f',
+      lang: 'zh-Hant',
+      icons: [
+        { src: base + 'logo.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: base + 'logo.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+      ]
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
+    let link = document.querySelector('link[rel="manifest"]');
+    if (!link) { link = document.createElement('link'); link.rel = 'manifest'; document.head.appendChild(link); }
+    link.href = url;
+  })();
+</script>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
@@ -36,9 +68,31 @@
     50% { box-shadow: 0 0 0 2px #f59e0b, 0 0 18px 6px rgba(245,158,11,.95); }
   }
   .seat-buzz-win { animation: buzzSeatGlow 1.2s ease-in-out infinite; position: relative; z-index: 5; }
-  .menu-btn { transition: background-color .18s ease, color .18s ease, transform .18s ease; }
+  .menu-btn { transition: background-color .18s ease, color .18s ease, transform .18s ease; touch-action: manipulation; }
   .menu-btn.on { background: #d32f2f; color: #fff; }
   .menu-btn:active { transform: scale(.97); }
+  /* 展示頁文字：隨視窗寬度響應式縮放（欄寬變窄時自動縮小字級） */
+  .fs-head { font-size: clamp(1rem, 2.2vw, 1.875rem); }
+  .fs-stat-label { font-size: clamp(1rem, 1.6vw, 1.875rem); }
+  .fs-stat-num { font-size: clamp(2rem, 4.5vw, 4.5rem); }
+  .fs-recent { font-size: clamp(.95rem, 1.2vw, 1.125rem); }
+  .fs-recent-time { font-size: clamp(.8rem, 1vw, 1rem); }
+  /* menu 分頁列：每列按鈕佔容器寬度 50% 靠左，右側留白（「報到」列右側放顯示開關） */
+  #menu-tabs .menu-row { display: flex; align-items: center; gap: .5rem; width: 100%; }
+  #menu-tabs .menu-btn { width: 50%; height: 100%; }
+  /* 雙視窗模式：menu 視窗只顯示選單（遙控器）、data 視窗只顯示內容 */
+  body.role-menu #data { display: none !important; }
+  body.role-menu #menu { width: 100% !important; height: 100dvh !important; border-right: 0 !important; }
+  /* menu 視窗採手機直屏比例（21:9 直向），上 10% / 中 65% / 下 25% 三段式，內容隨視窗等比縮放 */
+  body.role-menu .menu-head { height: 10%; flex: 0 0 10%; min-height: 0; overflow: hidden; }
+  body.role-menu .menu-head .text-sm { font-size: clamp(.8rem, 2.2vh, 1.05rem); }
+  body.role-menu .menu-head #menu-course { font-size: clamp(.6rem, 1.6vh, .8rem); }
+  body.role-menu #menu-tabs { height: 65%; flex: 0 0 65%; flex-direction: column !important; flex-wrap: nowrap !important; }
+  body.role-menu #menu-tabs .menu-row { flex: 1 1 0 !important; min-height: 0; }
+  body.role-menu #menu-tabs .menu-btn { font-size: clamp(.8rem, 3vh, 1.15rem); padding-top: .2rem; padding-bottom: .2rem; }
+  body.role-menu .menu-foot { display: flex !important; flex-direction: column; height: 25%; flex: 0 0 25%; min-height: 0; }
+  body.role-menu #menu-qr { flex: 1 1 auto; min-height: 0; width: auto; max-width: 100%; aspect-ratio: 1 / 1; margin: 0 auto; }
+  body.role-data #menu { display: none !important; }
 </style>
 </head>
 
@@ -54,27 +108,28 @@
 
   <!-- menu 區塊 -->
   <aside id="menu" class="order-2 md:order-1 w-full md:w-[15%] md:min-w-[176px] h-[20dvh] md:h-full shrink-0 bg-white border-t md:border-t-0 md:border-r border-slate-200 flex flex-col overflow-hidden">
-    <div class="shrink-0 flex items-center gap-2 px-3 py-2.5 border-b border-slate-100">
+    <div class="menu-head shrink-0 flex items-center gap-2 px-3 py-2.5 border-b border-slate-100">
       <img src="logo.png" alt="" class="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200 shrink-0" onerror="this.style.display='none'" />
       <div class="min-w-0">
         <p class="text-sm font-bold text-slate-900 truncate">西北會議系統</p>
         <p id="menu-course" class="text-[11px] text-slate-400 truncate">—</p>
       </div>
     </div>
-    <div id="menu-tabs" class="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-row flex-wrap md:flex-col gap-1 p-2"></div>
-    <div class="shrink-0 border-t border-slate-100 p-2 hidden md:block">
-      <div id="menu-qr" class="w-full aspect-square rounded-lg bg-slate-50 border border-slate-200 grid place-items-center overflow-hidden p-1.5"></div>
+    <div id="menu-tabs" class="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-row flex-wrap md:flex-col gap-0.5 p-2"></div>
+    <div class="menu-foot shrink-0 border-t border-slate-100 p-2 hidden md:block">
+      <div id="menu-qr" class="w-full max-w-[10rem] mx-auto aspect-square rounded-lg bg-slate-50 border border-slate-200 grid place-items-center overflow-hidden p-1.5"></div>
       <p class="mt-1 text-[10px] text-center text-slate-400 leading-tight">掃碼瀏覽本頁內容</p>
     </div>
   </aside>
 
   <!-- data 區塊 -->
   <main id="data" class="order-1 md:order-2 w-full md:w-auto md:flex-1 min-w-0 h-[100dvh] md:h-full shrink-0 md:shrink flex flex-col bg-slate-100 overflow-hidden">
-    <div class="shrink-0 px-4 py-2.5 bg-white border-b border-slate-200 flex items-center justify-between gap-3">
-      <p id="data-title" class="text-lg font-bold text-slate-800 truncate">—</p>
-      <p id="data-now" class="shrink-0 text-sm font-semibold text-slate-500 tabular-nums"></p>
+    <div class="shrink-0 h-[10%] min-h-0 px-4 py-2.5 bg-white border-b border-slate-200 flex flex-wrap items-center gap-x-3 gap-y-0.5 md:flex-nowrap">
+      <p id="data-title" class="order-1 shrink-0 fs-head font-bold text-slate-800 truncate">—</p>
+      <p id="data-now" class="order-2 md:order-3 shrink-0 ml-auto fs-head font-semibold text-slate-500 tabular-nums"></p>
+      <p id="data-course" class="order-3 md:order-2 shrink-0 w-full md:w-auto fs-head font-bold text-brand">—</p>
     </div>
-    <div id="data-body" class="flex-1 min-h-0 overflow-auto no-scrollbar p-3"></div>
+    <div id="data-body" class="h-[90%] min-h-0 overflow-auto no-scrollbar p-3"></div>
   </main>
 </div>
 
@@ -122,6 +177,9 @@ const DEFAULT_TABS = [
 ];
 
 const params = new URLSearchParams(location.search);
+// 雙視窗模式：role=menu（遙控器選單）／role=data（內容顯示）；未指定則同頁顯示兩者
+const ROLE = ['menu', 'data'].includes(params.get('role')) ? params.get('role') : '';
+if (ROLE) document.body.classList.add('role-' + ROLE);
 const S = {
   mode: params.get('s') ? 's' : (params.get('c') ? 'c' : ''),
   courseId: params.get('c') || '',
@@ -139,10 +197,15 @@ const S = {
   examSel: '',
   showNames: false,
   showSeatPreview: false,
+  showRecentCheckin: true,
   started: false,
   rosterCache: null,
 };
 const unsubs = [];
+
+/* 目前登入者：登入中的視窗可寫入名單與分享資料（免登入裝置則僅讀取） */
+let AUTH_UID = null;
+onAuthStateChanged(auth, (u) => { AUTH_UID = u ? u.uid : null; });
 
 /* ===== 共用工具 ===== */
 function showBlocked(msg) {
@@ -206,7 +269,8 @@ function youtubeIdOf(input) {
 function rosterMap() {
   if (S.rosterCache) return S.rosterCache;
   const m = {};
-  (S.mode === 'c' ? S.students : (Array.isArray(S.course?.roster) ? S.course.roster : []))
+  const src = S.students.length ? S.students : (Array.isArray(S.course?.roster) ? S.course.roster : []);
+  src
     .forEach(u => {
       const uid = u.uid || u.id;
       if (uid) m[uid] = { uid, name: u.name || '', community: u.community || u.unit || '', title: u.title || '' };
@@ -256,7 +320,7 @@ function seatGridHtml(cellRenderer) {
   const aisleSet = new Set(cfg.aisles);
   let colsTmpl = '1.75rem';
   for (let i = 1; i <= cfg.cols; i++) { colsTmpl += ' minmax(0, 1fr)'; if (aisleSet.has(i)) colsTmpl += ' 1.75rem'; }
-  const gridStyle = `grid-template-columns: ${colsTmpl}; grid-template-rows: auto repeat(${cfg.rows}, minmax(2.5rem, 1fr));`;
+  const gridStyle = `grid-template-columns: ${colsTmpl}; grid-template-rows: auto repeat(${cfg.rows}, minmax(0, 1fr));`;
   const head = ['<div></div>'];
   for (let i = 1; i <= cfg.cols; i++) {
     head.push(`<div class="grid place-items-center text-[12px] text-slate-400 tabular-nums truncate">${String(i).padStart(2, '0')}</div>`);
@@ -272,8 +336,8 @@ function seatGridHtml(cellRenderer) {
     }
     return cells.join('');
   }).join('');
-  return `<div class="flex flex-col min-h-full">
-    <div class="flex-1 min-h-0 overflow-auto no-scrollbar"><div class="grid gap-1 min-h-full" style="${gridStyle}">${head.join('')}${body}</div></div>
+  return `<div class="flex flex-col h-full">
+    <div class="flex-1 min-h-0 overflow-auto no-scrollbar"><div class="grid gap-1 h-full" style="${gridStyle}">${head.join('')}${body}</div></div>
     <div class="shrink-0"><div class="h-10 rounded-lg bg-brand text-white grid place-items-center text-sm font-bold tracking-[0.5em]">講台</div></div>
   </div>`;
 }
@@ -347,8 +411,19 @@ function renderMenu() {
   const tabs = menuTabs();
   if (!S.activeTab || !tabs.some(t => t.id === S.activeTab)) S.activeTab = tabs.length ? tabs[0].id : '';
   const box = $('#menu-tabs');
-  box.innerHTML = tabs.map(t => `
-    <button data-tab="${esc(t.id)}" class="menu-btn ${t.id === S.activeTab ? 'on' : 'bg-slate-100 text-slate-600'} shrink-0 md:w-full px-2.5 py-1.5 rounded-lg text-xs font-semibold text-center">${esc(t.label)}</button>`).join('');
+  // 僅在分頁清單、目前分頁或開關狀態異動時才重建，避免資料更新時重建按鈕而吃掉點擊事件
+  const sig = `${S.activeTab}#${S.showRecentCheckin ? 1 : 0}#${tabs.map(t => `${t.id}:${t.order}:${t.label}`).join('|')}`;
+  if (box && box.dataset.sig !== sig) {
+    box.dataset.sig = sig;
+    box.innerHTML = tabs.map(t => {
+      const on = t.id === S.activeTab;
+      const btn = `<button data-tab="${esc(t.id)}" class="menu-btn ${on ? 'on' : 'bg-slate-100 text-slate-600'} shrink-0 grid place-items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold text-center">${esc(t.label)}</button>`;
+      // 「報到」列右側提供「最近報到」區塊顯示開關（遙控 data 視窗）
+      const sw = t.id === 'checkin' ? `
+        <button type="button" data-recent-toggle role="switch" aria-checked="${S.showRecentCheckin}" title="顯示/隱藏最近報到" class="shrink-0 h-full w-[12.5vw] grid place-items-center rounded-lg text-xs font-semibold border transition-colors ${S.showRecentCheckin ? 'bg-brand text-white border-brand' : 'bg-slate-100 text-slate-500 border-slate-300'}">最近報到</button>` : '';
+      return `<div class="menu-row">${btn}${sw}</div>`;
+    }).join('');
+  }
   const nameEl = $('#menu-course');
   if (nameEl) nameEl.textContent = S.course?.name || '—';
   renderQr();
@@ -356,6 +431,9 @@ function renderMenu() {
 function renderQr() {
   const box = $('#menu-qr');
   if (!box) return;
+  // 內容僅取決於 token，避免每次資料更新重繪 QR
+  if (box.dataset.qr === (S.token || '')) return;
+  box.dataset.qr = S.token || '';
   if (!S.token) { box.innerHTML = '<span class="text-[10px] text-slate-400">—</span>'; return; }
   const url = publicUrl(S.token);
   if (typeof window.qrcode !== 'function') { box.innerHTML = '<span class="text-[10px] text-slate-400 text-center px-1 break-all">' + esc(url) + '</span>'; return; }
@@ -379,8 +457,10 @@ function renderData() {
   const tabs = menuTabs();
   const tab = tabs.find(t => t.id === S.activeTab);
   $('#data-title').textContent = tab ? tab.label : '—';
+  const courseEl = $('#data-course');
+  if (courseEl) courseEl.textContent = S.course?.name || '—';
   const body = $('#data-body');
-  body.className = 'flex-1 min-h-0 overflow-auto no-scrollbar p-3 fade-in';
+  body.className = 'h-[90%] min-h-0 overflow-auto no-scrollbar p-3 fade-in';
   if (!tab) { body.innerHTML = emptyState('此課程尚未開放內容'); return; }
   if (tab.id === 'checkin') return renderCheckin(body);
   if (tab.id === 'seat') return renderSeat(body);
@@ -394,6 +474,103 @@ function renderData() {
   body.innerHTML = emptyState('內容建置中');
 }
 
+/* ===== 跨視窗切換（menu 遙控 data） ===== */
+let CH = null;         // BroadcastChannel
+let CH_KEY = '';       // localStorage 備援鍵
+let CH_INIT = false;
+function setupChannel(courseId) {
+  if (CH_INIT || !courseId) return;
+  CH_INIT = true;
+  CH_KEY = 'nw-open-tab-' + courseId;
+  try { CH = new BroadcastChannel('nw-open:' + courseId); } catch { CH = null; }
+  if (CH) CH.onmessage = (e) => { handleShared(e.data); };
+  // 備援：部分環境（含以 file:// 開啟）不支援 BroadcastChannel 時，改用 localStorage + storage 事件
+  window.addEventListener('storage', (e) => {
+    if (e.key !== CH_KEY || !e.newValue) return;
+    try { handleShared(JSON.parse(e.newValue)); } catch {}
+  });
+}
+function handleShared(d) {
+  if (!d) return;
+  if (d.type === 'tab') { applyTab(d.tabId); applyRecent(d.recent); }
+  else if (d.type === 'recent') applyRecent(d.recent);
+}
+function broadcastTab(tabId) {
+  if (!tabId || !CH_KEY) return;
+  const payload = { type: 'tab', tabId, recent: S.showRecentCheckin, t: Date.now() };
+  try { localStorage.setItem(CH_KEY, JSON.stringify(payload)); } catch {}
+  try { if (CH) CH.postMessage(payload); } catch {}
+}
+function broadcastRecent() {
+  if (!CH_KEY) return;
+  const payload = { type: 'recent', recent: S.showRecentCheckin, t: Date.now() };
+  try { localStorage.setItem(CH_KEY, JSON.stringify(payload)); } catch {}
+  try { if (CH) CH.postMessage(payload); } catch {}
+}
+function readSharedTab() {
+  if (!CH_KEY) return '';
+  try { const d = JSON.parse(localStorage.getItem(CH_KEY) || 'null'); return d && d.type === 'tab' ? d.tabId : ''; } catch { return ''; }
+}
+function readSharedRecent() {
+  if (!CH_KEY) return true;
+  try { const d = JSON.parse(localStorage.getItem(CH_KEY) || 'null'); return d && typeof d.recent === 'boolean' ? d.recent : true; } catch { return true; }
+}
+function applyRecent(v) {
+  const val = v !== false;
+  if (val === S.showRecentCheckin) return;
+  S.showRecentCheckin = val;
+  // 依角色重繪：menu 只畫選單、data 只畫內容、單一視窗兩者都畫
+  if (ROLE !== 'data') renderMenu();
+  if (ROLE !== 'menu') renderData();
+}
+
+/* ===== 跨裝置狀態同步（openShares 文件的 tab / recent） ===== */
+let STATE_SYNCED = false;
+let _stateWriting = false;
+let _lastShared = null;
+function setupStateSync() {
+  if (STATE_SYNCED || !S.token) return;
+  STATE_SYNCED = true;
+  unsubs.push(onSnapshot(doc(db, 'openShares', S.token), (s) => {
+    const d = s.exists() ? (s.data() || {}) : {};
+    if (!s.exists() || d.enabled === false) return showBlocked('此頁面目前未開放');
+    applySharedState(d);
+  }, () => {}));
+}
+function applySharedState(d) {
+  const tab = menuTabs().some(t => t.id === d.tab) ? d.tab : '';
+  const recent = typeof d.recent === 'boolean' ? d.recent : undefined;
+  let changed = false;
+  if (tab && tab !== S.activeTab) { S.activeTab = tab; changed = true; }
+  if (recent !== undefined && recent !== S.showRecentCheckin) { S.showRecentCheckin = recent; changed = true; }
+  _lastShared = { tab: S.activeTab, recent: S.showRecentCheckin };
+  if (changed) { renderMenu(); if (ROLE !== 'menu') renderData(); }
+}
+async function persistSharedState() {
+  if (!S.token || _stateWriting) return;
+  const cur = { tab: S.activeTab, recent: S.showRecentCheckin };
+  if (_lastShared && _lastShared.tab === cur.tab && _lastShared.recent === cur.recent) return;
+  _stateWriting = true;
+  try {
+    await setDoc(doc(db, 'openShares', S.token), { tab: cur.tab, recent: cur.recent, updatedAt: serverTimestamp() }, { merge: true });
+    _lastShared = cur;
+  } catch {}
+  finally { _stateWriting = false; }
+}
+function selectTab(tabId, broadcast) {
+  if (!tabId) return;
+  S.activeTab = tabId;
+  S.showSeatPreview = false;
+  renderMenu();
+  if (ROLE !== 'menu') renderData();  // menu 視窗不渲染內容
+  if (broadcast) { broadcastTab(tabId); persistSharedState(); }
+}
+function applyTab(tabId) {
+  if (!tabId || tabId === S.activeTab) return;
+  if (!menuTabs().some(t => t.id === tabId)) return;
+  selectTab(tabId, false);
+}
+
 /* ===== 各 data 區塊 ===== */
 /* 報到 */
 function renderCheckin(box) {
@@ -404,38 +581,28 @@ function renderCheckin(box) {
   const absent = Math.max(expected - actual, 0);
   const recent = S.checkins.slice().sort((a, b) => msOf(b.checkedInAt) - msOf(a.checkedInAt)).slice(0, 30);
   box.innerHTML = `
-    <div class="space-y-3">
-      <div class="rounded-2xl bg-white border border-slate-200 px-4 py-3 flex items-center justify-between gap-3">
-        <div>
-          <p class="text-[12px] text-slate-400">目前時間</p>
-          <p id="checkin-clock" class="text-2xl font-bold text-slate-800 tabular-nums">—</p>
+    <div class="h-full flex flex-col gap-3">
+      <div class="flex-1 min-h-0 grid grid-cols-3 gap-3">
+        <div class="rounded-2xl bg-slate-50 border border-slate-200 px-3 py-4 grid place-content-center text-center">
+          <p class="fs-stat-label text-slate-400">應報到</p><p class="mt-1 fs-stat-num font-bold text-slate-900">${expected}</p>
         </div>
-        <div class="text-right">
-          <p class="text-sm font-semibold text-slate-700">${esc(S.course?.name || '未命名課程')}</p>
-          <p class="text-[12px] text-slate-400">${esc(fmtDate(S.course?.date))}${courseTimeText(S.course) ? ' ' + esc(courseTimeText(S.course)) : ''}</p>
+        <div class="rounded-2xl bg-emerald-50 border border-emerald-200 px-3 py-4 grid place-content-center text-center">
+          <p class="fs-stat-label text-emerald-600">已報到</p><p class="mt-1 fs-stat-num font-bold text-emerald-700">${actual}</p>
         </div>
-      </div>
-      <div class="grid grid-cols-3 gap-3">
-        <div class="rounded-2xl bg-slate-50 border border-slate-200 px-3 py-4 text-center">
-          <p class="text-[13px] text-slate-400">應報到</p><p class="mt-1 text-3xl font-bold text-slate-900">${expected}</p>
-        </div>
-        <div class="rounded-2xl bg-emerald-50 border border-emerald-200 px-3 py-4 text-center">
-          <p class="text-[13px] text-emerald-600">已報到</p><p class="mt-1 text-3xl font-bold text-emerald-700">${actual}</p>
-        </div>
-        <div class="rounded-2xl bg-amber-50 border border-amber-200 px-3 py-4 text-center">
-          <p class="text-[13px] text-amber-600">未報到</p><p class="mt-1 text-3xl font-bold text-amber-700">${absent}</p>
+        <div class="rounded-2xl bg-amber-50 border border-amber-200 px-3 py-4 grid place-content-center text-center">
+          <p class="fs-stat-label text-amber-600">未報到</p><p class="mt-1 fs-stat-num font-bold text-amber-700">${absent}</p>
         </div>
       </div>
-      <div class="rounded-2xl bg-white border border-slate-200 p-4">
-        <p class="text-sm font-semibold text-slate-700 mb-2">最近報到</p>
+      ${S.showRecentCheckin ? `<div class="flex-1 min-h-0 rounded-2xl bg-white border border-slate-200 p-4 overflow-y-auto no-scrollbar">
+        <p class="fs-recent font-semibold text-slate-700 mb-2">最近報到</p>
         ${recent.length ? `<div class="divide-y divide-slate-100">${recent.map(r => {
           const info = uidInfo(r.uid);
           return `<div class="flex items-center justify-between gap-3 py-2">
-            <span class="min-w-0 truncate text-sm text-slate-700">${esc(info?.name || r.name || '學員')}</span>
-            <span class="shrink-0 text-xs text-emerald-600 tabular-nums">${esc(fmtTime(r.checkedInAt))}</span>
+            <span class="min-w-0 truncate fs-recent text-slate-700">${esc(info?.name || r.name || '學員')}</span>
+            <span class="shrink-0 fs-recent-time text-emerald-600 tabular-nums">${esc(fmtTime(r.checkedInAt))}</span>
           </div>`;
-        }).join('')}</div>` : '<p class="text-sm text-slate-400">尚無報到紀錄</p>'}
-      </div>
+        }).join('')}</div>` : '<p class="fs-recent text-slate-400">尚無報到紀錄</p>'}
+      </div>` : ''}
     </div>`;
   renderClock();
 }
@@ -452,8 +619,8 @@ function renderSeat(box) {
   const cfg = seatConfig(S.course);
   box.innerHTML = `<div class="h-full bg-white rounded-2xl border border-slate-200 p-4 flex flex-col min-h-0">
     <div class="shrink-0 mb-2">
-      <p class="text-sm font-semibold text-slate-700">座位表</p>
-      <p class="text-[12px] text-slate-400">${cfg.rows ? `${cfg.rows} 排 × ${cfg.cols} 列` : '尚未設定座位表'}</p>
+      <p class="text-lg font-semibold text-slate-700">座位表</p>
+      <p class="text-base text-slate-400">${cfg.rows ? `${cfg.rows} 排 × ${cfg.cols} 列` : '尚未設定座位表'}</p>
     </div>
     <div class="flex-1 min-h-0">${seatGridHtml(seatCellBasic)}</div>
   </div>`;
@@ -836,8 +1003,11 @@ function startListeners(courseId) {
     afterCourseUpdate();
   }, () => showBlocked('此頁面目前未開放')));
 
+  // menu 視窗僅顯示選單（遙控器），不需訂閱各資料集合，避免雙視窗重複讀取與寫入
+  if (ROLE === 'menu') return;
+
   // users 集合僅登入者可讀（公開展示頁改以課程文件的 roster 顯示姓名）
-  if (S.mode === 'c') {
+  if (S.mode === 'c' || AUTH_UID) {
     unsubs.push(onSnapshot(query(collection(db, 'users'), where('courses', 'array-contains', C)), (snap) => {
       S.students = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => u.role === 'student');
       S.rosterCache = null;
@@ -902,9 +1072,29 @@ function startListeners(courseId) {
 }
 
 function afterCourseUpdate() {
-  if (S.mode === 'c') { ensureShareToken(); writeRoster(); }
+  // 分享 token 與名單由具寫入權限（登入中）的視窗負責寫入；menu 視窗不寫，避免雙視窗重複寫入
+  if ((S.mode === 'c' || AUTH_UID) && ROLE !== 'menu') { ensureShareToken(); writeRoster(); }
+  setupStateSync();
   renderMenu();
-  renderData();
+  if (ROLE !== 'menu') renderData();
+  initTabSync();
+}
+
+/* 首次載入課程後同步分頁：data 視窗套用共用分頁；menu/單頁視窗廣播目前分頁 */
+let TAB_SYNCED = false;
+function initTabSync() {
+  if (TAB_SYNCED) return;
+  TAB_SYNCED = true;
+  if (ROLE === 'data') {
+    const recent = readSharedRecent();
+    const t = readSharedTab();
+    let changed = false;
+    if (recent !== S.showRecentCheckin) { S.showRecentCheckin = recent; changed = true; }
+    if (t && t !== S.activeTab && menuTabs().some(x => x.id === t)) { S.activeTab = t; changed = true; }
+    if (changed) { renderMenu(); renderData(); }
+  } else {
+    broadcastTab(S.activeTab);
+  }
 }
 
 /* 服務端：確保分享 token 與 openShares 文件（供免登入 QR 頁讀取） */
@@ -919,7 +1109,10 @@ async function ensureShareToken() {
       S.course.openShareToken = S.token;
     }
     // openShareActive 為 Firestore 規則判定免登入讀取的依據
-    await setDoc(doc(db, 'courses', S.course.id), { openShareToken: S.token, openShareActive: active }, { merge: true });
+    // 僅在與課程文件現值不同時才寫入，避免 onSnapshot 觸發的無謂重複寫入
+    if (S.course.openShareToken !== S.token || S.course.openShareActive !== active) {
+      await setDoc(doc(db, 'courses', S.course.id), { openShareToken: S.token, openShareActive: active }, { merge: true });
+    }
     await setDoc(doc(db, 'openShares', S.token), {
       courseId: S.course.id,
       courseName: S.course.name || '未命名課程',
@@ -964,14 +1157,13 @@ async function bootPublic() {
     if (d.enabled === false) return showBlocked('此頁面目前未開放');
     if (!d.courseId) return showBlocked('此頁面目前未開放');
     S.courseId = d.courseId;
-    unsubs.push(onSnapshot(doc(db, 'openShares', S.token), (s) => {
-      if (!s.exists() || (s.data() || {}).enabled === false) showBlocked('此頁面目前未開放');
-    }, () => {}));
+    setupChannel(S.courseId);
     startListeners(S.courseId);
   } catch { showBlocked('此頁面目前未開放'); }
 }
 function bootAdmin() {
   if (!S.courseId) return showBlocked('此頁面目前未開放');
+  setupChannel(S.courseId);
   let fired = false;
   onAuthStateChanged(auth, (user) => {
     if (!user) { if (!fired) { fired = true; showBlocked('請先登入系統後再開啟此展示連結'); } return; }
@@ -983,12 +1175,19 @@ function bootAdmin() {
 
 /* 事件綁定 */
 $('#menu-tabs').addEventListener('click', (e) => {
+  // 「最近報到」顯示開關：切換後廣播給 data 視窗
+  if (e.target.closest('[data-recent-toggle]')) {
+    S.showRecentCheckin = !S.showRecentCheckin;
+    renderMenu();
+    // 單一視窗（無 role）時 menu 與 data 同視窗，廣播不會回送自己，需一併重繪內容
+    if (ROLE !== 'menu') renderData();
+    broadcastRecent();
+    persistSharedState();
+    return;
+  }
   const b = e.target.closest('[data-tab]');
   if (!b) return;
-  S.activeTab = b.dataset.tab;
-  S.showSeatPreview = false;
-  renderMenu();
-  renderData();
+  selectTab(b.dataset.tab, true);
 });
 $('#preview-close').addEventListener('click', () => {
   $('#preview').classList.add('hidden');

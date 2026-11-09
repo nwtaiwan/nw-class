@@ -1470,7 +1470,6 @@ function refreshSchedulePanel() {
 function renderCourseSchedule(panel) {
   if (!panel) return;
   const c = state.activeCourse || {};
-  const sessions = (Array.isArray(c.sessions) ? c.sessions : []).filter(s => s && s.label);
   const items = courseSchedule(c);
   panel.innerHTML = `
     <div class="h-full overflow-auto no-scrollbar">
@@ -1483,14 +1482,7 @@ function renderCourseSchedule(panel) {
           <div class="mt-4 grid grid-cols-[4.5rem_1fr] gap-y-2.5 text-sm">
             <span class="text-slate-400">日期</span><span class="text-slate-700">${escAttr(formatDisplayDate(c.date))}</span>
             <span class="text-slate-400">時間</span><span class="text-slate-700">${escAttr(courseTimeText(c) || '未設定')}</span>
-            <span class="text-slate-400">講師</span><span class="text-slate-700">${escAttr(c.instructor || '未指定')}</span>
             <span class="text-slate-400">地點</span><span class="text-slate-700">${escAttr(c.location || '未設定')}</span>
-          </div>
-          <div class="mt-5 pt-4 border-t border-slate-100">
-            <p class="text-xs text-slate-400 mb-2">課程場次</p>
-            ${sessions.length
-              ? `<div class="flex flex-wrap gap-1.5">${sessions.map((s, i) => `<span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-xs">${i + 1}. ${escAttr(s.label)}</span>`).join('')}</div>`
-              : '<p class="text-sm text-slate-400">尚未設定場次</p>'}
           </div>
         </div>
         <div id="schedule-card" class="bg-white rounded-2xl border border-slate-200 p-5">
@@ -3210,13 +3202,62 @@ async function saveLiveUrl() {
 
 /* ===== 展示連結（open.html）：課程卡「連結」按鈕與 QR 免登入頁 ===== */
 function courseOpenLinkEnabled(c) { return c?.openLink !== false; }
-function openViewUrl(courseId) {
-  return location.origin + location.pathname.replace(/[^/]*$/, '') + 'open.html?c=' + encodeURIComponent(courseId);
+/* 固定分享連結：以課程文件的 openShareToken 為準，menu 與 data 皆開啟同一個網址 */
+function openViewUrl(role, token) {
+  let u = location.origin + location.pathname.replace(/[^/]*$/, '') + 'open.html?s=' + encodeURIComponent(token);
+  if (role) u += '&role=' + encodeURIComponent(role);
+  return u;
 }
-function openCourseLink(courseId) {
+/* 取得（必要時建立）課程固定的分享 token，並發佈展示連結 */
+async function ensureCourseShareToken(c) {
+  let token = typeof c.openShareToken === 'string' ? c.openShareToken : '';
+  if (!token) token = newShareToken();
+  await setDoc(doc(db, 'courses', c.id), { openShareToken: token, openLink: true, openShareActive: true, updatedAt: serverTimestamp() }, { merge: true });
+  c.openShareToken = token;
+  c.openLink = true;
+  if (state.courseMap[c.id]) { state.courseMap[c.id].openShareToken = token; state.courseMap[c.id].openLink = true; }
+  await setDoc(doc(db, 'openShares', token), {
+    courseId: c.id,
+    courseName: c.name || '未命名課程',
+    enabled: true,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+  return token;
+}
+function isPwaStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.navigator.standalone === true;
+}
+async function openCourseLink(courseId) {
   const c = state.courseMap[courseId] || (state.activeCourse && state.activeCourse.id === courseId ? state.activeCourse : null);
   if (!c) return;
-  window.open(openViewUrl(c.id), '_blank', 'noopener');
+  const token = typeof c.openShareToken === 'string' && c.openShareToken ? c.openShareToken : '';
+  if (token) {
+    // 已有固定 token：同步開窗（保留使用者手勢，避免彈窗被瀏覽器阻擋），資料文件於背景補寫確保存在
+    ensureCourseShareToken(c).catch(() => {});
+    openViewWindows(token);
+    return;
+  }
+  // 首次：需先建立固定 token 與分享文件後才能開窗
+  try { openViewWindows(await ensureCourseShareToken(c)); }
+  catch { toast('無法建立展示連結', 2000, 'danger'); }
+}
+function openViewWindows(token) {
+  const dataUrl = openViewUrl('data', token);
+  const menuUrl = openViewUrl('menu', token);
+  if (isPwaStandalone()) {
+    // PWA（已安裝 App）：open.html 位於 manifest scope 內，去掉視窗尺寸參數讓瀏覽器
+    // 以「獨立 App 視窗（無網址列）」開啟 menu 與 data 各自一個視窗
+    [dataUrl, menuUrl].forEach(u => {
+      const w = window.open(u, '_blank');
+      if (w) { try { w.opener = null; } catch {} }
+    });
+  } else {
+    // 一般瀏覽器：data 一般分頁，menu 以手機直屏比例（9:21 ≈ 21:9 直向）彈窗
+    window.open(dataUrl, '_blank', 'noopener');
+    window.open(menuUrl, '_blank', 'popup=yes,noopener,width=420,height=980');
+  }
 }
 async function setCourseOpenLink(on) {
   if (!state.activeCourse) return;
