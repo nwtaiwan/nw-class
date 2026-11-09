@@ -649,7 +649,9 @@ const state = {
   scanner: null, scanning: false,
   courseClockTimer: null,
   unsubRecent: null,
+  recentCourseId: '',
   unsubCourseStudents: null,
+  studentsCourseId: '',
   cameraDevices: [],
   activeCameraId: '',
   communityCodeMap: {},
@@ -1045,6 +1047,8 @@ function playFeedbackTone(kind) {
     if (!Ctx) return;
     const ctx = playFeedbackTone._ctx || new Ctx();
     playFeedbackTone._ctx = ctx;
+    // 非手勢流程（掃碼回呼）觸發時，AudioContext 可能為 suspended，需先 resume 才會有聲音
+    if (ctx.state === 'suspended') { try { ctx.resume(); } catch {} }
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
@@ -1061,11 +1065,27 @@ function playFeedbackTone(kind) {
 function speakFeedback(text) {
   try {
     if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = 'zh-TW';
-    utter.rate = 1.02;
-    window.speechSynthesis.speak(utter);
+    const synth = window.speechSynthesis;
+    const doSpeak = () => {
+      try {
+        synth.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'zh-TW';
+        utter.rate = 1.02;
+        const voice = synth.getVoices().find(v => /zh[-_]TW|zh[-_]HK/i.test(v.lang || ''));
+        if (voice) utter.voice = voice;
+        // cancel 與 speak 之間留間隔並先 resume，避免部分瀏覽器（尤其行動裝置）吞掉語音
+        setTimeout(() => { try { synth.resume(); synth.speak(utter); } catch {} }, 80);
+      } catch {}
+    };
+    if (synth.getVoices().length) doSpeak();
+    else {
+      // 語音清單尚未載入時，等待 voiceschanged 後再發聲
+      let done = false;
+      const once = () => { if (done) return; done = true; doSpeak(); };
+      try { synth.addEventListener('voiceschanged', once, { once: true }); } catch {}
+      setTimeout(once, 400);
+    }
   } catch {}
 }
 function showCheckinStatus(text, kind, ms) {
@@ -1140,6 +1160,7 @@ function renderCourseSelect() {
     return `
     <div data-course-open="${c.id}" class="relative text-left border rounded-xl p-4 pr-14 flex flex-col gap-1 cursor-pointer ${old ? 'bg-slate-100 border-slate-300 active:bg-slate-200/70' : 'bg-white border-slate-200 active:bg-slate-50'}">
       <button data-course-archive="${c.id}" class="absolute top-2 right-2 w-11 h-6 rounded-md text-[10px] font-semibold border border-slate-200 text-slate-400 active:bg-slate-100 grid place-items-center whitespace-nowrap px-0">${isCourseArchived(c) ? '取消封存' : '封存'}</button>
+      <button data-course-menu="${c.id}" title="開啟遙控選單" class="absolute bottom-2 right-[3.25rem] w-11 h-11 rounded-lg border ${courseOpenLinkEnabled(c) ? 'border-brand/40 text-brand bg-brand/5 active:bg-brand/15' : 'border-slate-200 text-slate-400 active:bg-slate-100'} grid place-items-center text-[11px] font-semibold leading-none">遙控</button>
       <button data-course-link="${c.id}" title="開啟展示連結" class="absolute bottom-2 right-2 w-11 h-11 rounded-lg border ${courseOpenLinkEnabled(c) ? 'border-brand/40 text-brand bg-brand/5 active:bg-brand/15' : 'border-slate-200 text-slate-400 active:bg-slate-100'} grid place-items-center text-[11px] font-semibold leading-none">連結</button>
       <p class="font-semibold text-sm truncate pr-16 ${old ? 'text-slate-400' : ''}">${c.name || '未命名課程'}</p>
       <p class="text-xs truncate ${old ? 'text-slate-400' : 'text-slate-500'}">${formatDisplayDate(c.date)}${courseTimeText(c) ? ' ' + courseTimeText(c) : ''}</p>
@@ -1241,6 +1262,11 @@ function renderTabContent(id, label) {
   if (id !== 'handouts') { cleanupListener('unsubCourseFiles'); state.courseFiles = []; closeCourseFilePreview(); }
   if (id !== 'download') { cleanupListener('unsubActivities'); state.activities = []; closeActivityEdit(); }
   if (id !== 'exam') { cleanupListener('unsubExamResults'); state.examResults = []; }
+  /* Lazy Subscribe：僅在需要報到／學員資料的分頁維持訂閱，切走即釋放以降低 Firestore 讀取量 */
+  const needCheckins = (id === 'checkin' || id === 'seat' || id === 'qa');
+  const needStudents = (id === 'checkin' || id === 'seat' || id === 'qa' || id === 'vote' || id === 'exam');
+  if (!needCheckins) { cleanupListener('unsubRecent'); state.recentCourseId = ''; }
+  if (!needStudents) { cleanupListener('unsubCourseStudents'); state.studentsCourseId = ''; }
   if (id === 'checkin') {
     panel.innerHTML = `
       <div class="h-full flex flex-row gap-4 overflow-hidden max-md:flex-col max-md:overflow-y-auto max-md:gap-3">
@@ -1326,15 +1352,7 @@ function renderTabContent(id, label) {
     renderSeatMap();
     loadRecentCheckins();
     loadCourseStudents();
-    /* 座位分頁專屬即時同步：學員端自選／取消座位時，課程文件的 seatSelfPicks 變更會即時反映 */
-    if (state.activeCourse) {
-      state.unsubSeatCourse = onSnapshot(doc(db, 'courses', state.activeCourse.id), (snap) => {
-        if (!snap.exists()) return;
-        state.activeCourse = { id: snap.id, ...snap.data() };
-        if (state.courseMap[snap.id]) state.courseMap[snap.id] = state.activeCourse;
-        renderSeatMap();
-      }, () => {});
-    }
+    /* 座位即時同步改由 watchCourseDoc 統一處理（同一課程文件僅維持單一訂閱），避免重複訂閱 */
     return;
   }
   if (id === 'qa') {
@@ -3082,17 +3100,11 @@ function renderSettingsAdminTab() {
           <div class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3">
             <span class="text-sm font-semibold text-slate-700">${escAttr(t.label)}</span>
             <div class="shrink-0 flex items-center gap-1.5">
-              ${TAB_VISIBILITY.map(v => `<button data-tab-visibility="${escAttr(t.id)}" data-visibility-value="${v.value}" class="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border ${t.visibility === v.value ? v.cls : 'bg-white text-slate-400 border-slate-200'}">${v.label}</button>`).join('')}
+              ${TAB_VISIBILITY.map(v => `<button type="button" data-tab-visibility="${escAttr(t.id)}" data-visibility-value="${v.value}" class="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border ${t.visibility === v.value ? v.cls : 'bg-white text-slate-400 border-slate-200'}">${v.label}</button>`).join('')}
             </div>
           </div>`).join('')}
       </div>
     </div>`;
-  $('#settings-list').addEventListener('click', (e) => {
-    if (e.target.closest('[data-open-link-toggle]')) return setCourseOpenLink(!courseOpenLinkEnabled(state.activeCourse));
-    if (e.target.closest('[data-open-link-view]')) return openCourseLink(state.activeCourse?.id);
-    const b = e.target.closest('[data-tab-visibility]');
-    if (b) setTabVisibility(b.dataset.tabVisibility, b.dataset.visibilityValue);
-  });
 }
 async function setTabVisibility(id, visibility) {
   if (!state.activeCourse || !id || !visibility) return;
@@ -3229,34 +3241,32 @@ function isPwaStandalone() {
     window.matchMedia('(display-mode: fullscreen)').matches ||
     window.navigator.standalone === true;
 }
-async function openCourseLink(courseId) {
+async function openCourseLink(courseId) { return openCourseView(courseId, 'data'); }
+async function openCourseMenu(courseId) { return openCourseView(courseId, 'menu'); }
+async function openCourseView(courseId, role) {
   const c = state.courseMap[courseId] || (state.activeCourse && state.activeCourse.id === courseId ? state.activeCourse : null);
   if (!c) return;
   const token = typeof c.openShareToken === 'string' && c.openShareToken ? c.openShareToken : '';
   if (token) {
     // 已有固定 token：同步開窗（保留使用者手勢，避免彈窗被瀏覽器阻擋），資料文件於背景補寫確保存在
     ensureCourseShareToken(c).catch(() => {});
-    openViewWindows(token);
+    openViewWindow(role, token);
     return;
   }
   // 首次：需先建立固定 token 與分享文件後才能開窗
-  try { openViewWindows(await ensureCourseShareToken(c)); }
+  try { openViewWindow(role, await ensureCourseShareToken(c)); }
   catch { toast('無法建立展示連結', 2000, 'danger'); }
 }
-function openViewWindows(token) {
-  const dataUrl = openViewUrl('data', token);
-  const menuUrl = openViewUrl('menu', token);
+function openViewWindow(role, token) {
+  const url = openViewUrl(role, token);
   if (isPwaStandalone()) {
     // PWA（已安裝 App）：open.html 位於 manifest scope 內，去掉視窗尺寸參數讓瀏覽器
-    // 以「獨立 App 視窗（無網址列）」開啟 menu 與 data 各自一個視窗
-    [dataUrl, menuUrl].forEach(u => {
-      const w = window.open(u, '_blank');
-      if (w) { try { w.opener = null; } catch {} }
-    });
+    // 以「獨立 App 視窗（無網址列）」開啟 menu 或 data 視窗
+    const w = window.open(url, '_blank');
+    if (w) { try { w.opener = null; } catch {} }
   } else {
-    // 一般瀏覽器：data 一般分頁，menu 以手機直屏比例（9:21 ≈ 21:9 直向）彈窗
-    window.open(dataUrl, '_blank', 'noopener');
-    window.open(menuUrl, '_blank', 'popup=yes,noopener,width=420,height=980');
+    // 一般瀏覽器：以一般新視窗開啟 menu 或 data 分頁
+    window.open(url, '_blank', 'noopener');
   }
 }
 async function setCourseOpenLink(on) {
@@ -4446,7 +4456,15 @@ async function clearBuzz() {
 /* ===== 課程資料獨立：報到紀錄（依 courseId） ===== */
 function loadRecentCheckins() {
   if (!state.activeCourse) return;
+  /* 同一課程已訂閱則不重複訂閱，僅重繪（避免每次切換分頁重新讀取整個報到集合） */
+  if (state.unsubRecent && state.recentCourseId === state.activeCourse.id) {
+    renderSessionBar();
+    renderAttendanceSummary();
+    renderCourseStudents();
+    return;
+  }
   cleanupListener('unsubRecent');
+  state.recentCourseId = state.activeCourse.id;
   state.checkinsBySession = {};
   state.checkedInMap = {};
   const q = query(collection(db, 'checkins'), where('courseId', '==', state.activeCourse.id));
@@ -4477,11 +4495,18 @@ function loadRecentCheckins() {
 
 async function loadCourseStudents() {
   if (!state.activeCourse) return;
+  /* 同一課程已訂閱則不重複訂閱，僅重繪（避免每次切換分頁重新讀取所有學員） */
+  if (state.unsubCourseStudents && state.studentsCourseId === state.activeCourse.id) {
+    renderCourseStudents();
+    ensureSeatInfo();
+    return;
+  }
   const list = $('#course-students-list');
   const count = $('#course-students-count');
   if (list) list.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入中…</p>';
   if (count) count.textContent = '共 0 人';
   cleanupListener('unsubCourseStudents');
+  state.studentsCourseId = state.activeCourse.id;
   await loadCommunityCodeMap();
   const q = query(collection(db, 'users'), where('courses', 'array-contains', state.activeCourse.id));
   state.unsubCourseStudents = onSnapshot(q, (snap) => {
@@ -4839,6 +4864,11 @@ $$('.pf-goto').forEach(b => b.addEventListener('click', () => {
 }));
 /* 分頁顯示開關（各分頁標頭，切換學員端顯示） */
 $('#course-tab-panel').addEventListener('click', (e) => {
+  /* 設定分頁：連結開關／開啟展示頁／分頁顯示方式（一律顯示・報到後顯示・暫時隱藏） */
+  if (e.target.closest('[data-open-link-toggle]')) { setCourseOpenLink(!courseOpenLinkEnabled(state.activeCourse)); return; }
+  if (e.target.closest('[data-open-link-view]')) { openCourseLink(state.activeCourse?.id); return; }
+  const vis = e.target.closest('[data-tab-visibility]');
+  if (vis) { setTabVisibility(vis.dataset.tabVisibility, vis.dataset.visibilityValue); return; }
   const b = e.target.closest('[data-tab-vis-toggle]');
   if (b) toggleTabVisibility(b.dataset.tabVisToggle);
 });
@@ -4854,6 +4884,8 @@ $$('.toggle-pwd').forEach(b => b.addEventListener('click', () => {
 $('#course-select-list').addEventListener('click', (e) => {
   const arch = e.target.closest('[data-course-archive]');
   if (arch) { e.stopPropagation(); toggleCourseArchive(arch.dataset.courseArchive); return; }
+  const menu = e.target.closest('[data-course-menu]');
+  if (menu) { e.stopPropagation(); openCourseMenu(menu.dataset.courseMenu); return; }
   const link = e.target.closest('[data-course-link]');
   if (link) { e.stopPropagation(); openCourseLink(link.dataset.courseLink); return; }
   const b = e.target.closest('[data-course-open]');

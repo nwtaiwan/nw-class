@@ -1074,9 +1074,14 @@ function replayCheckinCelebration() {
   if (actions) actions.classList.add('hidden');
   // 重播影片與字幕，並同步重播語音提示音
   speakCheckinCongratulations();
-  try { video.currentTime = 0; } catch {}
+  try { video.muted = false; video.currentTime = 0; } catch {}
   const p = video.play();
-  if (p && typeof p.catch === 'function') p.catch(() => { if (actions) actions.classList.remove('hidden'); });
+  if (p && typeof p.catch === 'function') p.catch(() => {
+    // 無使用者互動時瀏覽器可能阻擋有聲自動播放：改以靜音播放，確保影片畫面仍會出現（語音由語音合成負責）
+    try { video.muted = true; } catch {}
+    const p2 = video.play();
+    if (p2 && typeof p2.catch === 'function') p2.catch(() => { if (actions) actions.classList.remove('hidden'); });
+  });
   if (_celebrationTimer) { clearTimeout(_celebrationTimer); _celebrationTimer = null; }
 }
 function goToSeatFromCelebration() {
