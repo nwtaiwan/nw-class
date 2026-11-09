@@ -409,7 +409,9 @@
     </label>
     <label class="block mt-3">
       <span class="text-xs text-slate-500">講師（非必填）</span>
-      <input id="schedule-edit-instructor" type="text" placeholder="例：王小明" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      <select id="schedule-edit-instructor" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+        <option value="">（不指定）</option>
+      </select>
     </label>
     <label class="block mt-3">
       <span class="text-xs text-slate-500">備註（非必填）</span>
@@ -462,6 +464,10 @@
   <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 fade-in flex flex-col max-h-[85vh]">
     <p class="text-base font-bold text-slate-900 text-center">指派座位</p>
     <p class="mt-1 text-xs text-slate-500 text-center">座位 <span id="seat-assign-code" class="font-semibold text-brand">—</span></p>
+    <div class="mt-3 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+      <span class="text-sm font-medium text-slate-600">開放學員自選此座位</span>
+      <button id="seat-assign-self-toggle" type="button" role="switch" aria-checked="true" title="開啟後，學員可自選此座位" class="shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-brand"><span class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform translate-x-[22px]"></span></button>
+    </div>
     <input id="seat-assign-search" type="text" placeholder="搜尋學員姓名或社區代號" class="mt-3 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
     <div id="seat-assign-list" class="mt-3 flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-1.5"></div>
     <div class="mt-4 grid grid-cols-3 gap-2">
@@ -1537,7 +1543,7 @@ function renderCourseSchedule(panel) {
 }
 
 let scheduleEditId = '';
-function openScheduleEdit(id) {
+async function openScheduleEdit(id) {
   if (!state.activeCourse) return;
   scheduleEditId = id || '';
   const item = courseSchedule(state.activeCourse).find(s => s.id === scheduleEditId);
@@ -1552,9 +1558,23 @@ function openScheduleEdit(id) {
   $('#schedule-edit-start').value = item?.start || '';
   $('#schedule-edit-end').value = item?.end || '';
   $('#schedule-edit-content').value = item?.title || '';
-  $('#schedule-edit-instructor').value = item?.instructor || '';
   $('#schedule-edit-note').value = item?.note || '';
+  // 講師下拉選單：先以現有值初始化，再載入講師清單（來源：instructors 集合）
+  const insSel = $('#schedule-edit-instructor');
+  const cur = item?.instructor || '';
+  insSel.innerHTML = ['<option value="">（不指定）</option>']
+    .concat(cur ? [`<option value="${escAttr(cur)}">${escAttr(cur)}</option>`] : []).join('');
+  insSel.value = cur;
   $('#modal-schedule-edit').classList.remove('hidden');
+  try {
+    const snap = await getDocs(collection(db, 'instructors'));
+    const names = snap.docs.map(d => String((d.data() || {}).name || '').trim()).filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    if (cur && !names.includes(cur)) names.push(cur);
+    insSel.innerHTML = ['<option value="">（不指定）</option>']
+      .concat(names.map(n => `<option value="${escAttr(n)}">${escAttr(n)}</option>`)).join('');
+    insSel.value = cur;
+  } catch (err) { console.warn('[openScheduleEdit] instructors', err); }
 }
 function closeScheduleEdit() {
   scheduleEditId = '';
@@ -3301,6 +3321,11 @@ function seatSelfPicksOf(course) {
   const a = course && course.seatSelfPicks;
   return (a && typeof a === 'object' && !Array.isArray(a)) ? a : {};
 }
+/* 個別座位的自選關閉清單：code -> true（全域開放自選時，僅這些座位不開放自選） */
+function seatSelfClosedOf(course) {
+  const a = course && course.seatSelfClosed;
+  return (a && typeof a === 'object' && !Array.isArray(a)) ? a : {};
+}
 /* 合併「服務指派」與「學員自選」：服務指派優先，回傳 code -> { uid, self } */
 function seatOccupancyOf(course) {
   const staff = seatAssignmentsOf(course);
@@ -3367,6 +3392,7 @@ function renderSeatMap() {
     return;
   }
   const occupancy = seatOccupancyOf(state.activeCourse);
+  const selfClosed = seatSelfClosedOf(state.activeCourse);
   const assignedCount = Object.keys(occupancy).length;
   if (meta) meta.textContent = `${rows} 排 × ${cols} 列${aisles.length ? ' · 走道 ' + aisles.join('、') : ''} · 已指派 ${assignedCount} 人${allowSelfSelect ? ' · 開放自選' : ''}`;
   ensureSeatInfo();
@@ -3409,7 +3435,9 @@ function renderSeatMap() {
       } else if (uid) {
         cells.push(`<button type="button" data-seat="${code}" title="${escAttr(code)} · 已指派" class="min-w-0 h-full rounded-md border border-slate-300 bg-slate-100 hover:bg-slate-200 grid place-items-center text-[12px] text-slate-500 tabular-nums overflow-hidden">${code}</button>`);
       } else {
-        cells.push(`<button type="button" data-seat="${code}" class="min-w-0 h-full rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 grid place-items-center text-[12px] text-slate-400 tabular-nums overflow-hidden">${code}</button>`);
+        const closed = !!selfClosed[code];
+        const tip = closed ? `${code} · 已關閉自選` : code;
+        cells.push(`<button type="button" data-seat="${code}" title="${escAttr(tip)}" class="min-w-0 h-full rounded-md border ${closed ? 'border-amber-300 bg-amber-50 hover:bg-amber-100' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'} grid place-items-center text-[12px] ${closed ? 'text-amber-600' : 'text-slate-400'} tabular-nums overflow-hidden">${code}</button>`);
       }
       if (aisleSet.has(c)) cells.push('<div class="rounded bg-slate-400 grid place-items-center text-[10px] font-semibold text-white/90 tracking-widest" style="writing-mode:vertical-rl;">走道</div>');
     }
@@ -3466,9 +3494,44 @@ function openSeatAssign(code) {
   state.pendingSeatCode = code;
   $('#seat-assign-code').textContent = code;
   $('#seat-assign-search').value = '';
+  renderSeatAssignSelfToggle();
   renderSeatAssignList('');
   $('#modal-seat-assign').classList.remove('hidden');
   setTimeout(() => { const s = $('#seat-assign-search'); if (s) s.focus(); }, 60);
+}
+function renderSeatAssignSelfToggle() {
+  const btn = $('#seat-assign-self-toggle');
+  if (!btn) return;
+  const code = state.pendingSeatCode;
+  const open = !seatSelfClosedOf(state.activeCourse)[code];
+  btn.setAttribute('aria-checked', open ? 'true' : 'false');
+  btn.title = open ? '開啟中：學員可自選此座位' : '已關閉：學員無法自選此座位';
+  btn.classList.toggle('bg-brand', open);
+  btn.classList.toggle('bg-slate-300', !open);
+  const knob = btn.firstElementChild;
+  if (knob) {
+    knob.classList.toggle('translate-x-[22px]', open);
+    knob.classList.toggle('translate-x-0.5', !open);
+  }
+}
+async function toggleSeatSelfOpen() {
+  if (!state.activeCourse || !state.pendingSeatCode) return;
+  const code = state.pendingSeatCode;
+  const closed = seatSelfClosedOf(state.activeCourse);
+  const nextOpen = !!closed[code]; // 目前關閉 -> 切為開放
+  const payload = { ['seatSelfClosed.' + code]: nextOpen ? deleteField() : true };
+  try {
+    await updateDoc(doc(db, 'courses', state.activeCourse.id), payload);
+    const next = { ...closed };
+    if (nextOpen) delete next[code]; else next[code] = true;
+    state.activeCourse.seatSelfClosed = next;
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].seatSelfClosed = next;
+    renderSeatAssignSelfToggle();
+    renderSeatMap();
+    toast(nextOpen ? `座位 ${code} 已開放自選` : `座位 ${code} 已關閉自選`, 1800, 'success');
+  } catch (err) {
+    toast('儲存失敗：' + (err.message || ''), 2200, 'danger');
+  }
 }
 function closeSeatAssign() {
   state.pendingSeatCode = '';
@@ -4933,6 +4996,7 @@ $('#seat-setting-close').addEventListener('click', closeSeatSetting);
 $('#seat-setting-confirm').addEventListener('click', confirmSeatSetting);
 $('#modal-seat-setting').addEventListener('click', (e) => { if (e.target === $('#modal-seat-setting')) closeSeatSetting(); });
 $('#seat-assign-close').addEventListener('click', closeSeatAssign);
+$('#seat-assign-self-toggle').addEventListener('click', toggleSeatSelfOpen);
 $('#seat-assign-clear').addEventListener('click', clearSeatAssignment);
 $('#seat-assign-search').addEventListener('input', (e) => renderSeatAssignList(e.target.value));
 $('#seat-assign-list').addEventListener('click', (e) => {

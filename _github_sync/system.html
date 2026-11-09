@@ -862,7 +862,10 @@ async function openStudentModal(data = null) {
   $('#stu-account-hint').textContent = isEdit
     ? '可修改顯示帳號；登入帳號維持建立時的設定'
     : '代號或手機號碼會自動對應為 @nwclass.app 帳號；留空則以手機號碼為帳號';
-  $('#stu-save').textContent = isEdit ? '儲存變更' : '建立帳號';
+  /* 每次開啟彈窗都還原儲存鈕狀態，避免上次儲存卡住留下的 disabled 造成「無法儲存」 */
+  const stuSaveBtn = $('#stu-save');
+  stuSaveBtn.disabled = false;
+  stuSaveBtn.textContent = isEdit ? '儲存變更' : '建立帳號';
   ['#stu-title', '#stu-region', '#stu-community'].forEach(s => fillSelect($(s), [], '載入中…'));
   renderStudentAvatar();
   $('#modal-student').classList.remove('hidden');
@@ -1059,7 +1062,10 @@ function loadAccounts() {
 }
 function renderAccountList(container, users, role) {
   if (users.length === 0) { container.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">尚無帳號</p>'; return; }
-  container.innerHTML = users.map(u => `
+  // 依代號（帳號）排序
+  const sorted = users.slice().sort((a, b) =>
+    String(a.email || a.loginCode || '').localeCompare(String(b.email || b.loginCode || ''), 'zh-Hant', { numeric: true }));
+  container.innerHTML = sorted.map(u => `
     <div class="flex items-center gap-2 bg-slate-50 rounded-lg p-2">
       <div class="flex-1 min-w-0">
         <p class="text-sm font-semibold truncate">${u.name || '未命名'}</p>

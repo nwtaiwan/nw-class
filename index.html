@@ -1172,6 +1172,9 @@ function renderSeatStudent() {
   const byCode = seatOccupancyStudent(c);
   const mine = mySeatOf(c);
   const myCode = mine ? mine.code : '';
+  // 個別座位的自選關閉清單（由服務端設定）
+  const selfClosedRaw = c && c.seatSelfClosed;
+  const selfClosed = (selfClosedRaw && typeof selfClosedRaw === 'object' && !Array.isArray(selfClosedRaw)) ? selfClosedRaw : {};
   // 已有服務指派座位時，不開放自選（避免與指派衝突）
   const canSelfPick = allowSelfSelect && (!mine || mine.self);
   if (hint) {
@@ -1206,7 +1209,7 @@ function renderSeatStudent() {
         cells.push(`<div class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-brand bg-brand text-white grid place-items-center font-semibold tabular-nums overflow-hidden"><span class="seat-code">${code}</span></div>`);
       } else if (entry) {
         cells.push(`<button type="button" data-seat-info="${code}" class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-orange-300 bg-orange-100 grid place-items-center text-orange-600 tabular-nums overflow-hidden"><span class="seat-code">${code}</span></button>`);
-      } else if (canSelfPick) {
+      } else if (canSelfPick && !selfClosed[code]) {
         cells.push(`<button type="button" data-seat-pick="${code}" class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 grid place-items-center text-emerald-700 tabular-nums overflow-hidden"><span class="seat-code">${code}</span></button>`);
       } else {
         cells.push(`<div class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-slate-200 bg-slate-50 grid place-items-center text-slate-400 tabular-nums overflow-hidden"><span class="seat-code">${code}</span></div>`);
@@ -1270,6 +1273,8 @@ async function pickSeatStudent(code) {
       if (!snap.exists()) throw new Error('課程不存在');
       const data = snap.data() || {};
       if (!(data.seat && data.seat.allowSelfSelect === true)) throw new Error('尚未開放自選座位');
+      const closed = (data.seatSelfClosed && typeof data.seatSelfClosed === 'object') ? data.seatSelfClosed : {};
+      if (closed[code]) throw new Error('此座位未開放自選');
       const staff = (data.seatAssignments && typeof data.seatAssignments === 'object') ? data.seatAssignments : {};
       const picks = (data.seatSelfPicks && typeof data.seatSelfPicks === 'object') ? data.seatSelfPicks : {};
       if (Object.values(staff).includes(uid)) throw new Error('座位已由服務人員安排');
