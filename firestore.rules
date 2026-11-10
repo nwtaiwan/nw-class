@@ -204,6 +204,16 @@ service cloud.firestore {
       allow delete: if isStaff();
     }
 
+    // ============ certs 集合（服務端發送的課程合格證書） ============
+    // 欄位：courseId, courseName, uid, name, community, title, unit, issuedAt, issuedBy
+    match /certs/{certId} {
+      // 讀取：所有登入者（學員讀自己的證書；服務/管理員查看全部）
+      allow read: if isSignedIn();
+
+      // 建立 / 修改 / 刪除：僅服務/管理員（發送 / 收回）
+      allow create, update, delete: if isStaff();
+    }
+
     // ============ buzzRounds 集合（搶答紀錄） ============
     // 欄位：courseId, round, uid, name, buzzedAt
     match /buzzRounds/{roundId} {

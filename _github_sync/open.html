@@ -28,8 +28,8 @@
       theme_color: '#d32f2f',
       lang: 'zh-Hant',
       icons: [
-        { src: base + 'logo.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: base + 'logo.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+        { src: base + 'logo.png?v=2', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: base + 'logo.png?v=2', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
       ]
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
@@ -54,8 +54,8 @@
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-<link rel="icon" type="image/png" sizes="192x192" href="logo.png" />
-<link rel="apple-touch-icon" href="logo.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="logo.png?v=2" />
+<link rel="apple-touch-icon" href="logo.png?v=2" />
 
 <style>
   body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; background: #f1f5f9; }

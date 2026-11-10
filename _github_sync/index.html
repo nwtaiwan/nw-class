@@ -33,8 +33,8 @@
   };
 </script>
 
-<link rel="icon" type="image/png" sizes="192x192" href="logo.png" />
-<link rel="apple-touch-icon" href="logo.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="logo.png?v=2" />
+<link rel="apple-touch-icon" href="logo.png?v=2" />
 
 <script>
   const NW_BASE = (function(){ const p = window.location.pathname.replace(/\/[^/]*$/, '/'); return window.location.origin + p; })();
@@ -48,8 +48,8 @@
       display: "standalone", orientation: "portrait",
       background_color: "#ffffff", theme_color: "#d32f2f", lang: "zh-Hant",
       icons: [
-        { src: NW_BASE + "logo.png", sizes: "192x192", type: "image/png", purpose: "any" },
-        { src: NW_BASE + "logo.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }
+        { src: NW_BASE + "logo.png?v=2", sizes: "192x192", type: "image/png", purpose: "any" },
+        { src: NW_BASE + "logo.png?v=2", sizes: "512x512", type: "image/png", purpose: "any maskable" }
       ]
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
@@ -2223,6 +2223,7 @@ async function buildExamCertificate(result, opts) {
   const subjectName = examCertTrim(subject.name || result?.subjectName || '測驗', 22);
   const percent = Number(result?.percent) || 0;
   const passPercent = subject.passPercent ?? 60;
+  const courseLevel = !!(opts && opts.courseLevel);
 
   ctx.fillStyle = '#fffdf9'; ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = '#c81e1e'; ctx.lineWidth = 16; ctx.strokeRect(28, 28, W - 56, H - 56);
@@ -2271,10 +2272,15 @@ async function buildExamCertificate(result, opts) {
 
   ctx.fillStyle = '#334155';
   ctx.font = examCertFont(36, '400');
-  ctx.fillText(`完成《${courseName}》`, W / 2, 620);
-  ctx.fillText(`「${subjectName}」測驗`, W / 2, 676);
-  ctx.fillText(`成績 ${percent} 分（合格門檻 ${passPercent} 分），`, W / 2, 732);
-  ctx.fillText('特頒此證書，以資鼓勵。', W / 2, 788);
+  if (courseLevel) {
+    ctx.fillText(`完成《${courseName}》`, W / 2, 640);
+    ctx.fillText('特頒此證書，以資鼓勵。', W / 2, 706);
+  } else {
+    ctx.fillText(`完成《${courseName}》`, W / 2, 620);
+    ctx.fillText(`「${subjectName}」測驗`, W / 2, 676);
+    ctx.fillText(`成績 ${percent} 分（合格門檻 ${passPercent} 分），`, W / 2, 732);
+    ctx.fillText('特頒此證書，以資鼓勵。', W / 2, 788);
+  }
 
   ctx.strokeStyle = 'rgba(148,163,184,0.5)'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(200, 880); ctx.lineTo(W - 200, 880); ctx.stroke();
@@ -2916,7 +2922,7 @@ async function loadMyCourses() {
   } catch { box.innerHTML = '<p class="text-slate-400 text-center py-3 text-xs">載入失敗</p>'; }
 }
 
-/* ===== 個人資料彈窗：載入我的證書（含已封存課程） ===== */
+/* ===== 個人資料彈窗：載入我的證書（測驗合格 + 服務端發送，含已封存課程） ===== */
 async function loadMyCerts() {
   const box = $('#pf-certs');
   if (!box) return;
@@ -2924,28 +2930,40 @@ async function loadMyCerts() {
   if (!uid) { box.innerHTML = '<p class="text-slate-400 text-center py-3 text-xs">請先登入</p>'; return; }
   box.innerHTML = '<p class="text-slate-400 text-center py-3 text-xs">載入中…</p>';
   try {
-    const snap = await getDocs(query(collection(db, 'examResults'), where('uid', '==', uid)));
-    const results = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    const [examSnap, certSnap] = await Promise.all([
+      getDocs(query(collection(db, 'examResults'), where('uid', '==', uid))),
+      getDocs(query(collection(db, 'certs'), where('uid', '==', uid))).catch(() => ({ docs: [] })),
+    ]);
+    const results = examSnap.docs.map(d => ({ id: d.id, ...d.data() }))
       .filter(r => r.passed === true && r.courseId && r.subjectId);
-    if (!results.length) { box.innerHTML = '<p class="text-slate-400 text-center py-3 text-xs">尚未取得證書</p>'; return; }
+    const issued = certSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.courseId);
+    if (!results.length && !issued.length) { box.innerHTML = '<p class="text-slate-400 text-center py-3 text-xs">尚未取得證書</p>'; return; }
     /* 取得課程資料（含已封存課程）以顯示課程名稱 */
-    const courseIds = [...new Set(results.map(r => r.courseId))];
+    const courseIds = [...new Set([...results.map(r => r.courseId), ...issued.map(c => c.courseId)])];
     const courseDocs = await Promise.all(courseIds.map(id => getDoc(doc(db, 'courses', id)).catch(() => null)));
     const courseMap = {};
     courseDocs.forEach(d => { if (d && d.exists()) courseMap[d.id] = { id: d.id, ...d.data() }; });
     state.myCerts = {};
-    const rows = results.map(r => {
+    const rows = [];
+    results.forEach(r => {
       const course = courseMap[r.courseId] || { id: r.courseId, name: '未知課程' };
       const subject = courseExams(course).find(s => s.id === r.subjectId) || { id: r.subjectId, name: r.subjectName || '測驗' };
       const key = `${r.courseId}|${r.subjectId}`;
-      state.myCerts[key] = { result: r, course, subject };
-      return { key, course, subject };
-    }).sort((a, b) => courseSortKey(b.course).localeCompare(courseSortKey(a.course)));
-    box.innerHTML = rows.map(({ key, course, subject }) => `
+      state.myCerts[key] = { type: 'exam', result: r, course, subject };
+      rows.push({ key, course, label: subject.name || '測驗' });
+    });
+    issued.forEach(c => {
+      const course = courseMap[c.courseId] || { id: c.courseId, name: c.courseName || '未知課程' };
+      const key = `cert|${c.courseId}`;
+      state.myCerts[key] = { type: 'course', cert: c, course };
+      rows.push({ key, course, label: '合格證書' });
+    });
+    rows.sort((a, b) => courseSortKey(b.course).localeCompare(courseSortKey(a.course)));
+    box.innerHTML = rows.map(({ key, course, label }) => `
       <div class="w-full flex items-stretch gap-2">
         <button data-pf-cert="${escHtml(key)}" class="flex-1 min-w-0 text-left border rounded-xl p-3 ${course.archived === true ? 'bg-slate-100 border-slate-200' : 'bg-slate-50 border-slate-200 active:bg-slate-100'}">
           <p class="font-semibold text-sm truncate ${course.archived === true ? 'text-slate-400' : 'text-slate-800'}">${escHtml(course.name || '未命名課程')}</p>
-          <p class="text-xs text-slate-500 mt-0.5 truncate">${escHtml(subject.name || '測驗')} · ${formatDisplayDate(course.date)}</p>
+          <p class="text-xs text-slate-500 mt-0.5 truncate">${escHtml(label)} · ${formatDisplayDate(course.date)}</p>
         </button>
         <button type="button" data-pf-cert-dl="${escHtml(key)}" title="下載證書" class="shrink-0 w-14 rounded-xl border grid place-items-center content-center gap-0.5 px-1 border-amber-300 bg-amber-50 text-amber-600 active:bg-amber-100">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 2h14v2H5v-2z"/></svg>
@@ -2958,6 +2976,13 @@ async function loadMyCerts() {
 function myCertDataUrl(key) {
   const item = state.myCerts[key];
   if (!item) throw new Error('找不到證書資料');
+  if (item.type === 'course') {
+    const c = item.cert || {};
+    return buildExamCertificate(
+      { name: c.name || state.userDoc?.name || '學員', updatedAt: c.issuedAt },
+      { course: item.course, courseLevel: true }
+    );
+  }
   return buildExamCertificate(item.result, { course: item.course, subject: item.subject, user: state.userDoc });
 }
 
@@ -3127,9 +3152,11 @@ $('#pf-certs').addEventListener('click', async (e) => {
     const url = await myCertDataUrl(key);
     if (dlBtn) {
       const safe = (s) => String(s || '').replace(/[\\/:*?"<>|]/g, '_');
+      const owner = item.type === 'course' ? item.cert.name : item.result.name;
+      const label = item.type === 'course' ? '合格證書' : (item.subject.name || '測驗');
       const a = document.createElement('a');
       a.href = url;
-      a.download = `電子證書_${safe(item.result.name || state.userDoc?.name || '學員')}_${safe(item.course.name || '課程')}_${safe(item.subject.name || '測驗')}.png`;
+      a.download = `電子證書_${safe(owner || state.userDoc?.name || '學員')}_${safe(item.course.name || '課程')}_${safe(label)}.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
