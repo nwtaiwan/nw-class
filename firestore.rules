@@ -30,8 +30,10 @@ service cloud.firestore {
     // ============ users 集合 ============
     // 欄位：uid, name, email, phone, unit, role, createdAt, updatedAt
     match /users/{userId} {
-      // 讀取：本人可讀自己；服務/管理員可讀全部
-      allow read: if isSignedIn() && (request.auth.uid == userId || isStaff());
+      // 讀取：本人可讀自己；服務/管理員可讀全部；
+      //      分享頁 share.html（免登入）僅可讀取「學員」文件（role == 'student'）
+      allow read: if isSignedIn() && (request.auth.uid == userId || isStaff())
+        || (resource.data.role == 'student');
 
       // 建立：本人建立自己的文件（註冊，任一角色）；管理員可建立任意
       allow create: if isSignedIn() && (
@@ -94,8 +96,8 @@ service cloud.firestore {
     // ============ courses 集合（課程） ============
     // 欄位：name, instructor, date, location, notes, seat, seatAssignments, seatSelfPicks, createdAt, updatedAt
     match /courses/{courseId} {
-      // 讀取：所有登入者；展示連結已發佈時，免登入（展示頁）亦可讀取
-      allow read: if isSignedIn() || openPublished(courseId);
+      // 讀取：所有人（登入者、展示頁，以及分享頁 share.html 的課程切換皆可讀取）
+      allow read: if true;
 
       // 寫入：僅服務/管理員
       allow create, update, delete: if isStaff();
@@ -131,8 +133,8 @@ service cloud.firestore {
     // ============ communities 集合（社區） ============
     // 欄位：code, name, createdAt, updatedAt
     match /communities/{communityId} {
-      // 讀取：所有登入者
-      allow read: if isSignedIn();
+      // 讀取：所有人（含分享頁 share.html 免登入）
+      allow read: if true;
 
       // 寫入：僅服務/管理員
       allow create, update, delete: if isStaff();
@@ -143,6 +145,16 @@ service cloud.firestore {
     match /titles/{titleId} {
       // 讀取：所有登入者
       allow read: if isSignedIn();
+
+      // 寫入：僅服務/管理員
+      allow create, update, delete: if isStaff();
+    }
+
+    // ============ units 集合（單位） ============
+    // 欄位：name, createdAt, updatedAt
+    match /units/{unitId} {
+      // 讀取：所有人（含分享頁 share.html 免登入）
+      allow read: if true;
 
       // 寫入：僅服務/管理員
       allow create, update, delete: if isStaff();

@@ -1210,7 +1210,12 @@ function renderSeatStudent() {
       if (isMine) {
         cells.push(`<div class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-brand bg-brand text-white grid place-items-center font-semibold tabular-nums overflow-hidden"><span class="seat-code">${code}</span></div>`);
       } else if (entry) {
-        cells.push(`<button type="button" data-seat-info="${code}" class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-orange-300 bg-orange-100 grid place-items-center text-orange-600 tabular-nums overflow-hidden"><span class="seat-code">${code}</span></button>`);
+        // 依單位顏色顯示座位外框（seatInfo 由服務端寫入）
+        const si = (c.seatInfo && typeof c.seatInfo === 'object') ? c.seatInfo[entry.uid] : null;
+        const color = si && si.color ? si.color : '';
+        const seatStyle = color ? ` style="border-color:${color}; box-shadow: inset 0 0 0 1px ${color}40, inset 0 0 14px ${color}55"` : '';
+        const seatBorderCls = color ? 'border-2' : 'border';
+        cells.push(`<button type="button" data-seat-info="${code}"${seatStyle} class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md ${seatBorderCls} border-orange-300 bg-orange-100 grid place-items-center text-orange-600 tabular-nums overflow-hidden"><span class="seat-code">${code}</span></button>`);
       } else if (canSelfPick && !selfClosed[code]) {
         cells.push(`<button type="button" data-seat-pick="${code}" class="seat-cell min-w-0 w-full aspect-[2/3] rounded-md border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 grid place-items-center text-emerald-700 tabular-nums overflow-hidden"><span class="seat-code">${code}</span></button>`);
       } else {
@@ -2865,6 +2870,25 @@ onAuthStateChanged(auth, async (user) => {
     showView('auth');
   }
 });
+
+/* ===== 分享連結：自動帶入帳號與密碼（密碼一律明碼顯示） ===== */
+(function applyShareCredentials() {
+  const sp = new URLSearchParams(location.search);
+  const u = sp.get('u');
+  const p = sp.get('p');
+  if (u == null && p == null) return;
+  const emailInput = $('#form-email input[name="email"]');
+  const pwdInput = $('#form-email input[name="password"]');
+  if (u && emailInput) emailInput.value = u;
+  if (p != null && pwdInput) {
+    pwdInput.value = p;
+    pwdInput.type = 'text';
+    const toggle = pwdInput.parentElement.querySelector('.toggle-pwd');
+    if (toggle) toggle.textContent = '隱藏';
+  }
+  /* 清除網址上的帳密參數，避免連結被再次轉分享時外洩 */
+  try { history.replaceState(null, '', location.pathname); } catch {}
+})();
 
 /* ===== 事件綁定 ===== */
 $('#form-email').addEventListener('submit', handleEmailSubmit);

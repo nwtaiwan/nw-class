@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#d32f2f" />
+<title>西北會議系統 · 分享</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: { brand: { DEFAULT: '#d32f2f', dark: '#b71c1c', light: '#ef5350' } },
+        fontFamily: { sans: ['-apple-system','BlinkMacSystemFont','Segoe UI','PingFang TC','Microsoft JhengHei','sans-serif'] },
+      },
+    },
+  };
+</script>
+
+<link rel="icon" type="image/png" sizes="192x192" href="logo.png" />
+<link rel="apple-touch-icon" href="logo.png" />
+
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  body { background: #f1f5f9; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+  #share-shell { height: 100vh; height: 100dvh; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  #landscape-lock { display: none; }
+  @media (orientation: landscape) and (max-height: 540px) {
+    #share-shell { filter: blur(2px); pointer-events: none; }
+    #landscape-lock { display: flex !important; position: fixed; inset: 0; z-index: 9999; background: #0f172a; color: #fff; align-items: center; justify-content: center; flex-direction: column; gap: 14px; }
+  }
+</style>
+</head>
+
+<body class="font-sans text-slate-800">
+
+<div id="landscape-lock" class="hidden">
+  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="#d32f2f" viewBox="0 0 24 24"><path d="M16.5 3h-9A2.5 2.5 0 0 0 5 5.5v13A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5v-13A2.5 2.5 0 0 0 16.5 3zM12 18a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+  <p class="text-lg font-semibold">請將手機轉為直屏</p>
+</div>
+
+<div id="share-shell" class="mx-auto w-full max-w-md bg-white flex flex-col overflow-hidden relative shadow-2xl">
+
+  <!-- 上：系統 LOGO / 名稱 / 課程切換 -->
+  <header class="h-[10dvh] shrink-0 flex items-center gap-2 px-3 bg-white border-b border-slate-200">
+    <img src="logo.png" alt="NW Class" class="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200 shrink-0"
+         onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
+    <span class="font-bold text-base text-slate-900 shrink-0">西北會議系統</span>
+    <select id="course-filter" class="ml-auto min-w-0 max-w-[46%] h-9 px-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand">
+      <option value="">全部課程</option>
+    </select>
+  </header>
+
+  <!-- 中：篩選（單位 / 社區 / 關鍵字） -->
+  <div class="h-[10dvh] shrink-0 flex items-center gap-1.5 px-3 bg-white border-b border-slate-200">
+    <select id="unit-filter" class="flex-1 min-w-0 w-full h-9 px-1.5 text-sm border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand">
+      <option value="">全部單位</option>
+    </select>
+    <select id="community-filter" class="flex-1 min-w-0 w-full h-9 px-1.5 text-sm border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand">
+      <option value="">全部社區</option>
+    </select>
+    <input id="kw-filter" type="search" placeholder="關鍵字" class="flex-1 min-w-0 w-full h-9 px-2 text-sm border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand" />
+  </div>
+
+  <!-- 下：學員清單 -->
+  <main class="flex-1 min-h-0 overflow-y-auto no-scrollbar p-3">
+    <p id="list-count" class="text-[11px] text-slate-400 px-1 pb-1.5"></p>
+    <div id="list" class="space-y-2">
+      <p class="text-slate-400 text-center py-6 text-sm">載入中…</p>
+    </div>
+  </main>
+
+</div>
+
+<div id="toast" class="hidden fixed left-1/2 bottom-8 -translate-x-1/2 z-[120] max-w-[80vw] px-4 py-2 rounded-full bg-slate-900/90 text-white text-sm text-center"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD1QJxc-AFkS7RkbQOLCqk1LBMydCU067s",
+  authDomain: "nw-class.firebaseapp.com",
+  projectId: "nw-class",
+  storageBucket: "nw-class.firebasestorage.app",
+  messagingSenderId: "222147006846",
+  appId: "1:222147006846:web:f197cc75aa51879967232f",
+  measurementId: "G-0E1SRMQPRE"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const $ = (s) => document.querySelector(s);
+const escHtml = (s) => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const digitsOf = (s) => String(s || '').replace(/\D/g, '');
+const toast = (msg, ms = 2200) => {
+  const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), ms);
+};
+const initial = (name) => (name || 'N').trim().charAt(0).toUpperCase();
+
+const state = {
+  students: [], unitColorMap: {}, comCodeMap: {},
+};
+
+const courseSel = $('#course-filter');
+const unitSel = $('#unit-filter');
+const comSel = $('#community-filter');
+const kwInput = $('#kw-filter');
+const listEl = $('#list');
+const countEl = $('#list-count');
+
+/* ===== 分享連結：導向學員登入頁並帶入帳號、密碼 ===== */
+function loginUrl(s) {
+  const account = s.email || s.loginCode || s.phone || '';
+  const password = s.password || digitsOf(s.phone);
+  const u = new URL('index.html', location.href);
+  u.searchParams.set('u', account);
+  u.searchParams.set('p', password);
+  return u.href;
+}
+async function shareStudent(s) {
+  const url = loginUrl(s);
+  const title = '西北會議系統';
+  const text = `${s.name || '學員'} 您好，這是西北會議系統學員登入連結：`;
+  if (navigator.share) {
+    try { await navigator.share({ title, text, url }); return; }
+    catch (err) { if (err && err.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(`${text}\n${url}`); toast('已複製登入連結'); }
+  catch { window.prompt('請複製以下登入連結：', url); }
+}
+
+/* ===== 渲染清單 ===== */
+function renderList() {
+  const cid = courseSel.value;
+  const un = unitSel.value;
+  const com = comSel.value;
+  const kw = kwInput.value.trim().toLowerCase();
+
+  const rows = state.students.filter((s) => {
+    if (cid && !(Array.isArray(s.courses) && s.courses.includes(cid))) return false;
+    if (un && String(s.unit || '') !== un) return false;
+    if (com && String(s.community || '') !== com) return false;
+    if (kw) {
+      const hay = [s.name, s.title, s.community, s.unit, s.email, s.loginCode, s.phone]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(kw)) return false;
+    }
+    return true;
+  });
+
+  const sortKey = (u) => {
+    const code = state.comCodeMap[u.community];
+    return code ? code : '\uffff' + (u.community || '');
+  };
+  rows.sort((a, b) =>
+    String(sortKey(a)).localeCompare(String(sortKey(b)), 'zh-Hant', { numeric: true })
+    || String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hant'));
+
+  countEl.textContent = rows.length ? `共 ${rows.length} 人` : '';
+  if (!rows.length) {
+    listEl.innerHTML = '<p class="text-slate-400 text-center py-6 text-sm">沒有符合的學員</p>';
+    return;
+  }
+  listEl.innerHTML = rows.map((s) => {
+    const uid = s.uid || s.id || '';
+    const unitColor = state.unitColorMap[s.unit];
+    const cardStyle = unitColor
+      ? `border-color:${unitColor}; box-shadow: inset 0 0 0 1px ${unitColor}40, inset 0 0 14px ${unitColor}55`
+      : '';
+    const unitChip = s.unit
+      ? `<span class="px-1.5 py-0.5 rounded-md text-[11px] font-semibold" style="color:${unitColor || '#475569'}; border:1px solid ${unitColor || '#cbd5e1'}">${escHtml(s.unit)}</span>`
+      : '';
+    const comChip = s.community
+      ? `<span class="px-1.5 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600">${escHtml(s.community)}</span>`
+      : '';
+    return `
+    <div class="bg-white border-2 border-slate-200 rounded-xl p-3 flex items-center gap-3"${cardStyle ? ` style="${cardStyle}"` : ''}>
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-1.5 flex-wrap">${unitChip}${comChip}</div>
+        <p class="mt-1 text-sm text-slate-500 truncate">${escHtml(s.title || '—')}</p>
+        <p class="text-base font-semibold text-slate-900 truncate">${escHtml(s.name || '未命名')}</p>
+      </div>
+      <button data-share="${escHtml(uid)}" class="shrink-0 px-3 py-2 bg-brand text-white rounded-lg text-sm font-semibold active:scale-95">分享</button>
+    </div>`;
+  }).join('');
+}
+
+/* ===== 載入資料（公開讀取） ===== */
+async function loadData() {
+  try {
+    const [userSnap, unitSnap, comSnap, courseSnap] = await Promise.all([
+      getDocs(query(collection(db, 'users'), where('role', '==', 'student'))),
+      getDocs(collection(db, 'units')),
+      getDocs(collection(db, 'communities')),
+      getDocs(collection(db, 'courses')),
+    ]);
+
+    unitSnap.docs.forEach((d) => {
+      const u = d.data() || {};
+      const name = String(u.name || '').trim();
+      if (name && u.color) state.unitColorMap[name] = String(u.color).trim();
+    });
+
+    const communityOpts = comSnap.docs.map((d) => {
+      const c = d.data() || {};
+      const name = String(c.name || '').trim();
+      const code = String(c.code || '').trim();
+      if (name) state.comCodeMap[name] = code;
+      return { name, code };
+    }).filter((o) => o.name)
+      .sort((a, b) => String(a.code).localeCompare(String(b.code), 'zh-Hant', { numeric: true }) || a.name.localeCompare(b.name, 'zh-Hant'));
+    comSel.innerHTML = '<option value="">全部社區</option>' +
+      communityOpts.map((o) => `<option value="${escHtml(o.name)}">${escHtml(o.code ? `${o.code} ${o.name}` : o.name)}</option>`).join('');
+
+    const unitNames = Object.keys(state.unitColorMap)
+      .concat(unitSnap.docs.map((d) => String((d.data() || {}).name || '').trim()))
+      .filter(Boolean);
+    const unitOpts = Array.from(new Set(unitNames)).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    unitSel.innerHTML = '<option value="">全部單位</option>' +
+      unitOpts.map((n) => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+
+    const courses = courseSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .filter((c) => c.archived !== true)
+      .sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))
+        || String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hant'));
+    courseSel.innerHTML = '<option value="">全部課程</option>' +
+      courses.map((c) => `<option value="${escHtml(c.id)}">${escHtml(c.name || '未命名課程')}</option>`).join('');
+
+    state.students = userSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderList();
+  } catch (err) {
+    console.error('[share] load failed', err);
+    listEl.innerHTML = `<p class="text-red-500 text-center py-6 text-sm">載入失敗：${escHtml(err.code || err.message || '')}</p>`;
+  }
+}
+
+/* ===== 事件 ===== */
+courseSel.addEventListener('change', renderList);
+unitSel.addEventListener('change', renderList);
+comSel.addEventListener('change', renderList);
+kwInput.addEventListener('input', renderList);
+listEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-share]');
+  if (!btn) return;
+  const s = state.students.find((x) => (x.uid || x.id) === btn.dataset.share);
+  if (s) shareStudent(s);
+});
+
+loadData();
+</script>
+
+</body>
+</html>

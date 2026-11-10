@@ -287,6 +287,11 @@ function uidInfo(uid) {
   if (!uid) return null;
   return rosterMap()[uid] || (S.course?.seatInfo && S.course.seatInfo[uid]) || null;
 }
+/* 單位顏色（由服務端寫入 seatInfo，供免登入頁讀取） */
+function seatColorOf(uid) {
+  const si = uid && S.course?.seatInfo && typeof S.course.seatInfo === 'object' ? S.course.seatInfo[uid] : null;
+  return si && si.color ? String(si.color).trim() : '';
+}
 
 /* ===== 座位表 ===== */
 function seatConfig(c) {
@@ -697,7 +702,10 @@ function seatCellBasic(code, entry) {
   const cls = entry.self
     ? (checked ? 'border-sky-300 bg-sky-100' : 'border-sky-300 bg-sky-50')
     : (checked ? 'border-emerald-300 bg-emerald-50' : 'border-brand/40 bg-brand/10');
-  return `<div class="min-w-0 h-full rounded-md border ${cls}${buzz ? ' seat-buzz-win' : ''} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">
+  const uc = entry.self ? '' : seatColorOf(entry.uid);
+  const seatStyle = uc ? ` style="border-color:${uc}; box-shadow: inset 0 0 0 1px ${uc}40, inset 0 0 14px ${uc}55"` : '';
+  const seatBorderCls = uc ? 'border-2' : 'border';
+  return `<div class="min-w-0 h-full rounded-md ${seatBorderCls} ${cls}${buzz ? ' seat-buzz-win' : ''}"${seatStyle} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">
     <span class="text-[10px] leading-none text-slate-400 tabular-nums">${code}</span>
     <span class="text-xs leading-tight font-bold text-slate-800 truncate w-full">${esc(info.name || '未命名')}</span>
     ${info.community ? `<span class="text-[10px] leading-tight text-slate-500 truncate w-full">${esc(info.community)}</span>` : ''}
@@ -803,7 +811,10 @@ function voteSeatCell(code, entry, vote) {
   const info = entry && entry.uid ? uidInfo(entry.uid) : null;
   if (!info) return `<div class="min-w-0 h-full rounded-md border border-slate-200 bg-slate-50 grid place-items-center text-[11px] text-slate-300 tabular-nums">${code}</div>`;
   const choice = voteChoiceLabel(vote, entry.uid);
-  return `<div class="min-w-0 h-full rounded-md border ${entry.self ? 'border-sky-300 bg-sky-50' : 'border-brand/40 bg-brand/10'} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">
+  const uc = entry.self ? '' : seatColorOf(entry.uid);
+  const seatStyle = uc ? ` style="border-color:${uc}; box-shadow: inset 0 0 0 1px ${uc}40, inset 0 0 14px ${uc}55"` : '';
+  const seatBorderCls = uc ? 'border-2' : 'border';
+  return `<div class="min-w-0 h-full rounded-md ${seatBorderCls} ${entry.self ? 'border-sky-300 bg-sky-50' : 'border-brand/40 bg-brand/10'}"${seatStyle} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">
     <span class="text-[10px] leading-none text-slate-400 tabular-nums">${code}</span>
     <span class="text-xs leading-tight font-bold text-slate-800 truncate w-full">${esc(info.name || '未命名')}</span>
     <span class="text-[10px] leading-tight font-semibold truncate w-full ${choice ? 'text-brand' : 'text-slate-300'}">${choice ? esc(choice) : '未投票'}</span>
@@ -980,7 +991,10 @@ function examSeatCell(code, entry, results, sub) {
   const r = results.get(entry.uid);
   const passed = r ? (r.passed === true || (Number(r.percent) || 0) >= sub.passPercent) : false;
   const scoreCls = !r ? 'text-slate-300' : (passed ? 'text-emerald-600' : 'text-red-500');
-  return `<div class="min-w-0 h-full rounded-md border ${entry.self ? 'border-sky-300 bg-sky-50' : 'border-brand/40 bg-brand/10'} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">
+  const uc = entry.self ? '' : seatColorOf(entry.uid);
+  const seatStyle = uc ? ` style="border-color:${uc}; box-shadow: inset 0 0 0 1px ${uc}40, inset 0 0 14px ${uc}55"` : '';
+  const seatBorderCls = uc ? 'border-2' : 'border';
+  return `<div class="min-w-0 h-full rounded-md ${seatBorderCls} ${entry.self ? 'border-sky-300 bg-sky-50' : 'border-brand/40 bg-brand/10'}"${seatStyle} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">
     <span class="text-[10px] leading-none text-slate-400 tabular-nums">${code}</span>
     <span class="text-xs leading-tight font-bold text-slate-800 truncate w-full">${esc(info.name || '未命名')}</span>
     <span class="text-[11px] leading-tight font-bold tabular-nums ${scoreCls}">${r ? `${Number(r.percent) || 0} 分` : '未測驗'}</span>

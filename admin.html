@@ -116,6 +116,30 @@
   }
   .seat-buzz-win { animation: buzzSeatGlow 1.2s ease-in-out infinite; position: relative; z-index: 5; }
 </style>
+<!-- A4 報到列表樣式（同時供列印視窗與 PDF 使用） -->
+<style id="checkin-report-style">
+  .cr-pages { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 16px; background: #eef1f5; }
+  .cr-page {
+    width: 210mm; min-height: 297mm; box-sizing: border-box;
+    background: #fff; padding: 14mm 12mm; display: flex; flex-direction: column;
+    box-shadow: 0 2px 12px rgba(0,0,0,.15); page-break-after: always;
+  }
+  .cr-page.cr-last { page-break-after: auto; }
+  .cr-head { text-align: center; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 10px; }
+  .cr-company { font-size: 13px; letter-spacing: 4px; color: #444; }
+  .cr-title { font-size: 22px; font-weight: 800; margin-top: 4px; color: #111; }
+  .cr-sub { font-size: 12px; color: #555; margin-top: 6px; }
+  .cr-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .cr-table th, .cr-table td {
+    border: 1px solid #333; padding: 2px 4px; font-size: 11px; text-align: center;
+    height: 11mm; vertical-align: middle; word-break: break-all; overflow: hidden; color: #111;
+  }
+  .cr-table th { background: #f0f0f0; font-weight: 700; }
+  .cr-table td.cr-left { text-align: left; }
+  .cr-avatar, .cr-ph { width: 10mm; height: 10mm; display: block; margin: 0 auto; object-fit: cover; }
+  .cr-ph { border: 1px dashed #cbd5e1; }
+  .cr-foot { margin-top: auto; padding-top: 8px; font-size: 11px; color: #666; display: flex; justify-content: space-between; }
+</style>
 </head>
 
 <body class="font-sans text-slate-800">
@@ -385,6 +409,24 @@
   </div>
 </div>
 
+<!-- 報到資訊（A4 報到列表） -->
+<div id="modal-checkin-report" class="hidden fixed inset-0 z-[96] bg-black/50 grid place-items-center p-4">
+  <div class="w-[90vw] h-[90vh] bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden">
+    <div class="shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-slate-800 truncate">報到資訊</p>
+        <p id="checkin-report-meta" class="text-[11px] text-slate-400 truncate"></p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        <button id="checkin-report-pdf" class="px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">下載 PDF</button>
+        <button id="checkin-report-print" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">列印</button>
+        <button id="checkin-report-close" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">關閉</button>
+      </div>
+    </div>
+    <div id="checkin-report-body" class="flex-1 min-h-0 overflow-auto bg-slate-100"></div>
+  </div>
+</div>
+
 <!-- 課表時間表編輯 -->
 <div id="modal-schedule-edit" class="hidden fixed inset-0 z-[96] bg-black/40 grid place-items-center p-4">
   <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 fade-in flex flex-col max-h-[85vh]">
@@ -628,6 +670,7 @@
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="./vendor/qrcode.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -661,6 +704,7 @@ const state = {
   cameraDevices: [],
   activeCameraId: '',
   communityCodeMap: {},
+  unitColorMap: {},
   courseStudents: [],
   checkedInMap: {},
   processingCheckin: false,
@@ -968,6 +1012,11 @@ function isCourseOutdated(c) {
 function communityCodeOf(u) {
   return String(state.communityCodeMap[u.community] || '').trim();
 }
+/* 單位顏色（依學員的 unit 對照 units 集合的 color） */
+function unitColorOf(u) {
+  const name = String(u?.unit || '').trim();
+  return name ? String(state.unitColorMap[name] || '').trim() : '';
+}
 function communitySortKey(u) {
   const code = communityCodeOf(u);
   return code ? code : '\uffff' + String(u.community || '');
@@ -988,6 +1037,20 @@ async function loadCommunityCodeMap() {
     state.communityCodeMap = map;
   } catch {
     state.communityCodeMap = {};
+  }
+}
+async function loadUnitColorMap() {
+  try {
+    const snap = await getDocs(collection(db, 'units'));
+    const map = {};
+    snap.docs.forEach(d => {
+      const u = d.data() || {};
+      const name = String(u.name || '').trim();
+      if (name && u.color) map[name] = String(u.color).trim();
+    });
+    state.unitColorMap = map;
+  } catch {
+    state.unitColorMap = {};
   }
 }
 function renderAttendanceSummary() {
@@ -1025,9 +1088,13 @@ function renderCourseStudents() {
     const checked = !!state.checkedInMap[uid];
     const checkin = state.checkedInMap[uid];
     const code = communityCodeOf(u);
-    const communityText = [code, u.community || u.unit || '—'].filter(Boolean).join(' ');
+    const communityText = [code, u.community, u.unit].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' ') || '—';
+    const unitColor = unitColorOf(u);
+    const unitStyle = unitColor
+      ? `border-color:${unitColor}; box-shadow: inset 0 0 0 1px ${unitColor}40, inset 0 0 14px ${unitColor}55`
+      : '';
     return `
-      <div class="flex items-center gap-3 rounded-xl px-3 py-2 border ${checked ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-100'}">
+      <div class="flex items-center gap-3 rounded-xl px-3 py-2 border-2 ${checked ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-100'}"${unitStyle ? ` style="${unitStyle}"` : ''}>
         ${u.avatar
           ? `<img src="${u.avatar}" alt="" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 shrink-0" />`
           : `<div class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0">${initial(u.name || '學')}</div>`}
@@ -1282,6 +1349,7 @@ function renderTabContent(id, label) {
             <button id="btn-session-setting" class="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">場次設定</button>
             <button id="btn-cert-setting" class="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">證件設定</button>
             <button id="btn-parking-info" class="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">停車資訊</button>
+            <button id="btn-checkin-report" class="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">報到資訊</button>
             <p id="checkin-session-hint" class="text-sm text-slate-500">掃描學員 QR Code 完成報到</p>
             <div>
               <label class="text-xs text-slate-400 mb-1 block">鏡頭</label>
@@ -2801,11 +2869,18 @@ function renderSeatExamResult() {
       const uid = entry?.uid || '';
       const student = uid ? studentByUid(uid) : null;
       let cellClass = 'border-slate-200 bg-slate-50';
+      let cellStyle = '';
+      let cellBorderCls = 'border';
       let content = `<span class="text-xs text-slate-300 tabular-nums">${code}</span>`;
       if (student) {
         const result = subject && state.examResults.find(item => item.uid === uid && item.subjectId === subject.id);
         const passed = result && (result.passed === true || Number(result.percent) >= (Number(subject.passPercent) || 0));
         cellClass = entry.self ? 'border-sky-300 bg-sky-50' : 'border-brand/40 bg-brand/10';
+        const uc = unitColorOf(student);
+        if (uc) {
+          cellStyle = ` style="border-color:${uc}; box-shadow: inset 0 0 0 1px ${uc}40, inset 0 0 14px ${uc}55"`;
+          cellBorderCls = 'border-2';
+        }
         content = `
           <span class="text-[10px] leading-none text-slate-400 tabular-nums">${code}</span>
           <span class="w-full truncate text-xs leading-tight font-bold text-slate-800">${escAttr(student.name || '未命名')}</span>
@@ -2814,7 +2889,7 @@ function renderSeatExamResult() {
       } else if (uid) {
         content = `<span class="text-[10px] text-slate-400">${code}</span><span class="text-[10px] text-slate-300">學員資料載入中</span>`;
       }
-      cells.push(`<div class="min-w-0 h-full rounded-md border ${cellClass} flex flex-col items-center justify-center overflow-hidden px-0.5 py-0.5 text-center leading-tight">${content}</div>`);
+      cells.push(`<div${cellStyle} class="min-w-0 h-full rounded-md ${cellBorderCls} ${cellClass} flex flex-col items-center justify-center overflow-hidden px-0.5 py-0.5 text-center leading-tight">${content}</div>`);
       if (aisleSet.has(c)) cells.push('<div class="rounded bg-slate-400 grid place-items-center text-[10px] font-semibold text-white/90" style="writing-mode:vertical-rl;">走道</div>');
     }
     return cells.join('');
@@ -3343,10 +3418,13 @@ function studentByUid(uid) {
 }
 /* 座位人員顯示資訊（寫入課程文件 seatInfo，供學員端讀取） */
 function seatInfoOf(stu) {
+  const unit = String(stu?.unit || '');
   return {
     name: String(stu?.name || ''),
     community: String(stu?.community || stu?.unit || ''),
-    title: String(stu?.title || '')
+    title: String(stu?.title || ''),
+    unit,
+    color: unitColorOf(stu)
   };
 }
 /* 補寫既有座位的 seatInfo（服務端載入學員名單後自動執行一次） */
@@ -3364,7 +3442,7 @@ async function ensureSeatInfo() {
     if (!stu) return;
     const next = seatInfoOf(stu);
     const cur = info[uid];
-    if (!cur || cur.name !== next.name || cur.community !== next.community || cur.title !== next.title) {
+    if (!cur || cur.name !== next.name || cur.community !== next.community || cur.title !== next.title || cur.unit !== next.unit || cur.color !== next.color) {
       payload['seatInfo.' + uid] = next;
     }
   });
@@ -3425,7 +3503,12 @@ function renderSeatMap() {
           : (checked ? 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100' : 'border-brand/40 bg-brand/10 hover:bg-brand/15');
         const isBuzzWinner = (state.buzzWinnerUids || []).includes(uid);
         const buzzCls = isBuzzWinner ? ' seat-buzz-win' : '';
-        cells.push(`<button type="button" data-seat="${code}" title="${escAttr(isBuzzWinner ? tip + ' · 搶答入選' : tip)}" class="min-w-0 h-full rounded-md border ${cls}${buzzCls} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">
+        const seatUnitColor = unitColorOf(student);
+        const seatStyle = seatUnitColor
+          ? ` style="border-color:${seatUnitColor}; box-shadow: inset 0 0 0 1px ${seatUnitColor}40, inset 0 0 14px ${seatUnitColor}55"`
+          : '';
+        const seatBorderCls = seatUnitColor ? 'border-2' : 'border';
+        cells.push(`<button type="button" data-seat="${code}" title="${escAttr(isBuzzWinner ? tip + ' · 搶答入選' : tip)}"${seatStyle} class="min-w-0 h-full rounded-md ${seatBorderCls} ${cls}${buzzCls} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">
           <span class="text-[11px] leading-none text-slate-400 tabular-nums">${code}</span>
           <span class="text-xs leading-tight font-bold text-slate-800 truncate w-full">${escAttr(name)}</span>
           ${communityName ? `<span class="text-[10px] leading-tight text-slate-500 truncate w-full">${escAttr(communityName)}</span>` : ''}
@@ -3557,8 +3640,13 @@ function renderSeatAssignList(keyword) {
     const occupied = seatOfUid[uid];
     const code = communityCodeOf(u);
     const sub = [code, u.community || u.unit].filter(Boolean).join(' ') || u.email || u.phone || u.loginCode || '—';
+    const unitColor = unitColorOf(u);
+    const assignStyle = (!isCurrent && unitColor)
+      ? `border-color:${unitColor}; box-shadow: inset 0 0 0 1px ${unitColor}40, inset 0 0 14px ${unitColor}55`
+      : '';
+    const assignBorderCls = (!isCurrent && unitColor) ? 'border-2' : 'border';
     return `
-      <button type="button" data-seat-assign-uid="${escAttr(uid)}" class="w-full text-left flex items-center gap-3 rounded-xl px-3 py-2 border ${isCurrent ? 'border-brand bg-brand/5' : 'border-slate-100 bg-white'} hover:bg-slate-50">
+      <button type="button" data-seat-assign-uid="${escAttr(uid)}" class="w-full text-left flex items-center gap-3 rounded-xl px-3 py-2 ${assignBorderCls} ${isCurrent ? 'border-brand bg-brand/5' : 'border-slate-100 bg-white'} hover:bg-slate-50"${assignStyle ? ` style="${assignStyle}"` : ''}>
         ${u.avatar
           ? `<img src="${u.avatar}" alt="" class="w-9 h-9 rounded-full object-cover ring-1 ring-slate-200 shrink-0" />`
           : `<div class="w-9 h-9 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0 text-sm">${initial(u.name || '學')}</div>`}
@@ -3757,7 +3845,7 @@ function renderParkingInfo() {
   body.innerHTML = rows.map(u => {
     const p = parkingOfUser(u);
     const code = communityCodeOf(u);
-    const communityText = [code, u.community || u.unit || '—'].filter(Boolean).join(' ');
+    const communityText = [code, u.community, u.unit].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' ') || '—';
     return `
       <div class="flex items-center gap-3 rounded-xl px-3 py-3 border border-slate-100 bg-white">
         ${u.avatar
@@ -3780,6 +3868,152 @@ function openParkingInfo() {
   renderParkingInfo();
 }
 function closeParkingInfo() { $('#modal-parking-info').classList.add('hidden'); }
+
+/* ===== 報到資訊（A4 報到列表） ===== */
+const CR_PER_PAGE = 20;
+/* 取學員在（合併全部場次）課程中的最早報到時間 */
+function checkinTimeOf(uid) {
+  let best = null;
+  Object.values(state.checkinsBySession || {}).forEach(bucket => {
+    const rec = bucket && bucket[uid];
+    if (!rec) return;
+    const t = rec.checkedInAt?.toDate ? rec.checkedInAt.toDate() : (rec.checkedInAt ? new Date(rec.checkedInAt) : null);
+    if (t && !isNaN(t.getTime()) && (!best || t.getTime() < best.getTime())) best = t;
+  });
+  return best;
+}
+/* 列出全部課程學員（已報到者填上報到日期時間） */
+function checkinReportRows() {
+  const rows = state.courseStudents.map(u => {
+    const uid = u.uid || u.id;
+    const t = checkinTimeOf(uid);
+    return {
+      unit: String(u.unit || ''),
+      community: [communityCodeOf(u), u.community || u.unit || ''].filter(Boolean).join(' '),
+      title: String(u.title || ''),
+      avatar: String(u.avatar || ''),
+      name: String(u.name || '未命名'),
+      time: t ? courseFileTimeText(t) : '',
+    };
+  });
+  rows.sort((a, b) =>
+    (a.unit || '').localeCompare(b.unit || '', 'zh-Hant', { numeric: true })
+    || (a.community || '').localeCompare(b.community || '', 'zh-Hant', { numeric: true })
+    || (a.name || '').localeCompare(b.name || '', 'zh-Hant', { numeric: true }));
+  return rows;
+}
+function checkinReportHeadHtml() {
+  const c = state.activeCourse || {};
+  const company = '西北保全股份有限公司';
+  const title = `${c.name || '未命名課程'} 報到表`;
+  const sub = [formatDisplayDate(c.date), courseTimeText(c)].filter(Boolean).join(' ');
+  return `<div class="cr-head">
+    <p class="cr-company">${escAttr(company)}</p>
+    <p class="cr-title">${escAttr(title)}</p>
+    <p class="cr-sub">${escAttr(sub)}</p>
+  </div>`;
+}
+/* 產生所有 A4 頁面（每頁 20 位） */
+function checkinReportPagesHtml(rows) {
+  const total = Math.max(1, Math.ceil(rows.length / CR_PER_PAGE));
+  let pages = '';
+  for (let p = 0; p < total; p++) {
+    const slice = rows.slice(p * CR_PER_PAGE, (p + 1) * CR_PER_PAGE);
+    const trs = slice.map((r, i) => {
+      const seq = p * CR_PER_PAGE + i + 1;
+      const avatar = r.avatar
+        ? `<img class="cr-avatar" src="${escAttr(r.avatar)}" alt="" />`
+        : '<span class="cr-ph"></span>';
+      return `<tr>
+        <td>${seq}</td>
+        <td class="cr-left">${escAttr(r.unit)}</td>
+        <td class="cr-left">${escAttr(r.community)}</td>
+        <td>${escAttr(r.title)}</td>
+        <td>${avatar}</td>
+        <td class="cr-left">${escAttr(r.name)}</td>
+        <td>${escAttr(r.time)}</td>
+        <td></td>
+        <td></td>
+      </tr>`;
+    }).join('');
+    pages += `<div class="cr-page${p === total - 1 ? ' cr-last' : ''}">
+      ${checkinReportHeadHtml()}
+      <table class="cr-table">
+        <colgroup>
+          <col style="width:6%" /><col style="width:10%" /><col style="width:14%" /><col style="width:10%" />
+          <col style="width:8%" /><col style="width:11%" /><col style="width:15%" /><col style="width:14%" /><col style="width:12%" />
+        </colgroup>
+        <thead><tr>
+          <th>序號</th><th>單位</th><th>社區</th><th>職稱</th><th>大頭照</th><th>姓名</th><th>報到日期時間</th><th>簽名</th><th>備註</th>
+        </tr></thead>
+        <tbody>${trs}</tbody>
+      </table>
+      <div class="cr-foot"><span>第 ${p + 1} 頁 / 共 ${total} 頁</span><span>製表日期：${escAttr(courseFileTimeText(new Date()))}</span></div>
+    </div>`;
+  }
+  return pages;
+}
+function renderCheckinReport() {
+  const body = $('#checkin-report-body');
+  if (!body) return;
+  const rows = checkinReportRows();
+  const meta = $('#checkin-report-meta');
+  const total = Math.max(1, Math.ceil(rows.length / CR_PER_PAGE));
+  const checkedCount = rows.filter(r => r.time).length;
+  if (meta) meta.textContent = `${state.activeCourse ? (state.activeCourse.name || '本課程') : ''} · 共 ${rows.length} 人 · 已報到 ${checkedCount} 人 · ${rows.length ? total : 0} 頁`;
+  if (!rows.length) {
+    body.innerHTML = '<p class="text-slate-400 text-center py-10 text-sm">尚無學員資料</p>';
+    return;
+  }
+  body.innerHTML = `<div class="cr-pages">${checkinReportPagesHtml(rows)}</div>`;
+}
+function openCheckinReport() {
+  if (!state.activeCourse) return;
+  $('#modal-checkin-report').classList.remove('hidden');
+  renderCheckinReport();
+}
+function closeCheckinReport() { $('#modal-checkin-report').classList.add('hidden'); }
+function printCheckinReport() {
+  const rows = checkinReportRows();
+  if (!rows.length) { toast('尚無學員資料'); return; }
+  const css = document.getElementById('checkin-report-style')?.textContent || '';
+  const pages = checkinReportPagesHtml(rows);
+  const w = window.open('', '_blank');
+  if (!w) { toast('請允許彈出視窗以進行列印'); return; }
+  w.document.write(`<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8" /><title>報到表</title><style>${css}
+    @page { size: A4 portrait; margin: 0; }
+    body { margin: 0; background: #fff; }
+    .cr-pages { padding: 0; gap: 0; background: #fff; }
+    .cr-page { box-shadow: none; }
+  </style></head><body><div class="cr-pages">${pages}</div></body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { try { w.print(); } catch {} }, 400);
+}
+async function downloadCheckinReportPdf() {
+  if (typeof window.html2pdf !== 'function') { toast('PDF 元件載入中，請稍後再試'); return; }
+  const rows = checkinReportRows();
+  if (!rows.length) { toast('尚無學員資料'); return; }
+  const holder = document.createElement('div');
+  holder.className = 'cr-pages';
+  holder.style.cssText = 'position:fixed;left:-99999px;top:0;z-index:-1;gap:0;padding:0;background:#fff;';
+  holder.innerHTML = checkinReportPagesHtml(rows);
+  document.body.appendChild(holder);
+  try {
+    await window.html2pdf().set({
+      margin: 0,
+      filename: `${(state.activeCourse?.name || '課程')}-報到表.pdf`,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', windowWidth: holder.scrollWidth },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css'] },
+    }).from(holder).save();
+  } catch (err) {
+    toast('PDF 產生失敗：' + (err.message || ''));
+  } finally {
+    holder.remove();
+  }
+}
 
 /* 停車資訊分享：產生免登入公開頁面連結與 QR Code */
 function newShareToken() {
@@ -4028,10 +4262,17 @@ function renderSeatPdfPreview() {
       const student = uid ? studentByUid(uid) : null;
       let inner = `<span class="text-[12px] text-slate-300 tabular-nums">${code}</span>`;
       let cls = 'border-slate-200 bg-slate-50';
+      let cellStyle = '';
+      let cellBorderCls = 'border';
       if (student) {
         const name = student.name || '未命名';
         const communityName = student.community || student.unit || '';
         cls = entry.self ? 'border-sky-300 bg-sky-50' : 'border-brand/40 bg-brand/10';
+        const uc = unitColorOf(student);
+        if (uc) {
+          cellStyle = ` style="border-color:${uc}; box-shadow: inset 0 0 0 1px ${uc}40, inset 0 0 14px ${uc}55"`;
+          cellBorderCls = 'border-2';
+        }
         const choice = seatPdfVoteLabel(vote, uid);
         inner = `
           <span class="text-[10px] leading-none text-slate-400 tabular-nums">${code}</span>
@@ -4039,7 +4280,7 @@ function renderSeatPdfPreview() {
           ${communityName ? `<span class="text-[10px] leading-tight text-slate-500 truncate w-full">${escAttr(communityName)}</span>` : ''}
           ${vote ? `<span class="text-[10px] leading-tight font-semibold truncate w-full ${choice ? 'text-brand' : 'text-slate-300'}">${choice ? escAttr(choice) : '未投票'}</span>` : ''}`;
       }
-      cells.push(`<div class="min-w-0 h-full rounded-md border ${cls} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">${inner}</div>`);
+      cells.push(`<div${cellStyle} class="min-w-0 h-full rounded-md ${cellBorderCls} ${cls} flex flex-col items-center justify-center px-0.5 py-0.5 overflow-hidden text-center leading-tight">${inner}</div>`);
       if (aisleSet.has(c)) cells.push('<div class="rounded bg-slate-400 grid place-items-center text-[10px] font-semibold text-white/90 tracking-widest" style="writing-mode:vertical-rl;">走道</div>');
     }
     return cells.join('');
@@ -4546,6 +4787,7 @@ function loadRecentCheckins() {
     renderSessionBar();
     renderAttendanceSummary();
     renderCourseStudents();
+    if (!$('#modal-checkin-report').classList.contains('hidden')) renderCheckinReport();
   }, () => {
     state.checkinsBySession = {};
     state.checkedInMap = {};
@@ -4569,6 +4811,7 @@ async function loadCourseStudents() {
   cleanupListener('unsubCourseStudents');
   state.studentsCourseId = state.activeCourse.id;
   await loadCommunityCodeMap();
+  await loadUnitColorMap();
   const q = query(collection(db, 'users'), where('courses', 'array-contains', state.activeCourse.id));
   state.unsubCourseStudents = onSnapshot(q, (snap) => {
     state.courseStudents = snap.docs
@@ -4579,6 +4822,7 @@ async function loadCourseStudents() {
     renderCourseStudents();
     ensureSeatInfo();
     if (!$('#modal-parking-info').classList.contains('hidden')) renderParkingInfo();
+    if (!$('#modal-checkin-report').classList.contains('hidden')) renderCheckinReport();
     if (!$('#modal-seat-pdf').classList.contains('hidden')) renderSeatPdfPreview();
     if (!$('#modal-vote-order').classList.contains('hidden')) renderVoteOrder();
     if (!$('#modal-seat-exam-result').classList.contains('hidden')) renderSeatExamResult();
@@ -4643,6 +4887,7 @@ function wireCheckin() {
   $('#btn-session-setting')?.addEventListener('click', openSessionSetting);
   $('#btn-cert-setting')?.addEventListener('click', openCertSetting);
   $('#btn-parking-info')?.addEventListener('click', openParkingInfo);
+  $('#btn-checkin-report')?.addEventListener('click', openCheckinReport);
   $('#session-bar')?.addEventListener('click', (e) => {
     const b = e.target.closest('[data-session-id]');
     if (b) selectSession(b.dataset.sessionId);
@@ -5049,6 +5294,10 @@ $('#parking-info-share').addEventListener('click', openParkingShare);
 $('#modal-parking-info').addEventListener('click', (e) => { if (e.target === $('#modal-parking-info')) closeParkingInfo(); });
 $('#parking-share-close').addEventListener('click', closeParkingShare);
 $('#modal-parking-share').addEventListener('click', (e) => { if (e.target === $('#modal-parking-share')) closeParkingShare(); });
+$('#checkin-report-close').addEventListener('click', closeCheckinReport);
+$('#checkin-report-print').addEventListener('click', printCheckinReport);
+$('#checkin-report-pdf').addEventListener('click', downloadCheckinReportPdf);
+$('#modal-checkin-report').addEventListener('click', (e) => { if (e.target === $('#modal-checkin-report')) closeCheckinReport(); });
 
 /* 課表時間表編輯彈窗 */
 $('#schedule-edit-close').addEventListener('click', closeScheduleEdit);

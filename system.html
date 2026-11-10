@@ -135,6 +135,7 @@
             <p id="pf-name2" class="text-sm text-slate-700 truncate">—</p>
           </div>
         </div>
+        <button type="button" id="pf-share-accounts" class="w-full mt-3 py-2.5 border border-brand text-brand rounded-xl font-semibold active:bg-red-50">分享帳號</button>
       </div>
       <div class="shrink-0 flex items-center gap-2 px-6 py-4 border-t border-slate-200">
         <div id="pf-page-switch" class="hidden shrink-0 items-center gap-1">
@@ -266,6 +267,7 @@
           <button data-reg-tab="region" class="reg-tab flex-1 py-2 rounded-lg text-xs font-semibold bg-white text-brand shadow-sm">區域</button>
           <button data-reg-tab="community" class="reg-tab flex-1 py-2 rounded-lg text-xs font-semibold text-slate-500">社區</button>
           <button data-reg-tab="title" class="reg-tab flex-1 py-2 rounded-lg text-xs font-semibold text-slate-500">職稱</button>
+          <button data-reg-tab="unit" class="reg-tab flex-1 py-2 rounded-lg text-xs font-semibold text-slate-500">單位</button>
         </div>
 
         <!-- 區域列表 -->
@@ -298,6 +300,17 @@
           </div>
           <div id="titles-list" class="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-2">
             <p class="text-slate-400 text-center py-4">尚無職稱</p>
+          </div>
+        </div>
+
+        <!-- 單位列表 -->
+        <div id="reg-unit" class="hidden flex-1 min-h-0 flex flex-col gap-2">
+          <div class="flex items-center justify-between shrink-0">
+            <h3 class="font-semibold text-sm">單位列表</h3>
+            <button id="btn-add-unit" class="text-brand text-sm font-semibold">+ 新增單位</button>
+          </div>
+          <div id="units-list" class="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-2">
+            <p class="text-slate-400 text-center py-4">尚無單位</p>
           </div>
         </div>
       </div>
@@ -400,7 +413,7 @@
           <input id="stu-password" type="password" placeholder="至少 6 碼" class="w-full mt-1 px-3 py-2.5 pr-14 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
           <button type="button" class="toggle-pwd absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium px-1">顯示</button>
         </div>
-        <p class="text-[11px] text-slate-400 mt-1">自行設定，至少 6 碼；留空則預設為手機號碼</p>
+        <p id="stu-password-hint" class="text-[11px] text-slate-400 mt-1">自行設定，至少 6 碼；留空則預設為手機號碼</p>
       </div>
       <div><label class="text-xs text-slate-500">手機號碼</label><input id="stu-phone" type="tel" placeholder="可作為登入帳號" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
       <div>
@@ -414,6 +427,10 @@
       <div>
         <label class="text-xs text-slate-500">社區名稱</label>
         <select id="stu-community" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"><option value="">請選擇社區</option></select>
+      </div>
+      <div>
+        <label class="text-xs text-slate-500">單位</label>
+        <select id="stu-unit" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"><option value="">請選擇單位</option></select>
       </div>
     </div>
     <div class="flex gap-2 mt-5">
@@ -536,6 +553,41 @@
   </div>
 </div>
 
+<!-- 單位彈窗 -->
+<div id="modal-unit" class="hidden fixed inset-0 z-50 bg-black/50 grid place-items-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-5 fade-in">
+    <h3 id="modal-unit-title" class="text-lg font-bold mb-4 text-center">新增單位</h3>
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs text-slate-500">單位名稱 <span class="text-red-500">*</span></label>
+        <input id="un-name" type="text" placeholder="請輸入單位名稱" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+      </div>
+      <div>
+        <label class="text-xs text-slate-500">顏色（套用於學員卡片與座位表外框）</label>
+        <div class="flex items-center gap-2 mt-1">
+          <input id="un-color" type="color" value="#3b82f6" class="shrink-0 w-12 h-10 p-0.5 border border-slate-300 rounded-lg bg-white cursor-pointer" />
+          <div id="un-color-presets" class="flex flex-wrap gap-1.5">
+            <button type="button" class="un-color-preset w-7 h-7 rounded-full border border-slate-200" data-color="#ef4444" style="background:#ef4444"></button>
+            <button type="button" class="un-color-preset w-7 h-7 rounded-full border border-slate-200" data-color="#f97316" style="background:#f97316"></button>
+            <button type="button" class="un-color-preset w-7 h-7 rounded-full border border-slate-200" data-color="#f59e0b" style="background:#f59e0b"></button>
+            <button type="button" class="un-color-preset w-7 h-7 rounded-full border border-slate-200" data-color="#10b981" style="background:#10b981"></button>
+            <button type="button" class="un-color-preset w-7 h-7 rounded-full border border-slate-200" data-color="#14b8a6" style="background:#14b8a6"></button>
+            <button type="button" class="un-color-preset w-7 h-7 rounded-full border border-slate-200" data-color="#3b82f6" style="background:#3b82f6"></button>
+            <button type="button" class="un-color-preset w-7 h-7 rounded-full border border-slate-200" data-color="#6366f1" style="background:#6366f1"></button>
+            <button type="button" class="un-color-preset w-7 h-7 rounded-full border border-slate-200" data-color="#8b5cf6" style="background:#8b5cf6"></button>
+            <button type="button" class="un-color-preset w-7 h-7 rounded-full border border-slate-200" data-color="#ec4899" style="background:#ec4899"></button>
+            <button type="button" class="un-color-preset w-7 h-7 rounded-full border border-slate-200" data-color="#64748b" style="background:#64748b"></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button id="un-cancel" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">取消</button>
+      <button id="un-save" class="flex-1 py-2.5 bg-brand text-white rounded-lg font-semibold">儲存</button>
+    </div>
+  </div>
+</div>
+
 <!-- 學員課程指派彈窗 -->
 <div id="modal-student-courses" class="hidden fixed inset-0 z-50 bg-black/50 grid place-items-center p-4">
   <div class="bg-white rounded-2xl w-full max-w-md p-5 fade-in max-h-[90dvh] flex flex-col">
@@ -597,14 +649,14 @@ const state = {
   systemName: '西北會議系統',
   settingsTab: 'general',
   editingAccount: null, editingCourseId: null, editingInstructorId: null,
-  editingRegionId: null, editingCommunityId: null, editingTitleId: null,
+  editingRegionId: null, editingCommunityId: null, editingTitleId: null, editingUnitId: null,
   editingStudentUid: null,
   studentAvatar: '',
   accountAvatar: '',
   assignStudentUid: null,
   confirmCallback: null,
   unsubStudents: null, unsubService: null, unsubAdmin: null, unsubCourses: null, unsubInstructors: null,
-  unsubRegions: null, unsubCommunities: null, unsubTitles: null,
+  unsubRegions: null, unsubCommunities: null, unsubTitles: null, unsubUnits: null,
 };
 
 const $ = (s) => document.querySelector(s);
@@ -758,7 +810,7 @@ function switchSettingsTab(tab) {
   if (tab === 'accounts') loadAccounts();
   if (tab !== 'courses') cleanupListener('unsubInstructors');
   if (tab === 'courses') loadInstructors();
-  if (tab !== 'register') { cleanupListener('unsubRegions'); cleanupListener('unsubCommunities'); cleanupListener('unsubTitles'); }
+  if (tab !== 'register') { cleanupListener('unsubRegions'); cleanupListener('unsubCommunities'); cleanupListener('unsubTitles'); cleanupListener('unsubUnits'); }
   if (tab === 'register') switchRegTab('region');
 }
 
@@ -768,16 +820,24 @@ async function loadStudents() {
   list.innerHTML = '<p class="text-slate-400 text-center py-4">載入中…</p>';
   cleanupListener('unsubStudents');
 
-  // 取得社區代號對照（社區名稱 → 代號），供排序使用
+  // 取得社區代號對照（社區名稱 → 代號）與單位顏色對照，供排序與外框著色使用
   const codeMap = {};
+  const unitColorMap = {};
   try {
-    const comSnap = await getDocs(collection(db, 'communities'));
+    const [comSnap, unitSnap] = await Promise.all([
+      getDocs(collection(db, 'communities')), getDocs(collection(db, 'units')),
+    ]);
     comSnap.docs.forEach(d => {
       const c = d.data() || {};
       const name = String(c.name || '').trim();
       if (name) codeMap[name] = String(c.code || '').trim();
     });
-  } catch (err) { console.warn('[loadStudents] communities', err); }
+    unitSnap.docs.forEach(d => {
+      const u = d.data() || {};
+      const name = String(u.name || '').trim();
+      if (name && u.color) unitColorMap[name] = String(u.color).trim();
+    });
+  } catch (err) { console.warn('[loadStudents] maps', err); }
   const sortKey = (u) => {
     const code = codeMap[u.community];
     return code ? code : '\uffff' + (u.community || '');
@@ -791,11 +851,15 @@ async function loadStudents() {
     if (rows.length === 0) { list.innerHTML = '<p class="text-slate-400 text-center py-4">尚無學員</p>'; return; }
     list.innerHTML = rows.map(u => {
       const uid = u.uid || u.id;
-      const info = [u.title, u.region, u.community].filter(Boolean).join(' · ') || u.unit || '無單位';
+      const info = [u.title, u.region, u.community, u.unit].filter(Boolean).join(' · ') || '無單位';
       const loginLabel = u.email || u.loginCode || '';
       const showPhone = !!u.phone && String(u.phone).trim() !== String(loginLabel).trim();
+      const unitColor = unitColorMap[u.unit];
+      const unitStyle = unitColor
+        ? `border-color:${unitColor}; box-shadow: inset 0 0 0 1px ${unitColor}40, inset 0 0 14px ${unitColor}55`
+        : '';
       return `
-      <div class="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-3">
+      <div class="bg-white border-2 border-slate-200 rounded-xl p-3 flex items-center gap-3"${unitStyle ? ` style="${unitStyle}"` : ''}>
         ${u.avatar
           ? `<img src="${u.avatar}" alt="" class="w-10 h-10 rounded-full object-cover shrink-0" />`
           : `<div class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0">${initial(u.name || '學')}</div>`}
@@ -834,8 +898,8 @@ function fillSelect(el, values, placeholder) {
   }).join('');
 }
 async function loadStudentOptions() {
-  const [titles, regions, communities] = await Promise.all([
-    getDocs(collection(db, 'titles')), getDocs(collection(db, 'regions')), getDocs(collection(db, 'communities')),
+  const [titles, regions, communities, units] = await Promise.all([
+    getDocs(collection(db, 'titles')), getDocs(collection(db, 'regions')), getDocs(collection(db, 'communities')), getDocs(collection(db, 'units')),
   ]);
   fillSelect($('#stu-title'), titles.docs.map(d => d.data().name).filter(Boolean).sort((a, b) => a.localeCompare(b, 'zh-Hant')), '請選擇職稱');
   fillSelect($('#stu-region'), regions.docs.map(d => `${d.data().city || ''}${d.data().district || ''}`).filter(Boolean).sort((a, b) => a.localeCompare(b, 'zh-Hant')), '請選擇區域');
@@ -846,6 +910,7 @@ async function loadStudentOptions() {
     .sort((a, b) => String(a.code).localeCompare(String(b.code), 'zh-Hant', { numeric: true }) || a.name.localeCompare(b.name, 'zh-Hant'))
     .map(o => ({ value: o.name, label: o.code ? `${o.code} ${o.name}` : o.name }));
   fillSelect($('#stu-community'), communityOpts, '請選擇社區');
+  fillSelect($('#stu-unit'), units.docs.map(d => d.data().name).filter(Boolean).sort((a, b) => a.localeCompare(b, 'zh-Hant')), '請選擇單位');
 }
 async function openStudentModal(data = null) {
   const isEdit = !!data;
@@ -855,8 +920,11 @@ async function openStudentModal(data = null) {
   $('#stu-name').value = data?.name || '';
   $('#stu-email').value = data?.email || '';
   $('#stu-phone').value = data?.phone || '';
-  $('#stu-password').value = '';
-  $('#stu-password-field').classList.toggle('hidden', isEdit);
+  $('#stu-password').value = isEdit ? (data?.password || '') : '';
+  $('#stu-password-field').classList.remove('hidden');
+  $('#stu-password-hint').textContent = isEdit
+    ? '分享連結會顯示此密碼；如需與學員登入密碼一致，請填入正確密碼'
+    : '自行設定，至少 6 碼；留空則預設為手機號碼';
   $('#stu-email').readOnly = false;
   $('#stu-email').classList.remove('bg-slate-100', 'text-slate-500');
   $('#stu-account-hint').textContent = isEdit
@@ -866,7 +934,7 @@ async function openStudentModal(data = null) {
   const stuSaveBtn = $('#stu-save');
   stuSaveBtn.disabled = false;
   stuSaveBtn.textContent = isEdit ? '儲存變更' : '建立帳號';
-  ['#stu-title', '#stu-region', '#stu-community'].forEach(s => fillSelect($(s), [], '載入中…'));
+  ['#stu-title', '#stu-region', '#stu-community', '#stu-unit'].forEach(s => fillSelect($(s), [], '載入中…'));
   renderStudentAvatar();
   $('#modal-student').classList.remove('hidden');
   try {
@@ -874,15 +942,18 @@ async function openStudentModal(data = null) {
     setSelectValue($('#stu-title'), data?.title);
     setSelectValue($('#stu-region'), data?.region);
     setSelectValue($('#stu-community'), data?.community);
+    setSelectValue($('#stu-unit'), data?.unit);
   } catch (err) {
     console.error('[loadStudentOptions]', err);
     toast('選項載入失敗，可稍後再試');
     fillSelect($('#stu-title'), [], '請選擇職稱');
     fillSelect($('#stu-region'), [], '請選擇區域');
     fillSelect($('#stu-community'), [], '請選擇社區');
+    fillSelect($('#stu-unit'), [], '請選擇單位');
     setSelectValue($('#stu-title'), data?.title);
     setSelectValue($('#stu-region'), data?.region);
     setSelectValue($('#stu-community'), data?.community);
+    setSelectValue($('#stu-unit'), data?.unit);
   }
 }
 function setSelectValue(el, value) {
@@ -955,10 +1026,14 @@ async function saveStudent() {
       name, email, phone,
       title: $('#stu-title').value, region: $('#stu-region').value,
       community: $('#stu-community').value,
+      unit: $('#stu-unit').value,
       avatar: state.studentAvatar || '',
     };
     if (studentUid) {
-      await updateDoc(doc(db, 'users', studentUid), { ...profile, updatedAt: serverTimestamp() });
+      const patch = { ...profile, updatedAt: serverTimestamp() };
+      const pwd = $('#stu-password').value.trim();
+      if (pwd) patch.password = pwd;
+      await updateDoc(doc(db, 'users', studentUid), patch);
       toast('已更新學員資料');
     } else {
       // 登入帳號：可填代號、Email 或手機號碼；留空則以手機號碼為帳號
@@ -980,7 +1055,8 @@ async function saveStudent() {
         uid: cred.user.uid, ...profile,
         email: isEmail ? account : '', loginType: isEmail ? 'email' : 'code',
         loginCode: isEmail ? '' : account, authEmail,
-        unit: '', role: 'student',
+        password,
+        role: 'student',
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
       toast(`已建立學員帳號（登入帳號：${account}）`);
@@ -1511,6 +1587,69 @@ async function deleteTitle(id, name) {
   });
 }
 
+/* ===== 單位 CRUD ===== */
+function loadUnits() {
+  const list = $('#units-list');
+  if (state.unsubUnits) state.unsubUnits();
+  state.unsubUnits = onSnapshot(collection(db, 'units'), (snap) => {
+    if (snap.empty) { list.innerHTML = '<p class="text-slate-400 text-center py-4">尚無單位</p>'; return; }
+    const docs = snap.docs.slice().sort((a, b) => (a.data().name || '').localeCompare(b.data().name || '', 'zh-Hant'));
+    list.innerHTML = docs.map(d => {
+      const t = d.data();
+      const color = t.color || '#cbd5e1';
+      return `<div class="bg-white border border-slate-200 rounded-xl p-3">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1 min-w-0 flex items-center gap-2">
+            <span class="shrink-0 w-4 h-4 rounded-full border border-slate-200" style="background:${color}"></span>
+            <p class="font-semibold truncate">${t.name || ''}</p>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <button class="un-edit text-blue-600 text-xs font-semibold" data-id="${d.id}">編輯</button>
+            <button class="un-del text-red-500 text-xs font-semibold" data-id="${d.id}" data-name="${t.name || ''}">刪除</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    $$('.un-edit').forEach(b => b.addEventListener('click', () => {
+      const d = snap.docs.find(d => d.id === b.dataset.id);
+      if (d) openUnitModal({ id: d.id, ...d.data() });
+    }));
+    $$('.un-del').forEach(b => b.addEventListener('click', () => deleteUnit(b.dataset.id, b.dataset.name)));
+  }, () => { list.innerHTML = '<p class="text-red-500 text-center py-4 text-sm">載入失敗</p>'; });
+}
+function openUnitModal(data) {
+  state.editingUnitId = data?.id || null;
+  $('#modal-unit-title').textContent = data ? '編輯單位' : '新增單位';
+  $('#un-name').value = data?.name || '';
+  $('#un-color').value = data?.color || '#3b82f6';
+  $('#modal-unit').classList.remove('hidden');
+}
+async function saveUnit() {
+  const name = $('#un-name').value.trim();
+  const color = $('#un-color').value || '#3b82f6';
+  if (!name) { toast('請輸入單位名稱'); return; }
+  try {
+    if (state.editingUnitId) {
+      await updateDoc(doc(db, 'units', state.editingUnitId), { name, color, updatedAt: serverTimestamp() });
+      toast('已更新');
+    } else {
+      await addDoc(collection(db, 'units'), { name, color, createdAt: serverTimestamp() });
+      toast('已建立單位');
+    }
+    $('#modal-unit').classList.add('hidden');
+    loadUnits();
+  } catch (err) { toast(err.message || '儲存失敗'); }
+}
+async function deleteUnit(id, name) {
+  showConfirm(`確定要刪除單位「${name || ''}」嗎？`, async () => {
+    try {
+      await deleteDoc(doc(db, 'units', id));
+      toast('已刪除');
+      loadUnits();
+    } catch { toast('刪除失敗'); }
+  });
+}
+
 /* ===== 註冊子分頁切換 ===== */
 function switchRegTab(tab) {
   $$('.reg-tab').forEach(t => {
@@ -1520,9 +1659,11 @@ function switchRegTab(tab) {
   $('#reg-region').classList.toggle('hidden', tab !== 'region');
   $('#reg-community').classList.toggle('hidden', tab !== 'community');
   $('#reg-title').classList.toggle('hidden', tab !== 'title');
+  $('#reg-unit').classList.toggle('hidden', tab !== 'unit');
   if (tab === 'region') loadRegions();
   if (tab === 'community') loadCommunities();
   if (tab === 'title') loadTitles();
+  if (tab === 'unit') loadUnits();
 }
 
 /* ===== Auth 狀態監聽 ===== */
@@ -1570,6 +1711,11 @@ onAuthStateChanged(auth, async (user) => {
 /* ===== 事件綁定 ===== */
 $('#form-email').addEventListener('submit', handleEmailSubmit);
 $('#btn-user-chip').addEventListener('click', () => $('#modal-profile').classList.remove('hidden'));
+/* 分享帳號：開啟公開分享頁 share.html */
+$('#pf-share-accounts').addEventListener('click', () => {
+  const w = window.open('share.html', '_blank');
+  if (!w) window.location.href = 'share.html';
+});
 $('#pf-close').addEventListener('click', () => $('#modal-profile').classList.add('hidden'));
 $('#pf-logout').addEventListener('click', async () => {
   $('#modal-profile').classList.add('hidden');
@@ -1697,6 +1843,10 @@ $('#com-save').addEventListener('click', saveCommunity);
 $('#btn-add-title').addEventListener('click', () => openTitleModal());
 $('#tt-cancel').addEventListener('click', () => $('#modal-title').classList.add('hidden'));
 $('#tt-save').addEventListener('click', saveTitle);
+$('#btn-add-unit').addEventListener('click', () => openUnitModal());
+$('#un-cancel').addEventListener('click', () => $('#modal-unit').classList.add('hidden'));
+$('#un-save').addEventListener('click', saveUnit);
+$$('.un-color-preset').forEach(b => b.addEventListener('click', () => { $('#un-color').value = b.dataset.color; }));
 
 $('#confirm-cancel').addEventListener('click', () => { state.confirmCallback = null; $('#modal-confirm').classList.add('hidden'); });
 $('#confirm-ok').addEventListener('click', () => {
