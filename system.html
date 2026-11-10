@@ -1711,6 +1711,8 @@ onAuthStateChanged(auth, async (user) => {
 /* ===== 事件綁定 ===== */
 $('#form-email').addEventListener('submit', handleEmailSubmit);
 $('#btn-user-chip').addEventListener('click', () => $('#modal-profile').classList.remove('hidden'));
+/* 點兩下 LOGO 重新整理頁面 */
+$('#app-logo').addEventListener('dblclick', () => location.reload());
 /* 分享帳號：開啟公開分享頁 share.html */
 $('#pf-share-accounts').addEventListener('click', () => {
   const w = window.open('share.html', '_blank');

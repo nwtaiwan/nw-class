@@ -3079,7 +3079,11 @@ onAuthStateChanged(auth, async (user) => {
   if (u == null && p == null) return;
   const emailInput = $('#form-email input[name="email"]');
   const pwdInput = $('#form-email input[name="password"]');
-  if (u && emailInput) emailInput.value = u;
+  if (u && emailInput) {
+    emailInput.value = u;
+    /* 直接設定 value 不會觸發 input 事件，需主動查詢對應姓名（綠字顯示於輸入框右側） */
+    updateAuthAccountName();
+  }
   if (p != null && pwdInput) {
     pwdInput.value = p;
     pwdInput.type = 'text';
@@ -3109,6 +3113,8 @@ $('#btn-user-chip').addEventListener('click', () => {
   loadMyCourses();
   loadMyCerts();
 });
+/* 點兩下 LOGO 重新整理頁面 */
+$('#app-logo').addEventListener('dblclick', () => location.reload());
 $('#pf-close').addEventListener('click', () => $('#modal-profile').classList.add('hidden'));
 $('#pf-logout').addEventListener('click', async () => {
   $('#modal-profile').classList.add('hidden');
