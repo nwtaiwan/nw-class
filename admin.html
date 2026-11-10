@@ -120,25 +120,25 @@
 <style id="checkin-report-style">
   .cr-pages { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 16px; background: #eef1f5; }
   .cr-page {
-    width: 210mm; min-height: 297mm; box-sizing: border-box;
-    background: #fff; padding: 14mm 12mm; display: flex; flex-direction: column;
+    width: 210mm; min-height: 296mm; box-sizing: border-box;
+    background: #fff; padding: 12mm; display: flex; flex-direction: column;
     box-shadow: 0 2px 12px rgba(0,0,0,.15); page-break-after: always;
   }
   .cr-page.cr-last { page-break-after: auto; }
-  .cr-head { text-align: center; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 10px; }
+  .cr-head { text-align: center; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 8px; }
   .cr-company { font-size: 13px; letter-spacing: 4px; color: #444; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .cr-comlogo { height: 22px; width: auto; display: block; }
-  .cr-title { font-size: 22px; font-weight: 800; margin-top: 4px; color: #111; }
-  .cr-sub { font-size: 12px; color: #555; margin-top: 6px; }
+  .cr-title { font-size: 20px; font-weight: 800; margin-top: 3px; color: #111; }
+  .cr-sub { font-size: 12px; color: #555; margin-top: 5px; }
   .cr-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .cr-table th, .cr-table td {
     border: 1px solid #333; padding: 2px 4px; font-size: 11px; text-align: center;
-    height: 11mm; vertical-align: middle; word-break: break-all; overflow: hidden; color: #111;
+    height: 10mm; vertical-align: middle; word-break: break-all; overflow: hidden; color: #111;
   }
   .cr-table th { background: #f0f0f0; font-weight: 700; }
   .cr-table td.cr-left { text-align: left; }
   .cr-table td.cr-nowrap { white-space: nowrap; }
-  .cr-avatar, .cr-ph { width: 10mm; height: 10mm; display: block; margin: 0 auto; object-fit: cover; }
+  .cr-avatar, .cr-ph { width: 8mm; height: 8mm; display: block; margin: 0 auto; object-fit: cover; }
   .cr-ph { border: 1px dashed #cbd5e1; }
   .cr-foot { margin-top: auto; padding-top: 8px; font-size: 11px; color: #666; display: flex; justify-content: space-between; }
 </style>
@@ -151,15 +151,15 @@
   <!-- Header -->
   <header class="safe-t flex items-center justify-between px-4 md:px-6 h-[10dvh] bg-white border-b border-slate-200 shrink-0">
     <div class="flex items-center gap-2">
-      <img id="app-logo" src="logo.png" alt="NW Class" class="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200"
+      <img id="app-logo" src="logo.png" alt="NW Class" class="w-10 h-10 rounded-lg object-cover ring-1 ring-slate-200"
            onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23d32f2f%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-size=%2226%22 font-family=%22Arial%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22%3ENW%3C/text%3E%3C/svg%3E';" />
-      <span id="app-title" class="font-bold text-lg text-slate-900">西北會議系統</span>
-      <span class="px-1.5 py-0.5 bg-slate-700 text-white text-[12px] rounded font-semibold">服務</span>
+      <span id="app-title" class="font-bold text-xl text-slate-900">西北會議系統</span>
+      <span class="px-2 py-0.5 bg-slate-700 text-white text-xs rounded font-semibold">服務</span>
     </div>
     <button id="btn-user-chip" class="hidden flex items-center gap-2">
-      <span id="chip-name" class="text-sm font-medium text-slate-600 max-w-[7rem] truncate"></span>
-      <img id="chip-avatar" alt="" class="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 hidden" />
-      <span id="chip-avatar-fallback" class="w-8 h-8 rounded-full bg-brand text-white grid place-items-center text-xs font-bold">N</span>
+      <span id="chip-name" class="text-lg font-medium text-slate-900 max-w-[7rem] truncate"></span>
+      <img id="chip-avatar" alt="" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 hidden" />
+      <span id="chip-avatar-fallback" class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center text-sm font-bold">N</span>
     </button>
   </header>
 
@@ -712,6 +712,7 @@ const state = {
   communityCodeMap: {},
   unitColorMap: {},
   courseStudents: [],
+  studentFilter: { status: 'all', unit: '', keyword: '' },
   checkedInMap: {},
   processingCheckin: false,
   scanLockUntil: 0,
@@ -1066,30 +1067,78 @@ function renderAttendanceSummary() {
   const actual = Object.keys(state.checkedInMap).length;
   const absent = Math.max(expected - actual, 0);
   box.innerHTML = `
-    <div class="rounded-xl bg-slate-50 border border-slate-200 px-3 py-3 text-center">
-      <p class="text-[13px] text-slate-400">應到</p>
-      <p class="mt-1 text-xl font-bold text-slate-900">${expected}</p>
+    <div class="rounded-xl bg-slate-50 border border-slate-200 px-2 py-1.5 flex items-center justify-center gap-1.5 whitespace-nowrap">
+      <span class="text-[13px] text-slate-400">應到</span>
+      <span class="text-2xl font-bold text-slate-900">${expected}</span>
     </div>
-    <div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-3 text-center">
-      <p class="text-[13px] text-emerald-600">實到</p>
-      <p class="mt-1 text-xl font-bold text-emerald-700">${actual}</p>
+    <div class="rounded-xl bg-emerald-50 border border-emerald-200 px-2 py-1.5 flex items-center justify-center gap-1.5 whitespace-nowrap">
+      <span class="text-[13px] text-emerald-600">實到</span>
+      <span class="text-2xl font-bold text-emerald-700">${actual}</span>
     </div>
-    <div class="rounded-xl bg-amber-50 border border-amber-200 px-3 py-3 text-center">
-      <p class="text-[13px] text-amber-600">未到</p>
-      <p class="mt-1 text-xl font-bold text-amber-700">${absent}</p>
+    <div class="rounded-xl bg-amber-50 border border-amber-200 px-2 py-1.5 flex items-center justify-center gap-1.5 whitespace-nowrap">
+      <span class="text-[13px] text-amber-600">未到</span>
+      <span class="text-2xl font-bold text-amber-700">${absent}</span>
     </div>`;
+}
+function studentFilterMatch(u) {
+  const f = state.studentFilter || {};
+  const uid = u.uid || u.id;
+  const checked = !!state.checkedInMap[uid];
+  if (f.status === 'checked' && !checked) return false;
+  if (f.status === 'unchecked' && checked) return false;
+  if (f.unit && (u.unit || '') !== f.unit) return false;
+  const kw = (f.keyword || '').trim().toLowerCase();
+  if (kw) {
+    const hay = [u.name, u.email, u.phone, u.loginCode, communityCodeOf(u), u.community, u.unit].filter(Boolean).join(' ').toLowerCase();
+    if (!hay.includes(kw)) return false;
+  }
+  return true;
+}
+function renderStudentFilters() {
+  const f = state.studentFilter || {};
+  const setBtn = (sel, active) => {
+    const b = $(sel);
+    if (!b) return;
+    b.className = `flex-1 h-8 rounded-lg border text-xs font-semibold transition-colors ${active ? 'bg-brand text-white border-brand' : 'bg-white text-slate-600 border-slate-300 active:bg-slate-100'}`;
+  };
+  setBtn('#cs-filter-checked', f.status === 'checked');
+  setBtn('#cs-filter-unchecked', f.status === 'unchecked');
+  const unitSel = $('#cs-filter-unit');
+  if (unitSel) {
+    const units = [...new Set(state.courseStudents.map(u => u.unit).filter(Boolean))]
+      .sort((a, b) => String(a).localeCompare(String(b), 'zh-Hant', { numeric: true }));
+    if (unitSel.dataset.units !== units.join('|')) {
+      unitSel.dataset.units = units.join('|');
+      unitSel.length = 0;
+      unitSel.add(new Option('單位（全部）', ''));
+      units.forEach(u => unitSel.add(new Option(u, u)));
+    }
+    unitSel.value = f.unit || '';
+  }
+  const kw = $('#cs-filter-keyword');
+  if (kw && document.activeElement !== kw && kw.value !== (f.keyword || '')) kw.value = f.keyword || '';
 }
 function renderCourseStudents() {
   const list = $('#course-students-list');
   const count = $('#course-students-count');
   if (!list || !count) return;
-  count.textContent = `共 ${state.courseStudents.length} 人`;
-  if (!state.courseStudents.length) {
+  renderStudentFilters();
+  const total = state.courseStudents.length;
+  if (!total) {
+    count.textContent = '共 0 人';
     list.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">此課程尚無學員</p>';
     renderAttendanceSummary();
     return;
   }
-  list.innerHTML = state.courseStudents.map(u => {
+  const rows = state.courseStudents.filter(studentFilterMatch);
+  count.textContent = rows.length === total ? `共 ${total} 人` : `${rows.length} / ${total} 人`;
+  if (!rows.length) {
+    list.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">無符合條件的學員</p>';
+    renderAttendanceSummary();
+    renderSeatMap();
+    return;
+  }
+  list.innerHTML = rows.map(u => {
     const uid = u.uid || u.id;
     const checked = !!state.checkedInMap[uid];
     const checkin = state.checkedInMap[uid];
@@ -1100,17 +1149,19 @@ function renderCourseStudents() {
       ? `border-color:${unitColor}; box-shadow: inset 0 0 0 1px ${unitColor}40, inset 0 0 14px ${unitColor}55`
       : '';
     return `
-      <div class="flex items-center gap-3 rounded-xl px-3 py-2 border-2 ${checked ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-100'}"${unitStyle ? ` style="${unitStyle}"` : ''}>
+      <div class="flex items-center gap-3 rounded-xl px-3 py-1.5 border-2 ${checked ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-100'}"${unitStyle ? ` style="${unitStyle}"` : ''}>
         ${u.avatar
           ? `<img src="${u.avatar}" alt="" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 shrink-0" />`
           : `<div class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0">${initial(u.name || '學')}</div>`}
         <div class="min-w-0 flex-1">
-          <p class="text-sm font-semibold truncate">${u.name || '未命名學員'}</p>
-          <p class="text-[11px] text-slate-500 truncate">${u.email || u.phone || u.loginCode || '—'}</p>
-          <p class="text-[11px] text-slate-400 truncate">${communityText}</p>
+          <div class="flex items-center gap-2 min-w-0 text-black">
+            <p class="text-sm font-semibold truncate leading-tight">${u.name || '未命名學員'}</p>
+            <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${checked ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}">${checked ? `已報到 ${formatCheckinTime(checkin.checkedInAt)}` : '未到'}</span>
+          </div>
+          <p class="text-[11px] text-black truncate leading-tight">${u.email || u.phone || u.loginCode || '—'}</p>
+          <p class="text-[11px] text-black truncate leading-tight">${communityText}</p>
         </div>
         <div class="shrink-0 flex flex-col items-end gap-1">
-          <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${checked ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}">${checked ? `已報到 ${formatCheckinTime(checkin.checkedInAt)}` : '未到'}</span>
           ${checked
             ? `<button data-cancel-checkin="${uid}" class="px-2.5 py-1 rounded-lg bg-red-500 text-white text-[11px] font-semibold">取消報到</button>`
             : `<button data-manual-checkin="${uid}" class="px-2.5 py-1 rounded-lg bg-brand text-white text-[11px] font-semibold">手動報到</button>`}
@@ -1237,13 +1288,13 @@ function renderCourseSelect() {
   list.innerHTML = rows.map(c => {
     const old = isCourseOutdated(c);
     return `
-    <div data-course-open="${c.id}" class="relative text-left border rounded-xl p-4 pr-14 flex flex-col gap-1 cursor-pointer ${old ? 'bg-slate-100 border-slate-300 active:bg-slate-200/70' : 'bg-white border-slate-200 active:bg-slate-50'}">
+    <div data-course-open="${c.id}" class="relative text-left border rounded-xl p-5 pr-14 flex flex-col gap-2 cursor-pointer ${old ? 'bg-slate-100 border-slate-300 active:bg-slate-200/70' : 'bg-white border-slate-200 active:bg-slate-50'}">
       <button data-course-archive="${c.id}" class="absolute top-2 right-2 w-11 h-6 rounded-md text-[10px] font-semibold border border-slate-200 text-slate-400 active:bg-slate-100 grid place-items-center whitespace-nowrap px-0">${isCourseArchived(c) ? '取消封存' : '封存'}</button>
       <button data-course-menu="${c.id}" title="開啟遙控選單" class="absolute bottom-2 right-[3.25rem] w-11 h-11 rounded-lg border ${courseOpenLinkEnabled(c) ? 'border-brand/40 text-brand bg-brand/5 active:bg-brand/15' : 'border-slate-200 text-slate-400 active:bg-slate-100'} grid place-items-center text-[11px] font-semibold leading-none">遙控</button>
       <button data-course-link="${c.id}" title="開啟展示連結" class="absolute bottom-2 right-2 w-11 h-11 rounded-lg border ${courseOpenLinkEnabled(c) ? 'border-brand/40 text-brand bg-brand/5 active:bg-brand/15' : 'border-slate-200 text-slate-400 active:bg-slate-100'} grid place-items-center text-[11px] font-semibold leading-none">連結</button>
-      <p class="font-semibold text-sm truncate pr-16 ${old ? 'text-slate-400' : ''}">${c.name || '未命名課程'}</p>
-      <p class="text-xs truncate ${old ? 'text-slate-400' : 'text-slate-500'}">${formatDisplayDate(c.date)}${courseTimeText(c) ? ' ' + courseTimeText(c) : ''}</p>
-      ${c.location ? `<p class="text-[11px] text-slate-400 truncate">地點：${c.location}</p>` : ''}
+      <p class="font-semibold text-base truncate pr-16 ${old ? 'text-slate-400' : ''}">${c.name || '未命名課程'}</p>
+      <p class="text-sm truncate ${old ? 'text-slate-400' : 'text-slate-500'}">${formatDisplayDate(c.date)}${courseTimeText(c) ? ' ' + courseTimeText(c) : ''}</p>
+      ${c.location ? `<p class="text-xs text-slate-400 truncate">地點：${c.location}</p>` : ''}
     </div>`;
   }).join('');
 }
@@ -1352,28 +1403,28 @@ function renderTabContent(id, label) {
         <div class="flex-1 min-w-0 min-h-0 bg-white rounded-2xl border border-slate-200 p-4 flex flex-row gap-3 overflow-hidden max-md:flex-col max-md:flex-none max-md:w-full max-md:h-auto max-md:overflow-visible">
           <div class="min-w-0 min-h-0 flex flex-col gap-2 overflow-y-auto flex-[3] max-md:flex-none max-md:overflow-visible max-md:w-full">
             <div id="session-bar" class="flex flex-wrap gap-1.5"></div>
-            <button id="btn-session-setting" class="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">場次設定</button>
-            <button id="btn-cert-setting" class="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">證件設定</button>
-            <button id="btn-parking-info" class="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">停車資訊</button>
-            <button id="btn-checkin-report" class="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">報到資訊</button>
+            <button id="btn-session-setting" class="px-4 h-9 rounded-lg border border-slate-300 text-slate-600 font-semibold">場次設定</button>
+            <button id="btn-cert-setting" class="px-4 h-9 rounded-lg border border-slate-300 text-slate-600 font-semibold">證件設定</button>
+            <button id="btn-parking-info" class="px-4 h-9 rounded-lg border border-slate-300 text-slate-600 font-semibold">停車資訊</button>
+            <button id="btn-checkin-report" class="px-4 h-9 rounded-lg border border-slate-300 text-slate-600 font-semibold">報到資訊</button>
             <p id="checkin-session-hint" class="text-sm text-slate-500">掃描學員 QR Code 完成報到</p>
             <div>
               <label class="text-xs text-slate-400 mb-1 block">鏡頭</label>
-              <select id="camera-select" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+              <select id="camera-select" class="w-full px-3 h-9 border border-slate-300 rounded-lg text-sm bg-white">
                 <option value="">後鏡頭（預設）</option>
               </select>
             </div>
             <div class="flex items-center gap-2">
-              <button id="btn-start-scan" class="flex-1 px-4 py-2.5 bg-brand text-white rounded-lg font-semibold">開始掃描</button>
-              <button id="btn-stop-scan" class="hidden flex-1 px-4 py-2.5 bg-slate-700 text-white rounded-lg font-semibold">停止掃描</button>
+              <button id="btn-start-scan" class="flex-1 px-4 h-9 bg-brand text-white rounded-lg font-semibold">開始掃描</button>
+              <button id="btn-stop-scan" class="hidden flex-1 px-4 h-9 bg-slate-700 text-white rounded-lg font-semibold">停止掃描</button>
             </div>
             <div id="checkin-status" class="hidden py-2.5 rounded-lg text-center text-sm font-semibold"></div>
           </div>
           <div id="reader" class="reader-idle rounded-xl overflow-hidden min-h-0 flex-[7] max-md:w-full max-md:flex-none max-md:h-[45vh]"></div>
         </div>
         <div class="w-[22rem] 2xl:w-[24rem] shrink-0 flex flex-col gap-4 min-h-0 max-md:w-full max-md:shrink-0 max-md:min-h-0 max-md:gap-3">
-          <div class="bg-white rounded-2xl border border-slate-200 p-4 shrink-0">
-            <h3 class="font-semibold text-sm mb-2">報到資訊 <span id="attendance-session-label" class="text-[13px] font-normal text-slate-400"></span></h3>
+          <div class="bg-white rounded-2xl border border-slate-200 px-3 py-2 shrink-0">
+            <h3 class="font-semibold text-sm mb-1">報到資訊 <span id="attendance-session-label" class="text-[13px] font-normal text-slate-400"></span></h3>
             <div id="attendance-summary" class="grid grid-cols-3 gap-2">
               <p class="text-slate-400 text-center py-2 text-xs col-span-full">載入中…</p>
             </div>
@@ -1383,7 +1434,15 @@ function renderTabContent(id, label) {
               <h3 class="font-semibold text-sm">參加學員</h3>
               <span id="course-students-count" class="text-[13px] text-slate-500">共 0 人</span>
             </div>
-            <div id="course-students-list" class="space-y-2 flex-1 min-h-0 overflow-y-auto no-scrollbar">
+            <div class="shrink-0 flex items-center gap-1.5 mb-1.5">
+              <button type="button" id="cs-filter-checked" class="flex-1 h-8 rounded-lg border text-xs font-semibold transition-colors bg-white text-slate-600 border-slate-300 active:bg-slate-100">已報到</button>
+              <button type="button" id="cs-filter-unchecked" class="flex-1 h-8 rounded-lg border text-xs font-semibold transition-colors bg-white text-slate-600 border-slate-300 active:bg-slate-100">未報到</button>
+              <select id="cs-filter-unit" class="shrink-0 w-[6.5rem] h-8 rounded-lg border border-slate-300 text-xs px-1.5 bg-white">
+                <option value="">單位（全部）</option>
+              </select>
+            </div>
+            <input id="cs-filter-keyword" type="text" placeholder="輸入關鍵字" class="shrink-0 w-full h-8 mb-2 px-2.5 rounded-lg border border-slate-300 text-xs" />
+            <div id="course-students-list" class="space-y-1 flex-1 min-h-0 overflow-y-auto no-scrollbar">
               <p class="text-slate-400 text-center py-2 text-xs">載入中…</p>
             </div>
           </div>
@@ -4846,6 +4905,7 @@ async function loadCourseStudents() {
   const count = $('#course-students-count');
   if (list) list.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入中…</p>';
   if (count) count.textContent = '共 0 人';
+  state.studentFilter = { status: 'all', unit: '', keyword: '' };
   cleanupListener('unsubCourseStudents');
   state.studentsCourseId = state.activeCourse.id;
   await loadCommunityCodeMap();
@@ -4936,6 +4996,22 @@ function wireCheckin() {
       await stopScanner();
       await startScanner();
     }
+  });
+  $('#cs-filter-checked')?.addEventListener('click', () => {
+    state.studentFilter.status = state.studentFilter.status === 'checked' ? 'all' : 'checked';
+    renderCourseStudents();
+  });
+  $('#cs-filter-unchecked')?.addEventListener('click', () => {
+    state.studentFilter.status = state.studentFilter.status === 'unchecked' ? 'all' : 'unchecked';
+    renderCourseStudents();
+  });
+  $('#cs-filter-unit')?.addEventListener('change', (e) => {
+    state.studentFilter.unit = e.target.value || '';
+    renderCourseStudents();
+  });
+  $('#cs-filter-keyword')?.addEventListener('input', (e) => {
+    state.studentFilter.keyword = e.target.value || '';
+    renderCourseStudents();
   });
   $('#course-students-list')?.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-manual-checkin]');
