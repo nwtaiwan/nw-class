@@ -126,7 +126,8 @@
   }
   .cr-page.cr-last { page-break-after: auto; }
   .cr-head { text-align: center; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 10px; }
-  .cr-company { font-size: 13px; letter-spacing: 4px; color: #444; }
+  .cr-company { font-size: 13px; letter-spacing: 4px; color: #444; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .cr-comlogo { height: 22px; width: auto; display: block; }
   .cr-title { font-size: 22px; font-weight: 800; margin-top: 4px; color: #111; }
   .cr-sub { font-size: 12px; color: #555; margin-top: 6px; }
   .cr-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -136,6 +137,7 @@
   }
   .cr-table th { background: #f0f0f0; font-weight: 700; }
   .cr-table td.cr-left { text-align: left; }
+  .cr-table td.cr-nowrap { white-space: nowrap; }
   .cr-avatar, .cr-ph { width: 10mm; height: 10mm; display: block; margin: 0 auto; object-fit: cover; }
   .cr-ph { border: 1px dashed #cbd5e1; }
   .cr-foot { margin-top: auto; padding-top: 8px; font-size: 11px; color: #666; display: flex; justify-content: space-between; }
@@ -417,7 +419,11 @@
         <p class="text-sm font-semibold text-slate-800 truncate">報到資訊</p>
         <p id="checkin-report-meta" class="text-[11px] text-slate-400 truncate"></p>
       </div>
-      <div class="flex shrink-0 items-center gap-2">
+      <div class="flex shrink-0 items-center gap-3">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-semibold text-slate-600">簽名</span>
+          <button type="button" id="checkin-sign-toggle" role="switch" aria-checked="false" title="開啟後學員掃碼報到需先簽名，確認後才播放報到成功影片" class="shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-slate-300"><span class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform translate-x-0.5"></span></button>
+        </div>
         <button id="checkin-report-pdf" class="px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">下載 PDF</button>
         <button id="checkin-report-print" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">列印</button>
         <button id="checkin-report-close" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">關閉</button>
@@ -3890,6 +3896,8 @@ function checkinReportRows() {
     return {
       unit: String(u.unit || ''),
       community: [communityCodeOf(u), u.community || u.unit || ''].filter(Boolean).join(' '),
+      communityCode: communityCodeOf(u),
+      communityName: String(u.community || u.unit || ''),
       title: String(u.title || ''),
       avatar: String(u.avatar || ''),
       name: String(u.name || '未命名'),
@@ -3897,18 +3905,19 @@ function checkinReportRows() {
     };
   });
   rows.sort((a, b) =>
-    (a.unit || '').localeCompare(b.unit || '', 'zh-Hant', { numeric: true })
-    || (a.community || '').localeCompare(b.community || '', 'zh-Hant', { numeric: true })
+    (a.communityCode || '').localeCompare(b.communityCode || '', 'zh-Hant', { numeric: true })
+    || (a.unit || '').localeCompare(b.unit || '', 'zh-Hant', { numeric: true })
     || (a.name || '').localeCompare(b.name || '', 'zh-Hant', { numeric: true }));
   return rows;
 }
 function checkinReportHeadHtml() {
   const c = state.activeCourse || {};
   const company = '西北保全股份有限公司';
-  const title = `${c.name || '未命名課程'} 報到表`;
+  const title = `${c.name || '未命名課程'} 報到名冊`;
   const sub = [formatDisplayDate(c.date), courseTimeText(c)].filter(Boolean).join(' ');
+  const logoUrl = new URL('comlogo.png', document.baseURI).href;
   return `<div class="cr-head">
-    <p class="cr-company">${escAttr(company)}</p>
+    <p class="cr-company"><img class="cr-comlogo" src="${escAttr(logoUrl)}" alt="" />${escAttr(company)}</p>
     <p class="cr-title">${escAttr(title)}</p>
     <p class="cr-sub">${escAttr(sub)}</p>
   </div>`;
@@ -3924,14 +3933,21 @@ function checkinReportPagesHtml(rows) {
       const avatar = r.avatar
         ? `<img class="cr-avatar" src="${escAttr(r.avatar)}" alt="" />`
         : '<span class="cr-ph"></span>';
+      const dt = String(r.time || '').trim().split(/\s+/).filter(Boolean);
+      const timeCell = dt.length >= 2
+        ? `${escAttr(dt[0])}<br>${escAttr(dt.slice(1).join(' '))}`
+        : escAttr(r.time || '');
+      const commCell = r.communityCode
+        ? `${escAttr(r.communityCode)}<br>${escAttr(r.communityName || '')}`
+        : escAttr(r.communityName || r.community || '');
       return `<tr>
         <td>${seq}</td>
         <td class="cr-left">${escAttr(r.unit)}</td>
-        <td class="cr-left">${escAttr(r.community)}</td>
+        <td class="cr-left cr-nowrap">${commCell}</td>
         <td>${escAttr(r.title)}</td>
         <td>${avatar}</td>
         <td class="cr-left">${escAttr(r.name)}</td>
-        <td>${escAttr(r.time)}</td>
+        <td>${timeCell}</td>
         <td></td>
         <td></td>
       </tr>`;
@@ -3940,8 +3956,8 @@ function checkinReportPagesHtml(rows) {
       ${checkinReportHeadHtml()}
       <table class="cr-table">
         <colgroup>
-          <col style="width:6%" /><col style="width:10%" /><col style="width:14%" /><col style="width:10%" />
-          <col style="width:8%" /><col style="width:11%" /><col style="width:15%" /><col style="width:14%" /><col style="width:12%" />
+          <col style="width:6%" /><col style="width:8%" /><col style="width:19%" /><col style="width:10%" />
+          <col style="width:8%" /><col style="width:11%" /><col style="width:12%" /><col style="width:14%" /><col style="width:12%" />
         </colgroup>
         <thead><tr>
           <th>序號</th><th>單位</th><th>社區</th><th>職稱</th><th>大頭照</th><th>姓名</th><th>報到日期時間</th><th>簽名</th><th>備註</th>
@@ -3970,9 +3986,31 @@ function renderCheckinReport() {
 function openCheckinReport() {
   if (!state.activeCourse) return;
   $('#modal-checkin-report').classList.remove('hidden');
+  renderCheckinSignToggle();
   renderCheckinReport();
 }
 function closeCheckinReport() { $('#modal-checkin-report').classList.add('hidden'); }
+/* 簽名開關：開啟後學員掃碼報到需先在手機上簽名，確認後才播放報到成功影片 */
+function checkinSignatureOn() { return state.activeCourse?.checkinSignature === true; }
+function renderCheckinSignToggle() {
+  const btn = $('#checkin-sign-toggle');
+  if (!btn) return;
+  const on = checkinSignatureOn();
+  btn.className = tabToggleCls(on);
+  btn.setAttribute('aria-checked', on ? 'true' : 'false');
+  const knob = btn.querySelector('span');
+  if (knob) knob.className = tabKnobCls(on);
+}
+async function setCheckinSignature(on) {
+  if (!state.activeCourse) return;
+  try {
+    await setDoc(doc(db, 'courses', state.activeCourse.id), { checkinSignature: on, updatedAt: serverTimestamp() }, { merge: true });
+    state.activeCourse.checkinSignature = on;
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].checkinSignature = on;
+    renderCheckinSignToggle();
+    toast(on ? '已開啟簽名' : '已關閉簽名', 1800, 'success');
+  } catch { toast('設定失敗', 2000, 'danger'); }
+}
 function printCheckinReport() {
   const rows = checkinReportRows();
   if (!rows.length) { toast('尚無學員資料'); return; }
@@ -5295,6 +5333,7 @@ $('#modal-parking-info').addEventListener('click', (e) => { if (e.target === $('
 $('#parking-share-close').addEventListener('click', closeParkingShare);
 $('#modal-parking-share').addEventListener('click', (e) => { if (e.target === $('#modal-parking-share')) closeParkingShare(); });
 $('#checkin-report-close').addEventListener('click', closeCheckinReport);
+$('#checkin-sign-toggle').addEventListener('click', () => setCheckinSignature(!checkinSignatureOn()));
 $('#checkin-report-print').addEventListener('click', printCheckinReport);
 $('#checkin-report-pdf').addEventListener('click', downloadCheckinReportPdf);
 $('#modal-checkin-report').addEventListener('click', (e) => { if (e.target === $('#modal-checkin-report')) closeCheckinReport(); });
