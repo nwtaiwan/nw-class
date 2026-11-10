@@ -61,8 +61,13 @@ service cloud.firestore {
       // 建立：僅服務/管理員（掃描報到）
       allow create: if isStaff();
 
-      // 修改/刪除：服務/管理員（取消報到）
-      allow update, delete: if isStaff();
+      // 修改：服務/管理員可取消報到；學員僅能補上「簽名」欄位（限自己的紀錄、僅限簽名欄位）
+      allow update: if isStaff()
+        || (isSignedIn() && resource.data.uid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['signature', 'signedAt']));
+
+      // 刪除：服務/管理員（取消報到）
+      allow delete: if isStaff();
     }
 
     // ============ courseFiles 集合（課程檔案） ============

@@ -139,6 +139,7 @@
   .cr-table td.cr-left { text-align: left; }
   .cr-table td.cr-nowrap { white-space: nowrap; }
   .cr-avatar, .cr-ph { width: 8mm; height: 8mm; display: block; margin: 0 auto; object-fit: cover; }
+  .cr-sign { max-width: 100%; max-height: 8mm; display: block; margin: 0 auto; object-fit: contain; }
   .cr-ph { border: 1px dashed #cbd5e1; }
   .cr-foot { margin-top: auto; padding-top: 8px; font-size: 11px; color: #666; display: flex; justify-content: space-between; }
 </style>
@@ -216,7 +217,10 @@
         <form id="form-email" class="space-y-2">
           <div>
             <label class="text-xs font-medium text-slate-500">帳號（代號 / Email / 手機號碼）</label>
-            <input name="email" type="text" placeholder="例如 nw001 或 you@example.com" class="w-full mt-0.5 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+            <div class="relative">
+              <input name="email" type="text" placeholder="例如 nw001 或 you@example.com" class="w-full mt-0.5 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+              <span id="auth-account-name" class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 max-w-[45%] truncate text-xs font-semibold text-emerald-600 hidden"></span>
+            </div>
             <p class="text-[11px] text-slate-400 mt-0.5">代號或手機號碼會自動對應為 @nwclass.app 帳號</p>
           </div>
           <div>
@@ -420,6 +424,7 @@
         <p id="checkin-report-meta" class="text-[11px] text-slate-400 truncate"></p>
       </div>
       <div class="flex shrink-0 items-center gap-3">
+        <button id="btn-report-picker" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">學員顯示篩選</button>
         <div class="flex items-center gap-2">
           <span class="text-xs font-semibold text-slate-600">簽名</span>
           <button type="button" id="checkin-sign-toggle" role="switch" aria-checked="false" title="開啟後學員掃碼報到需先簽名，確認後才播放報到成功影片" class="shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-slate-300"><span class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform translate-x-0.5"></span></button>
@@ -430,6 +435,29 @@
       </div>
     </div>
     <div id="checkin-report-body" class="flex-1 min-h-0 overflow-auto bg-slate-100"></div>
+  </div>
+</div>
+
+<!-- 報到名冊：學員顯示篩選 -->
+<div id="modal-report-picker" class="hidden fixed inset-0 z-[110] bg-black/50 grid place-items-center p-4">
+  <div class="w-[80vw] h-[80vh] bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden">
+    <div class="shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
+      <p class="text-sm font-semibold text-slate-800">學員顯示篩選</p>
+      <button id="report-picker-close" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">關閉</button>
+    </div>
+    <label class="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50">
+      <input type="checkbox" id="report-picker-all" class="w-4 h-4 accent-brand" />
+      <span class="text-sm font-semibold text-slate-700">全選<span id="report-picker-all-count" class="ml-1 text-xs font-normal text-slate-400"></span></span>
+      <div class="ml-auto flex items-center gap-1.5 min-w-0">
+        <select id="report-picker-unit" class="shrink-0 h-8 rounded-lg border border-slate-300 text-xs px-1.5 bg-white max-w-[45%]">
+          <option value="">單位（全部）</option>
+        </select>
+        <select id="report-picker-community" class="shrink-0 h-8 rounded-lg border border-slate-300 text-xs px-1.5 bg-white max-w-[45%]">
+          <option value="">社區代號（全部）</option>
+        </select>
+      </div>
+    </label>
+    <div id="report-picker-list" class="flex-1 min-h-0 overflow-y-auto px-2 py-2 space-y-0.5"></div>
   </div>
 </div>
 
@@ -713,6 +741,9 @@ const state = {
   unitColorMap: {},
   courseStudents: [],
   studentFilter: { status: 'all', unit: '', keyword: '' },
+  checkinReportExcluded: {},
+  reportPickerUnit: '',
+  reportPickerCommunity: '',
   checkedInMap: {},
   processingCheckin: false,
   scanLockUntil: 0,
@@ -918,6 +949,45 @@ function toLoginEmail(input) {
   if (v.includes('@')) return v.toLowerCase();
   const local = /^[0-9\s\-()+]+$/.test(v) ? v.replace(/\D/g, '') : v.toLowerCase().replace(/[^a-z0-9._-]/g, '');
   return local ? `${local}@${LOGIN_DOMAIN}` : '';
+}
+
+/* ===== 登入帳號即時顯示對應姓名（輸入正確帳號時，於輸入框右側顯示綠字姓名） ===== */
+let _authStudentCache = null;
+async function authStudents() {
+  if (_authStudentCache) return _authStudentCache;
+  try {
+    const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'student')));
+    _authStudentCache = snap.docs.map(d => d.data());
+  } catch { _authStudentCache = []; }
+  return _authStudentCache;
+}
+function authNameKey(v) {
+  const s = String(v || '').trim();
+  return {
+    code: s.toLowerCase(),
+    phone: /^[0-9\s\-()+]+$/.test(s) ? s.replace(/\D/g, '') : '',
+    email: s.includes('@') ? s.toLowerCase() : '',
+  };
+}
+async function updateAuthAccountName() {
+  const input = $('#form-email input[name="email"]');
+  const tag = $('#auth-account-name');
+  if (!input || !tag) return;
+  const clear = () => { tag.classList.add('hidden'); tag.textContent = ''; input.style.paddingRight = ''; };
+  const raw = input.value.trim();
+  if (raw.length < 2) return clear();
+  const key = authNameKey(raw);
+  const list = await authStudents();
+  const hit = list.find(s =>
+    (key.email && String(s.email || '').toLowerCase() === key.email) ||
+    (key.phone && String(s.phone || '').replace(/\D/g, '') === key.phone) ||
+    String(s.loginCode || '').toLowerCase() === key.code
+  );
+  if (input.value.trim() !== raw) return;      // 使用者已繼續輸入，放棄本次結果
+  if (!hit || !hit.name) return clear();
+  tag.textContent = hit.name;
+  tag.classList.remove('hidden');
+  input.style.paddingRight = '6.5rem';
 }
 
 async function handleEmailSubmit(e) {
@@ -3947,9 +4017,21 @@ function checkinTimeOf(uid) {
   });
   return best;
 }
-/* 列出全部課程學員（已報到者填上報到日期時間） */
+/* 取學員在（合併全部場次）課程中的簽名圖（DataURL） */
+function checkinSignatureOf(uid) {
+  let sig = '';
+  Object.values(state.checkinsBySession || {}).forEach(bucket => {
+    const rec = bucket && bucket[uid];
+    if (rec && rec.signature && !sig) sig = rec.signature;
+  });
+  return sig;
+}
+/* 列出全部課程學員（已報到者填上報到日期時間；依「學員顯示篩選」排除未勾選者） */
 function checkinReportRows() {
-  const rows = state.courseStudents.map(u => {
+  const excluded = state.checkinReportExcluded || {};
+  const rows = state.courseStudents
+    .filter(u => !excluded[u.uid || u.id])
+    .map(u => {
     const uid = u.uid || u.id;
     const t = checkinTimeOf(uid);
     return {
@@ -3961,6 +4043,7 @@ function checkinReportRows() {
       avatar: String(u.avatar || ''),
       name: String(u.name || '未命名'),
       time: t ? courseFileTimeText(t) : '',
+      signature: checkinSignatureOf(uid),
     };
   });
   rows.sort((a, b) =>
@@ -4001,13 +4084,13 @@ function checkinReportPagesHtml(rows) {
         : escAttr(r.communityName || r.community || '');
       return `<tr>
         <td>${seq}</td>
-        <td class="cr-left">${escAttr(r.unit)}</td>
+        <td>${escAttr(r.unit)}</td>
         <td class="cr-left cr-nowrap">${commCell}</td>
         <td>${escAttr(r.title)}</td>
         <td>${avatar}</td>
-        <td class="cr-left">${escAttr(r.name)}</td>
+        <td>${escAttr(r.name)}</td>
         <td>${timeCell}</td>
-        <td></td>
+        <td>${r.signature ? `<img class="cr-sign" src="${escAttr(r.signature)}" alt="" />` : ''}</td>
         <td></td>
       </tr>`;
     }).join('');
@@ -4033,15 +4116,86 @@ function renderCheckinReport() {
   if (!body) return;
   const rows = checkinReportRows();
   const meta = $('#checkin-report-meta');
+  const allCount = state.courseStudents.length;
   const total = Math.max(1, Math.ceil(rows.length / CR_PER_PAGE));
   const checkedCount = rows.filter(r => r.time).length;
-  if (meta) meta.textContent = `${state.activeCourse ? (state.activeCourse.name || '本課程') : ''} · 共 ${rows.length} 人 · 已報到 ${checkedCount} 人 · ${rows.length ? total : 0} 頁`;
+  const countText = rows.length === allCount ? `共 ${rows.length} 人` : `顯示 ${rows.length} / ${allCount} 人`;
+  if (meta) meta.textContent = `${state.activeCourse ? (state.activeCourse.name || '本課程') : ''} · ${countText} · 已報到 ${checkedCount} 人 · ${rows.length ? total : 0} 頁`;
   if (!rows.length) {
     body.innerHTML = '<p class="text-slate-400 text-center py-10 text-sm">尚無學員資料</p>';
     return;
   }
   body.innerHTML = `<div class="cr-pages">${checkinReportPagesHtml(rows)}</div>`;
 }
+/* 學員顯示篩選（單選／複選／全選，預設全選）
+   「單位」「社區代號」下拉僅篩選清單顯示；「全選」作用於目前篩選出的學員 */
+function reportPickerScopeStudents() {
+  const unit = state.reportPickerUnit || '';
+  const comm = state.reportPickerCommunity || '';
+  return state.courseStudents.filter(u => {
+    if (unit && (u.unit || '') !== unit) return false;
+    if (comm && communityCodeOf(u) !== comm) return false;
+    return true;
+  });
+}
+function renderReportPicker() {
+  const list = $('#report-picker-list');
+  if (!list) return;
+  const excluded = state.checkinReportExcluded || {};
+  const unitSel = $('#report-picker-unit');
+  if (unitSel) {
+    const units = [...new Set(state.courseStudents.map(u => u.unit).filter(Boolean))]
+      .sort((a, b) => String(a).localeCompare(String(b), 'zh-Hant', { numeric: true }));
+    if (unitSel.dataset.units !== units.join('|')) {
+      unitSel.dataset.units = units.join('|');
+      unitSel.length = 0;
+      unitSel.add(new Option('單位（全部）', ''));
+      units.forEach(u => unitSel.add(new Option(u, u)));
+    }
+    unitSel.value = state.reportPickerUnit || '';
+  }
+  const commSel = $('#report-picker-community');
+  if (commSel) {
+    const base = state.reportPickerUnit
+      ? state.courseStudents.filter(u => (u.unit || '') === state.reportPickerUnit)
+      : state.courseStudents;
+    const codes = [...new Set(base.map(u => communityCodeOf(u)).filter(Boolean))]
+      .sort((a, b) => String(a).localeCompare(String(b), 'zh-Hant', { numeric: true }));
+    if (commSel.dataset.codes !== codes.join('|')) {
+      commSel.dataset.codes = codes.join('|');
+      commSel.length = 0;
+      commSel.add(new Option('社區代號（全部）', ''));
+      codes.forEach(c => commSel.add(new Option(c, c)));
+    }
+    if (!codes.includes(state.reportPickerCommunity || '')) state.reportPickerCommunity = '';
+    commSel.value = state.reportPickerCommunity || '';
+  }
+  const scope = reportPickerScopeStudents();
+  const scopedSelected = scope.filter(u => !excluded[u.uid || u.id]).length;
+  const all = $('#report-picker-all');
+  if (all) {
+    all.checked = scope.length > 0 && scopedSelected === scope.length;
+    all.indeterminate = scopedSelected > 0 && scopedSelected < scope.length;
+  }
+  const cnt = $('#report-picker-all-count');
+  if (cnt) cnt.textContent = `（已選 ${scopedSelected} / ${scope.length} 人）`;
+  list.innerHTML = scope.map(u => {
+    const uid = u.uid || u.id;
+    const on = !excluded[uid];
+    const sub = [communityCodeOf(u), u.community, u.unit].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' ');
+    return `<label class="flex items-center gap-2 px-2 py-1.5 rounded-lg active:bg-slate-50">
+      <input type="checkbox" data-report-pick="${uid}" class="w-4 h-4 accent-brand shrink-0" ${on ? 'checked' : ''} />
+      <span class="text-sm text-slate-800 truncate">${escAttr(u.name || '未命名學員')}</span>
+      ${sub ? `<span class="text-[11px] text-slate-400 truncate ml-auto shrink-0 max-w-[45%]">${escAttr(sub)}</span>` : ''}
+    </label>`;
+  }).join('') || `<p class="text-slate-400 text-center py-4 text-xs">${(state.reportPickerUnit || state.reportPickerCommunity) ? '此篩選條件尚無學員' : '此課程尚無學員'}</p>`;
+}
+function openReportPicker() {
+  if (!state.activeCourse) return;
+  $('#modal-report-picker').classList.remove('hidden');
+  renderReportPicker();
+}
+function closeReportPicker() { $('#modal-report-picker').classList.add('hidden'); }
 function openCheckinReport() {
   if (!state.activeCourse) return;
   $('#modal-checkin-report').classList.remove('hidden');
@@ -4906,6 +5060,9 @@ async function loadCourseStudents() {
   if (list) list.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">載入中…</p>';
   if (count) count.textContent = '共 0 人';
   state.studentFilter = { status: 'all', unit: '', keyword: '' };
+  state.checkinReportExcluded = {};
+  state.reportPickerUnit = '';
+  state.reportPickerCommunity = '';
   cleanupListener('unsubCourseStudents');
   state.studentsCourseId = state.activeCourse.id;
   await loadCommunityCodeMap();
@@ -5269,6 +5426,13 @@ onAuthStateChanged(auth, async (user) => {
 
 /* ===== 事件綁定 ===== */
 $('#form-email').addEventListener('submit', handleEmailSubmit);
+/* 帳號輸入時即時查詢對應姓名（綠字顯示於輸入框右側） */
+(() => {
+  const acc = $('#form-email input[name="email"]');
+  if (!acc) return;
+  let t = 0;
+  acc.addEventListener('input', () => { clearTimeout(t); t = setTimeout(updateAuthAccountName, 250); });
+})();
 $('#btn-user-chip').addEventListener('click', () => $('#modal-profile').classList.remove('hidden'));
 $('#pf-close').addEventListener('click', () => $('#modal-profile').classList.add('hidden'));
 $('#pf-logout').addEventListener('click', async () => {
@@ -5413,6 +5577,40 @@ $('#checkin-sign-toggle').addEventListener('click', () => setCheckinSignature(!c
 $('#checkin-report-print').addEventListener('click', printCheckinReport);
 $('#checkin-report-pdf').addEventListener('click', downloadCheckinReportPdf);
 $('#modal-checkin-report').addEventListener('click', (e) => { if (e.target === $('#modal-checkin-report')) closeCheckinReport(); });
+$('#btn-report-picker').addEventListener('click', openReportPicker);
+$('#report-picker-close').addEventListener('click', closeReportPicker);
+$('#modal-report-picker').addEventListener('click', (e) => { if (e.target === $('#modal-report-picker')) closeReportPicker(); });
+$('#report-picker-unit').addEventListener('change', (e) => {
+  state.reportPickerUnit = e.target.value || '';
+  state.reportPickerCommunity = '';
+  renderReportPicker();
+});
+$('#report-picker-community').addEventListener('change', (e) => {
+  state.reportPickerCommunity = e.target.value || '';
+  renderReportPicker();
+});
+$('#report-picker-all').addEventListener('change', (e) => {
+  const ex = { ...(state.checkinReportExcluded || {}) };
+  reportPickerScopeStudents().forEach(u => {
+    const uid = u.uid || u.id;
+    if (e.target.checked) delete ex[uid];
+    else ex[uid] = true;
+  });
+  state.checkinReportExcluded = ex;
+  renderReportPicker();
+  renderCheckinReport();
+});
+$('#report-picker-list').addEventListener('change', (e) => {
+  const cb = e.target.closest('[data-report-pick]');
+  if (!cb) return;
+  const uid = cb.dataset.reportPick;
+  const ex = { ...(state.checkinReportExcluded || {}) };
+  if (cb.checked) delete ex[uid];
+  else ex[uid] = true;
+  state.checkinReportExcluded = ex;
+  renderReportPicker();
+  renderCheckinReport();
+});
 
 /* 課表時間表編輯彈窗 */
 $('#schedule-edit-close').addEventListener('click', closeScheduleEdit);
