@@ -464,8 +464,8 @@
   <video id="celebrate-video" src="./check-ok.mp4" playsinline webkit-playsinline preload="auto" class="max-w-full max-h-[72vh] rounded-2xl bg-black"></video>
   <p id="celebrate-text" class="shrink-0 max-w-full px-4 text-center text-lg font-bold text-white drop-shadow"></p>
   <div id="celebrate-actions" class="hidden shrink-0 flex items-center gap-3">
-    <button id="celebrate-replay" class="px-6 py-2.5 rounded-lg border border-white/60 text-white font-semibold text-sm">再看一次</button>
-    <button id="celebrate-ok" class="px-6 py-2.5 rounded-lg bg-brand text-white font-semibold text-sm">好的！</button>
+    <button id="celebrate-replay" class="px-8 py-4 rounded-xl border border-white/60 text-white font-semibold text-lg">再看一次</button>
+    <button id="celebrate-ok" class="px-8 py-4 rounded-xl bg-brand text-white font-semibold text-lg">好的！</button>
   </div>
 </div>
 
@@ -1007,11 +1007,13 @@ function renderCheckinQr() {
 let _celebrationTimer = null;
 function pickBoyVoice(voices) {
   if (!voices || !voices.length) return null;
-  const zh = voices.filter(v => /^(zh|cmn)/i.test(v.lang || ''));
+  const zh = voices.filter(v => /^(zh|cmn|yue)/i.test(v.lang || ''));
   const pool = zh.length ? zh : voices;
-  // 優先挑選名稱含男童/男孩/男聲關鍵字的語音
-  return pool.find(v => /(child|kid|boy|young|male|童|男)/i.test(v.name || ''))
-    || pool.find(v => /zh[-_]TW|zh[-_]HK/i.test(v.lang || ''))
+  const find = (re) => pool.find(v => re.test(v.name || ''));
+  // 依序挑選：男童／男孩嗓音 → 男聲 → 中文嗓音（再由 pitch 提高模擬男童）
+  return find(/kangkang|boy|kid|child|junior|童|男孩/i)
+    || find(/male|man|男|yunxi|yunjian|yunjie/i)
+    || find(/zh[-_](cn|tw|hk)/i)
     || pool[0] || null;
 }
 function speakCheckinCongratulations() {
@@ -1024,8 +1026,8 @@ function speakCheckinCongratulations() {
       try {
         const u = new SpeechSynthesisUtterance(text);
         u.lang = 'zh-TW';
-        u.pitch = 1.4;   // 提高音調，模擬男童聲
-        u.rate = 1.0;
+        u.pitch = 1.6;   // 提高音調，模擬男童聲
+        u.rate = 1.05;
         const v = pickBoyVoice(synth.getVoices());
         if (v) u.voice = v;
         synth.cancel();

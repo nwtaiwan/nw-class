@@ -126,7 +126,7 @@ function loginUrl(s) {
 async function shareStudent(s) {
   const url = loginUrl(s);
   const title = '西北會議系統';
-  const text = `${s.name || '學員'} 您好，這是西北會議系統學員登入連結：`;
+  const text = `${s.name || '學員'} 您好，這是西北會議系統學員登入連結，這是您專屬連結，請勿分享給其他使用者，謝謝！`;
   if (navigator.share) {
     try { await navigator.share({ title, text, url }); return; }
     catch (err) { if (err && err.name === 'AbortError') return; }
