@@ -1276,28 +1276,26 @@ function renderTabContent(id, label) {
   if (id === 'checkin') {
     panel.innerHTML = `
       <div class="h-full flex flex-row gap-4 overflow-hidden max-md:flex-col max-md:overflow-y-auto max-md:gap-3">
-        <div class="flex-1 min-w-0 min-h-0 bg-white rounded-2xl border border-slate-200 p-4 flex flex-col gap-2 overflow-hidden max-md:flex-none max-md:w-full max-md:h-[68vh]">
-          <div class="shrink-0 flex items-start gap-2">
-            <div id="session-bar" class="flex-1 min-w-0 flex flex-wrap gap-1.5"></div>
-            <button id="btn-session-setting" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">場次設定</button>
-            <button id="btn-cert-setting" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">證件設定</button>
-            <button id="btn-parking-info" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">停車資訊</button>
-          </div>
-          <p id="checkin-session-hint" class="text-sm text-slate-500">掃描學員 QR Code 完成報到</p>
-          <div class="shrink-0">
-            <label class="text-xs text-slate-400 mb-1 block">鏡頭</label>
-            <div class="flex items-center gap-2">
-              <select id="camera-select" class="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+        <div class="flex-1 min-w-0 min-h-0 bg-white rounded-2xl border border-slate-200 p-4 flex flex-row gap-3 overflow-hidden max-md:flex-col max-md:flex-none max-md:w-full max-md:h-auto max-md:overflow-visible">
+          <div class="min-w-0 min-h-0 flex flex-col gap-2 overflow-y-auto flex-[3] max-md:flex-none max-md:overflow-visible max-md:w-full">
+            <div id="session-bar" class="flex flex-wrap gap-1.5"></div>
+            <button id="btn-session-setting" class="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">場次設定</button>
+            <button id="btn-cert-setting" class="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">證件設定</button>
+            <button id="btn-parking-info" class="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold">停車資訊</button>
+            <p id="checkin-session-hint" class="text-sm text-slate-500">掃描學員 QR Code 完成報到</p>
+            <div>
+              <label class="text-xs text-slate-400 mb-1 block">鏡頭</label>
+              <select id="camera-select" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
                 <option value="">後鏡頭（預設）</option>
               </select>
-              <button id="btn-start-scan" class="shrink-0 px-4 py-2.5 bg-brand text-white rounded-lg font-semibold">開始掃描</button>
-              <button id="btn-stop-scan" class="hidden shrink-0 px-4 py-2.5 bg-slate-700 text-white rounded-lg font-semibold">停止掃描</button>
             </div>
+            <div class="flex items-center gap-2">
+              <button id="btn-start-scan" class="flex-1 px-4 py-2.5 bg-brand text-white rounded-lg font-semibold">開始掃描</button>
+              <button id="btn-stop-scan" class="hidden flex-1 px-4 py-2.5 bg-slate-700 text-white rounded-lg font-semibold">停止掃描</button>
+            </div>
+            <div id="checkin-status" class="hidden py-2.5 rounded-lg text-center text-sm font-semibold"></div>
           </div>
-          <div class="flex-1 min-h-0 flex flex-col gap-2">
-            <div id="reader" class="reader-idle rounded-xl overflow-hidden w-full flex-1 min-h-0"></div>
-            <div id="checkin-status" class="hidden shrink-0 py-2.5 rounded-lg text-center text-sm font-semibold"></div>
-          </div>
+          <div id="reader" class="reader-idle rounded-xl overflow-hidden min-h-0 flex-[7] max-md:w-full max-md:flex-none max-md:h-[45vh]"></div>
         </div>
         <div class="w-[22rem] 2xl:w-[24rem] shrink-0 flex flex-col gap-4 min-h-0 max-md:w-full max-md:shrink-0 max-md:min-h-0 max-md:gap-3">
           <div class="bg-white rounded-2xl border border-slate-200 p-4 shrink-0">
