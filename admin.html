@@ -273,8 +273,8 @@
         </div>
         <p id="course-view-now" class="shrink-0 text-2xl font-bold text-slate-500 text-right tabular-nums">—</p>
       </div>
-      <div class="flex-1 min-h-0 overflow-hidden p-4 md:p-4">
-        <div id="course-tab-panel" class="h-full text-slate-400 text-sm"></div>
+      <div class="flex-1 min-h-0 flex flex-col overflow-hidden p-4 md:p-4">
+        <div id="course-tab-panel" class="flex-1 min-h-0 flex flex-col text-slate-400 text-sm"></div>
       </div>
     </section>
 
@@ -499,7 +499,13 @@
       <input id="schedule-edit-content" type="text" placeholder="例：報到與開場" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
     </label>
     <label class="block mt-3">
-      <span class="text-xs text-slate-500">講師（非必填）</span>
+      <span class="flex items-center gap-1 text-xs text-slate-500">
+        <select id="schedule-edit-instructor-label" class="py-0.5 pl-1 pr-0.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer" title="切換抬頭文字">
+          <option value="講師">講師</option>
+          <option value="主講">主講</option>
+        </select>
+        <span>（非必填）</span>
+      </span>
       <select id="schedule-edit-instructor" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
         <option value="">（不指定）</option>
       </select>
@@ -1697,11 +1703,13 @@ function courseSchedule(c) {
       end: String(s.end || ''),
       title: String(s.title || ''),
       instructor: String(s.instructor || ''),
+      instructorLabel: String(s.instructorLabel || '講師'),
       note: String(s.note || ''),
     }));
 }
+/* 課表時間顯示為 HH:MM（其他位置維持 HH:MM:SS） */
 function scheduleTimeText(s) {
-  const a = formatDisplayTime(s?.start), b = formatDisplayTime(s?.end);
+  const a = formatDisplayTime(s?.start).slice(0, 5), b = formatDisplayTime(s?.end).slice(0, 5);
   if (a && b) return `${a}~${b}`;
   return a || b || '未設定時間';
 }
@@ -1739,7 +1747,7 @@ function renderCourseSchedule(panel) {
                     <p class="text-sm text-slate-800 break-words">${escAttr(s.title || '—')}</p>
                     ${(s.session || s.instructor || s.note) ? `<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400">
                       ${s.session ? `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${escAttr(s.session)}</span>` : ''}
-                      ${s.instructor ? `<span>講師：${escAttr(s.instructor)}</span>` : ''}
+                      ${s.instructor ? `<span>${escAttr(s.instructorLabel || '講師')}：${escAttr(s.instructor)}</span>` : ''}
                       ${s.note ? `<span>備註：${escAttr(s.note)}</span>` : ''}
                     </div>` : ''}
                   </div>
@@ -1776,6 +1784,7 @@ async function openScheduleEdit(id) {
   $('#schedule-edit-end').value = item?.end || '';
   $('#schedule-edit-content').value = item?.title || '';
   $('#schedule-edit-note').value = item?.note || '';
+  $('#schedule-edit-instructor-label').value = item?.instructorLabel || '講師';
   // 講師下拉選單：先以現有值初始化，再載入講師清單（來源：instructors 集合）
   const insSel = $('#schedule-edit-instructor');
   const cur = item?.instructor || '';
@@ -1809,10 +1818,11 @@ async function confirmScheduleEdit() {
   const end = $('#schedule-edit-end').value;
   const title = $('#schedule-edit-content').value.trim();
   const instructor = $('#schedule-edit-instructor').value.trim();
+  const instructorLabel = $('#schedule-edit-instructor-label').value || '講師';
   const note = $('#schedule-edit-note').value.trim();
   if (!start && !end && !title) return toast('請輸入時間或內容');
   const list = courseSchedule(state.activeCourse);
-  const entry = { id: scheduleEditId || ('t' + Date.now().toString(36)), session, start, end, title, instructor, note };
+  const entry = { id: scheduleEditId || ('t' + Date.now().toString(36)), session, start, end, title, instructor, instructorLabel, note };
   const idx = list.findIndex(s => s.id === entry.id);
   if (idx >= 0) list[idx] = entry; else list.push(entry);
   list.sort((a, b) => (a.start || '99:99').localeCompare(b.start || '99:99'));
@@ -2559,7 +2569,7 @@ function renderExamAdminTab() {
   if (!panel) return;
   examDraft = courseExamAdmin(state.activeCourse || {});
   panel.innerHTML = `
-    <div class="h-full bg-white rounded-2xl border border-slate-200 flex flex-col overflow-hidden">
+    <div class="flex-1 min-h-0 bg-white rounded-2xl border border-slate-200 flex flex-col overflow-hidden">
       <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
         <div class="min-w-0">
           <p class="text-sm font-semibold text-slate-700">測驗</p>
@@ -2634,7 +2644,20 @@ function onExamSubjectChange(e) {
     q.answer = radio.value;
     updateExamAnswerMarks(si, qi);
     /* sr-only radio 取得焦點時瀏覽器會嘗試捲入可視範圍，這裡還原捲動位置避免頁面位移 */
-    if (scroller) scroller.scrollTop = keepScroll;
+    if (scroller) {
+      scroller.scrollTop = keepScroll;
+      /* 觸控裝置的「捲入可視範圍」可能延後到下一幀才發生，因此再補一次還原 */
+      requestAnimationFrame(() => {
+        scroller.scrollTop = keepScroll;
+        resetOuterScroll(scroller);
+      });
+    }
+  }
+}
+/* 焦點捲入時瀏覽器可能連帶捲動外層容器，使整個課程區塊被推上去；這裡把外層捲動歸零復原 */
+function resetOuterScroll(scroller) {
+  for (let el = scroller && scroller.parentElement; el; el = el.parentElement) {
+    if (el.scrollTop) el.scrollTop = 0;
   }
 }
 /* 阻止選項圓點 label 的 mousedown 預設聚焦，避免捲動隱藏的 sr-only input 造成頁面移位 */
@@ -2752,8 +2775,8 @@ function examQuestionsDraftHtml(s, si) {
       <div class="mt-2 space-y-2">
         ${q.options.map((o, oi) => `
           <div class="flex items-center gap-2">
-            <label class="shrink-0 grid place-items-center w-7 h-7 rounded-full border-2 cursor-pointer ${q.answer === o.id ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300'}" title="設為正確答案">
-              <input type="radio" name="exam-answer-${si}-${qi}" data-exam-answer="${si}:${qi}" value="${escAttr(o.id)}" ${q.answer === o.id ? 'checked' : ''} class="sr-only" />
+            <label class="relative shrink-0 grid place-items-center w-7 h-7 rounded-full border-2 cursor-pointer ${q.answer === o.id ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300'}" title="設為正確答案">
+              <input type="radio" name="exam-answer-${si}-${qi}" data-exam-answer="${si}:${qi}" value="${escAttr(o.id)}" ${q.answer === o.id ? 'checked' : ''} tabindex="-1" class="sr-only" />
               <span class="text-[11px] font-semibold ${q.answer === o.id ? 'text-emerald-600' : 'text-slate-400'}">${EXAM_OPTION_LABELS[oi] || (oi + 1)}</span>
             </label>
             <input data-exam-opt-text="${si}:${qi}:${oi}" type="text" value="${escAttr(o.text)}" placeholder="選項 ${EXAM_OPTION_LABELS[oi] || (oi + 1)}" class="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg text-sm" />

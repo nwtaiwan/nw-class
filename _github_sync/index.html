@@ -241,6 +241,15 @@
             <p class="text-sm text-slate-400">姓名</p>
             <p id="pf-name2" class="text-base text-slate-700 truncate">—</p>
           </div>
+          <div class="bg-slate-50 rounded-xl px-4 py-3">
+            <p class="text-sm text-slate-400">餐點</p>
+            <select id="pf-meal" class="w-full mt-1 px-3 py-2 bg-white text-base text-slate-700 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+              <option value="葷食">葷食</option>
+              <option value="素食">素食</option>
+              <option value="其他">其他</option>
+            </select>
+            <input id="pf-meal-other" type="text" placeholder="請輸入餐點內容" class="hidden w-full mt-2 px-3 py-2 bg-white text-base text-slate-700 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+          </div>
         </div>
         <!-- 我的課程 -->
         <div class="w-full mt-6">
@@ -762,6 +771,7 @@ function renderUser() {
   $('#pf-title').textContent = u.title || '—';
   $('#pf-name').textContent = name;
   $('#pf-name2').textContent = name;
+  setMealField($('#pf-meal'), $('#pf-meal-other'), u.meal);
   $('#pf-account').textContent = account;
   $('#pf-role').textContent = roleText;
   const pfImg = $('#pf-avatar'), pfFb = $('#pf-avatar-fallback');
@@ -2661,7 +2671,8 @@ function openScheduleStudent() {
           const items = (Array.isArray(c.schedule) ? c.schedule : []).filter(s => s && (s.title || s.start || s.end || s.session || s.instructor || s.note));
           if (!items.length) return '<p class="text-base text-slate-400">尚未設定時間表</p>';
           return `<div class="divide-y divide-slate-100">${items.map(s => {
-            const a = formatDisplayTime(s.start), b = formatDisplayTime(s.end);
+            /* 課表時間顯示為 HH:MM（其他位置維持 HH:MM:SS） */
+            const a = formatDisplayTime(s.start).slice(0, 5), b = formatDisplayTime(s.end).slice(0, 5);
             const time = (a && b) ? `${a}~${b}` : (a || b || '未設定時間');
             return `<div class="flex items-start gap-2 py-2">
               <span class="w-40 shrink-0 text-base text-slate-600 tabular-nums">${escHtml(time)}</span>
@@ -2669,7 +2680,7 @@ function openScheduleStudent() {
                 <p class="text-base text-slate-800 break-words">${escHtml(s.title || '—')}</p>
                 ${(s.session || s.instructor || s.note) ? `<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-400">
                   ${s.session ? `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${escHtml(s.session)}</span>` : ''}
-                  ${s.instructor ? `<span>講師：${escHtml(s.instructor)}</span>` : ''}
+                  ${s.instructor ? `<span>${escHtml(s.instructorLabel || '講師')}：${escHtml(s.instructor)}</span>` : ''}
                   ${s.note ? `<span>備註：${escHtml(s.note)}</span>` : ''}
                 </div>` : ''}
               </div>
@@ -2859,6 +2870,29 @@ async function saveProfile() {
     renderUser();
     toast('已儲存');
   } catch { toast('儲存失敗'); }
+}
+
+/* ===== 餐點（葷食 / 素食 / 其他自訂，預設葷食） ===== */
+const MEAL_PRESETS = ['葷食', '素食'];
+function setMealField(sel, other, value) {
+  const v = String(value || '').trim();
+  const preset = !v || MEAL_PRESETS.includes(v);
+  sel.value = preset ? (v || '葷食') : '其他';
+  other.value = preset ? '' : v;
+  other.classList.toggle('hidden', sel.value !== '其他');
+}
+function mealFieldValue(sel, other) {
+  return sel.value === '其他' ? (other.value.trim() || '其他') : sel.value;
+}
+/* 學員自行修改餐點：選單變更或自訂內容輸入完成後即寫回 */
+async function saveMyMeal() {
+  if (!state.currentUser || !state.userDoc) return;
+  const meal = mealFieldValue($('#pf-meal'), $('#pf-meal-other'));
+  try {
+    await updateUserDoc(state.currentUser.uid, { meal });
+    state.userDoc.meal = meal;
+    toast('餐點已更新');
+  } catch { toast('餐點儲存失敗'); }
 }
 
 /* ===== 圖片壓縮（置中裁切為正方形 JPEG） ===== */
@@ -3116,6 +3150,14 @@ $('#btn-user-chip').addEventListener('click', () => {
 /* 點兩下 LOGO 重新整理頁面 */
 $('#app-logo').addEventListener('dblclick', () => location.reload());
 $('#pf-close').addEventListener('click', () => $('#modal-profile').classList.add('hidden'));
+/* 個人資訊：餐點（學員可自行修改，選「其他」時顯示自訂輸入框） */
+$('#pf-meal').addEventListener('change', () => {
+  const custom = $('#pf-meal').value === '其他';
+  $('#pf-meal-other').classList.toggle('hidden', !custom);
+  if (custom) $('#pf-meal-other').focus();
+  else saveMyMeal();
+});
+$('#pf-meal-other').addEventListener('change', saveMyMeal);
 $('#pf-logout').addEventListener('click', async () => {
   $('#modal-profile').classList.add('hidden');
   await signOut(auth); toast('已登出');

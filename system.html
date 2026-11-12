@@ -432,6 +432,15 @@
         <label class="text-xs text-slate-500">單位</label>
         <select id="stu-unit" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"><option value="">請選擇單位</option></select>
       </div>
+      <div>
+        <label class="text-xs text-slate-500">餐點</label>
+        <select id="stu-meal" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+          <option value="葷食">葷食</option>
+          <option value="素食">素食</option>
+          <option value="其他">其他</option>
+        </select>
+        <input id="stu-meal-other" type="text" placeholder="請輸入餐點內容" class="hidden w-full mt-2 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" />
+      </div>
     </div>
     <div class="flex gap-2 mt-5">
       <button id="stu-cancel" class="flex-1 py-2.5 border border-slate-300 rounded-lg font-semibold text-slate-600">取消</button>
@@ -935,6 +944,7 @@ async function openStudentModal(data = null) {
   stuSaveBtn.disabled = false;
   stuSaveBtn.textContent = isEdit ? '儲存變更' : '建立帳號';
   ['#stu-title', '#stu-region', '#stu-community', '#stu-unit'].forEach(s => fillSelect($(s), [], '載入中…'));
+  setStudentMeal(data?.meal);
   renderStudentAvatar();
   $('#modal-student').classList.remove('hidden');
   try {
@@ -961,6 +971,20 @@ function setSelectValue(el, value) {
     el.insertAdjacentHTML('beforeend', `<option value="${value}">${value}</option>`);
   }
   el.value = value || '';
+}
+/* ===== 餐點（葷食 / 素食 / 其他自訂，預設葷食） ===== */
+const MEAL_PRESETS = ['葷食', '素食'];
+function setStudentMeal(value) {
+  const v = String(value || '').trim();
+  const preset = !v || MEAL_PRESETS.includes(v);
+  const sel = $('#stu-meal'), other = $('#stu-meal-other');
+  sel.value = preset ? (v || '葷食') : '其他';
+  other.value = preset ? '' : v;
+  other.classList.toggle('hidden', sel.value !== '其他');
+}
+function studentMealValue() {
+  const sel = $('#stu-meal').value;
+  return sel === '其他' ? ($('#stu-meal-other').value.trim() || '其他') : sel;
 }
 const digitsOf = (s) => String(s || '').replace(/\D/g, '');
 
@@ -1027,6 +1051,7 @@ async function saveStudent() {
       title: $('#stu-title').value, region: $('#stu-region').value,
       community: $('#stu-community').value,
       unit: $('#stu-unit').value,
+      meal: studentMealValue(),
       avatar: state.studentAvatar || '',
     };
     if (studentUid) {
@@ -1812,6 +1837,12 @@ document.addEventListener('click', (e) => {
 $('#btn-add-student').addEventListener('click', openStudentModal);
 $('#stu-cancel').addEventListener('click', () => $('#modal-student').classList.add('hidden'));
 $('#stu-save').addEventListener('click', saveStudent);
+/* 餐點選「其他」時顯示自訂輸入框 */
+$('#stu-meal').addEventListener('change', () => {
+  const custom = $('#stu-meal').value === '其他';
+  $('#stu-meal-other').classList.toggle('hidden', !custom);
+  if (custom) $('#stu-meal-other').focus();
+});
 $('#stu-avatar-pick').addEventListener('click', () => $('#stu-avatar-file').click());
 $('#stu-avatar-clear').addEventListener('click', () => {
   state.studentAvatar = ''; $('#stu-avatar-file').value = ''; renderStudentAvatar();
