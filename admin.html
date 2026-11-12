@@ -565,6 +565,17 @@
       <span class="text-sm font-medium text-slate-600">開放學員自選此座位</span>
       <button id="seat-assign-self-toggle" type="button" role="switch" aria-checked="true" title="開啟後，學員可自選此座位" class="shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-brand"><span class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform translate-x-[22px]"></span></button>
     </div>
+    <div id="seat-assign-levels-wrap" class="mt-1 rounded-lg bg-slate-50 px-3 py-2">
+      <div class="flex items-center justify-between">
+        <span class="text-sm font-medium text-slate-600">開放學員等級</span>
+        <span id="seat-assign-levels-hint" class="text-[11px] text-slate-400">未勾選＝全開放</span>
+      </div>
+      <div id="seat-assign-levels" class="mt-2 flex items-center gap-2">
+        <button type="button" data-seat-level="A" class="flex-1 py-2 rounded-lg border border-slate-300 bg-white text-slate-500 text-sm font-bold transition-colors">A</button>
+        <button type="button" data-seat-level="B" class="flex-1 py-2 rounded-lg border border-slate-300 bg-white text-slate-500 text-sm font-bold transition-colors">B</button>
+        <button type="button" data-seat-level="C" class="flex-1 py-2 rounded-lg border border-slate-300 bg-white text-slate-500 text-sm font-bold transition-colors">C</button>
+      </div>
+    </div>
     <input id="seat-assign-search" type="text" placeholder="搜尋學員姓名或社區代號" class="mt-3 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
     <div id="seat-assign-list" class="mt-3 flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-1.5"></div>
     <div class="mt-4 grid grid-cols-3 gap-2">
@@ -810,6 +821,21 @@ const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
 const initial = (name) => (name || 'N').trim().charAt(0).toUpperCase();
 const escAttr = (s) => String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+/* 學員等級皇冠：A 金、B 銀、C 銅（未設定等級則不顯示） */
+const LEVEL_CROWN_COLORS = { A: '#e8b006', B: '#9aa5b1', C: '#b87333' };
+const LEVEL_CROWN_PATH = 'M4 8l3.7 2.6L12 5l4.3 5.6L20 8l-1.6 10.5H5.6L4 8zm1.6 11.2h12.8v1.6H5.6z';
+function levelCrownHtml(level, small) {
+  const color = LEVEL_CROWN_COLORS[String(level || '').trim().toUpperCase()];
+  if (!color) return '';
+  const bx = small ? 'w-3.5 h-3.5' : 'w-4 h-4';
+  const px = small ? 10 : 11;
+  return `<span class="${bx} absolute -top-1 -right-1 rounded-full bg-white shadow ring-1 ring-slate-200 grid place-items-center" style="color:${color}"><svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" fill="currentColor" viewBox="0 0 24 24"><path d="${LEVEL_CROWN_PATH}"/></svg></span>`;
+}
+/* 大頭照外層加上等級皇冠（未設定等級則原樣回傳） */
+function withLevelCrown(innerHtml, level, small) {
+  const crown = levelCrownHtml(level, small);
+  return crown ? `<span class="relative inline-block shrink-0">${innerHtml}${crown}</span>` : innerHtml;
+}
 function toast(msg, ms = 2200, kind = 'dark') {
   const t = $('#toast');
   const kindClass = {
@@ -1242,9 +1268,9 @@ function renderCourseStudents() {
       : '';
     return `
       <div class="flex items-center gap-3 rounded-xl px-3 py-1.5 border-2 ${checked ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-100'}"${unitStyle ? ` style="${unitStyle}"` : ''}>
-        ${u.avatar
+        ${withLevelCrown(u.avatar
           ? `<img src="${u.avatar}" alt="" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 shrink-0" />`
-          : `<div class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0">${initial(u.name || '學')}</div>`}
+          : `<div class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0">${initial(u.name || '學')}</div>`, u.level)}
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2 min-w-0 text-black">
             <p class="text-sm font-semibold truncate leading-tight">${u.name || '未命名學員'}</p>
@@ -1703,6 +1729,7 @@ function courseSchedule(c) {
       end: String(s.end || ''),
       title: String(s.title || ''),
       instructor: String(s.instructor || ''),
+      instructorTitle: String(s.instructorTitle || ''),
       instructorLabel: String(s.instructorLabel || '講師'),
       note: String(s.note || ''),
     }));
@@ -1711,7 +1738,7 @@ function courseSchedule(c) {
 function scheduleTimeText(s) {
   const a = formatDisplayTime(s?.start).slice(0, 5), b = formatDisplayTime(s?.end).slice(0, 5);
   if (a && b) return `${a}~${b}`;
-  return a || b || '未設定時間';
+  return a || b || '';
 }
 function refreshSchedulePanel() {
   if (state.activeTabId === 'schedule') renderCourseSchedule($('#course-tab-panel'));
@@ -1740,19 +1767,23 @@ function renderCourseSchedule(panel) {
             <button id="btn-schedule-add" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">＋ 新增</button>
           </div>
           ${items.length
-            ? `<div class="divide-y divide-slate-100">${items.map(s => `
+            ? `<div class="divide-y divide-slate-100">${items.map((s, i) => `
                 <div class="flex items-start gap-2 py-2">
                   <span class="w-36 shrink-0 text-sm text-slate-600 tabular-nums">${escAttr(scheduleTimeText(s))}</span>
                   <div class="flex-1 min-w-0">
                     <p class="text-sm text-slate-800 break-words">${escAttr(s.title || '—')}</p>
                     ${(s.session || s.instructor || s.note) ? `<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400">
                       ${s.session ? `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${escAttr(s.session)}</span>` : ''}
-                      ${s.instructor ? `<span>${escAttr(s.instructorLabel || '講師')}：${escAttr(s.instructor)}</span>` : ''}
+                      ${s.instructor ? `<span>${escAttr(s.instructorLabel || '講師')}：${escAttr(s.instructor)}${s.instructorTitle ? ` ${escAttr(s.instructorTitle)}` : ''}</span>` : ''}
                       ${s.note ? `<span>備註：${escAttr(s.note)}</span>` : ''}
                     </div>` : ''}
                   </div>
-                  <button data-schedule-edit="${escAttr(s.id)}" class="w-8 h-8 shrink-0 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="編輯">✎</button>
-                  <button data-schedule-del="${escAttr(s.id)}" class="w-8 h-8 shrink-0 rounded-lg border border-red-200 text-red-500 grid place-items-center" title="刪除">✕</button>
+                  <div class="shrink-0 flex items-center gap-1.5">
+                    ${i > 0 ? `<button data-schedule-up="${escAttr(s.id)}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="上移">↑</button>` : ''}
+                    ${i < items.length - 1 ? `<button data-schedule-down="${escAttr(s.id)}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="下移">↓</button>` : ''}
+                    <button data-schedule-edit="${escAttr(s.id)}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 grid place-items-center" title="編輯">✎</button>
+                    <button data-schedule-del="${escAttr(s.id)}" class="w-8 h-8 rounded-lg border border-red-200 text-red-500 grid place-items-center" title="刪除">✕</button>
+                  </div>
                 </div>`).join('')}</div>`
             : '<p class="text-sm text-slate-400">尚未設定時間表</p>'}
         </div>
@@ -1760,14 +1791,31 @@ function renderCourseSchedule(panel) {
     </div>`;
   $('#schedule-card').addEventListener('click', (e) => {
     if (e.target.closest('#btn-schedule-add')) return openScheduleEdit('');
+    const up = e.target.closest('[data-schedule-up]');
+    if (up) return moveScheduleItem(up.dataset.scheduleUp, -1);
+    const dn = e.target.closest('[data-schedule-down]');
+    if (dn) return moveScheduleItem(dn.dataset.scheduleDown, 1);
     const ed = e.target.closest('[data-schedule-edit]');
     if (ed) return openScheduleEdit(ed.dataset.scheduleEdit);
     const dl = e.target.closest('[data-schedule-del]');
     if (dl) return deleteScheduleItem(dl.dataset.scheduleDel);
   });
 }
+async function moveScheduleItem(id, dir) {
+  if (!state.activeCourse) return;
+  const list = courseSchedule(state.activeCourse);
+  const i = list.findIndex(s => s.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  const tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+  try {
+    await saveSchedule(list);
+    refreshSchedulePanel();
+  } catch { toast('調整順序失敗', 2000, 'danger'); }
+}
 
 let scheduleEditId = '';
+let instructorTitleMap = {};
 async function openScheduleEdit(id) {
   if (!state.activeCourse) return;
   scheduleEditId = id || '';
@@ -1788,14 +1836,22 @@ async function openScheduleEdit(id) {
   // 講師下拉選單：先以現有值初始化，再載入講師清單（來源：instructors 集合）
   const insSel = $('#schedule-edit-instructor');
   const cur = item?.instructor || '';
+  /* 講師姓名 → 職稱 對照（供課表顯示「姓名 職稱」） */
+  instructorTitleMap = {};
+  if (cur && item?.instructorTitle) instructorTitleMap[cur] = item.instructorTitle;
   insSel.innerHTML = ['<option value="">（不指定）</option>']
     .concat(cur ? [`<option value="${escAttr(cur)}">${escAttr(cur)}</option>`] : []).join('');
   insSel.value = cur;
   $('#modal-schedule-edit').classList.remove('hidden');
   try {
     const snap = await getDocs(collection(db, 'instructors'));
-    const names = snap.docs.map(d => String((d.data() || {}).name || '').trim()).filter(Boolean)
+    const docs = snap.docs.map(d => d.data() || {});
+    const names = docs.map(d => String(d.name || '').trim()).filter(Boolean)
       .sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    docs.forEach(d => {
+      const n = String(d.name || '').trim();
+      if (n) instructorTitleMap[n] = String(d.title || '').trim();
+    });
     if (cur && !names.includes(cur)) names.push(cur);
     insSel.innerHTML = ['<option value="">（不指定）</option>']
       .concat(names.map(n => `<option value="${escAttr(n)}">${escAttr(n)}</option>`)).join('');
@@ -1818,14 +1874,14 @@ async function confirmScheduleEdit() {
   const end = $('#schedule-edit-end').value;
   const title = $('#schedule-edit-content').value.trim();
   const instructor = $('#schedule-edit-instructor').value.trim();
+  const instructorTitle = instructor ? (instructorTitleMap[instructor] || '') : '';
   const instructorLabel = $('#schedule-edit-instructor-label').value || '講師';
   const note = $('#schedule-edit-note').value.trim();
   if (!start && !end && !title) return toast('請輸入時間或內容');
   const list = courseSchedule(state.activeCourse);
-  const entry = { id: scheduleEditId || ('t' + Date.now().toString(36)), session, start, end, title, instructor, instructorLabel, note };
+  const entry = { id: scheduleEditId || ('t' + Date.now().toString(36)), session, start, end, title, instructor, instructorTitle, instructorLabel, note };
   const idx = list.findIndex(s => s.id === entry.id);
   if (idx >= 0) list[idx] = entry; else list.push(entry);
-  list.sort((a, b) => (a.start || '99:99').localeCompare(b.start || '99:99'));
   try {
     await saveSchedule(list);
     closeScheduleEdit();
@@ -3686,6 +3742,16 @@ function seatSelfClosedOf(course) {
   const a = course && course.seatSelfClosed;
   return (a && typeof a === 'object' && !Array.isArray(a)) ? a : {};
 }
+/* 個別座位開放的學員等級：code -> ['A','B']（未設定或空陣列＝全開放） */
+const SEAT_LEVELS = ['A', 'B', 'C'];
+function seatSelfLevelsOf(course) {
+  const a = course && course.seatSelfLevels;
+  return (a && typeof a === 'object' && !Array.isArray(a)) ? a : {};
+}
+function seatSelfLevelsFor(course, code) {
+  const raw = seatSelfLevelsOf(course)[code];
+  return Array.isArray(raw) ? raw.map(v => String(v).toUpperCase()).filter(v => SEAT_LEVELS.includes(v)) : [];
+}
 /* 合併「服務指派」與「學員自選」：服務指派優先，回傳 code -> { uid, self } */
 function seatOccupancyOf(course) {
   const staff = seatAssignmentsOf(course);
@@ -3804,8 +3870,12 @@ function renderSeatMap() {
         cells.push(`<button type="button" data-seat="${code}" title="${escAttr(code)} · 已指派" class="min-w-0 h-full rounded-md border border-slate-300 bg-slate-100 hover:bg-slate-200 grid place-items-center text-[12px] text-slate-500 tabular-nums overflow-hidden">${code}</button>`);
       } else {
         const closed = !!selfClosed[code];
-        const tip = closed ? `${code} · 已關閉自選` : code;
-        cells.push(`<button type="button" data-seat="${code}" title="${escAttr(tip)}" class="min-w-0 h-full rounded-md border ${closed ? 'border-amber-300 bg-amber-50 hover:bg-amber-100' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'} grid place-items-center text-[12px] ${closed ? 'text-amber-600' : 'text-slate-400'} tabular-nums overflow-hidden">${code}</button>`);
+        const levels = closed ? [] : seatSelfLevelsFor(state.activeCourse, code);
+        const tip = closed ? `${code} · 已關閉自選` : (levels.length ? `${code} · 開放 ${levels.join('、')} 級自選` : code);
+        const cls = closed
+          ? 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-600'
+          : (levels.length ? 'border-violet-300 bg-violet-50 hover:bg-violet-100 text-violet-600' : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-400');
+        cells.push(`<button type="button" data-seat="${code}" title="${escAttr(tip)}" class="min-w-0 h-full rounded-md border ${cls} grid place-items-center text-[12px] tabular-nums overflow-hidden">${code}</button>`);
       }
       if (aisleSet.has(c)) cells.push('<div class="rounded bg-slate-400 grid place-items-center text-[10px] font-semibold text-white/90 tracking-widest" style="writing-mode:vertical-rl;">走道</div>');
     }
@@ -3881,6 +3951,50 @@ function renderSeatAssignSelfToggle() {
     knob.classList.toggle('translate-x-[22px]', open);
     knob.classList.toggle('translate-x-0.5', !open);
   }
+  renderSeatAssignLevels();
+}
+/* 座位開放等級晶片（未勾選任何等級＝全開放） */
+function renderSeatAssignLevels() {
+  const wrap = $('#seat-assign-levels-wrap');
+  const box = $('#seat-assign-levels');
+  if (!wrap || !box) return;
+  const code = state.pendingSeatCode;
+  const open = !!code && !seatSelfClosedOf(state.activeCourse)[code];
+  wrap.classList.toggle('hidden', !open);
+  if (!open) return;
+  const picked = seatSelfLevelsFor(state.activeCourse, code);
+  box.querySelectorAll('[data-seat-level]').forEach(el => {
+    const on = picked.includes(el.dataset.seatLevel);
+    el.classList.toggle('border-brand', on);
+    el.classList.toggle('bg-brand', on);
+    el.classList.toggle('text-white', on);
+    el.classList.toggle('border-slate-300', !on);
+    el.classList.toggle('bg-white', !on);
+    el.classList.toggle('text-slate-500', !on);
+  });
+  const hint = $('#seat-assign-levels-hint');
+  if (hint) hint.textContent = picked.length ? `僅開放 ${picked.slice().sort().join('、')} 級` : '未勾選＝全開放';
+}
+async function toggleSeatLevel(level) {
+  if (!state.activeCourse || !state.pendingSeatCode) return;
+  const code = state.pendingSeatCode;
+  if (seatSelfClosedOf(state.activeCourse)[code]) { toast('請先開啟此座位的學員自選', 2000, 'warning'); return; }
+  const cur = seatSelfLevelsFor(state.activeCourse, code);
+  const has = cur.includes(level);
+  const next = SEAT_LEVELS.filter(v => (v === level ? !has : cur.includes(v)));
+  const payload = { ['seatSelfLevels.' + code]: next.length ? next : deleteField() };
+  try {
+    await updateDoc(doc(db, 'courses', state.activeCourse.id), payload);
+    const map = { ...seatSelfLevelsOf(state.activeCourse) };
+    if (next.length) map[code] = next; else delete map[code];
+    state.activeCourse.seatSelfLevels = map;
+    if (state.courseMap[state.activeCourse.id]) state.courseMap[state.activeCourse.id].seatSelfLevels = map;
+    renderSeatAssignLevels();
+    renderSeatMap();
+    toast(next.length ? `座位 ${code} 開放等級：${next.join('、')}` : `座位 ${code} 全等級開放`, 1800, 'success');
+  } catch (err) {
+    toast('儲存失敗：' + (err.message || ''), 2200, 'danger');
+  }
 }
 async function toggleSeatSelfOpen() {
   if (!state.activeCourse || !state.pendingSeatCode) return;
@@ -3934,9 +4048,9 @@ function renderSeatAssignList(keyword) {
     const assignBorderCls = (!isCurrent && unitColor) ? 'border-2' : 'border';
     return `
       <button type="button" data-seat-assign-uid="${escAttr(uid)}" class="w-full text-left flex items-center gap-3 rounded-xl px-3 py-2 ${assignBorderCls} ${isCurrent ? 'border-brand bg-brand/5' : 'border-slate-100 bg-white'} hover:bg-slate-50"${assignStyle ? ` style="${assignStyle}"` : ''}>
-        ${u.avatar
+        ${withLevelCrown(u.avatar
           ? `<img src="${u.avatar}" alt="" class="w-9 h-9 rounded-full object-cover ring-1 ring-slate-200 shrink-0" />`
-          : `<div class="w-9 h-9 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0 text-sm">${initial(u.name || '學')}</div>`}
+          : `<div class="w-9 h-9 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0 text-sm">${initial(u.name || '學')}</div>`, u.level, true)}
         <div class="min-w-0 flex-1">
           <p class="text-sm font-semibold truncate">${escAttr(u.name || '未命名學員')}${isCurrent ? ' <span class="text-[10px] text-brand font-normal">（目前座位）</span>' : ''}</p>
           <p class="text-[11px] text-slate-500 truncate">${escAttr(sub)}</p>
@@ -4135,9 +4249,9 @@ function renderParkingInfo() {
     const communityText = [code, u.community, u.unit].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' ') || '—';
     return `
       <div class="flex items-center gap-3 rounded-xl px-3 py-3 border border-slate-100 bg-white">
-        ${u.avatar
+        ${withLevelCrown(u.avatar
           ? `<img src="${escAttr(u.avatar)}" alt="" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 shrink-0" />`
-          : `<div class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0">${escAttr(initial(u.name || '學'))}</div>`}
+          : `<div class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0">${escAttr(initial(u.name || '學'))}</div>`, u.level)}
         <div class="min-w-0 flex-1">
           <p class="text-sm font-semibold truncate">${escAttr(u.name || '未命名學員')}</p>
           <p class="text-[11px] text-slate-400 truncate">${escAttr(communityText)}</p>
@@ -5648,6 +5762,10 @@ $('#seat-setting-confirm').addEventListener('click', confirmSeatSetting);
 $('#modal-seat-setting').addEventListener('click', (e) => { if (e.target === $('#modal-seat-setting')) closeSeatSetting(); });
 $('#seat-assign-close').addEventListener('click', closeSeatAssign);
 $('#seat-assign-self-toggle').addEventListener('click', toggleSeatSelfOpen);
+$('#seat-assign-levels').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-seat-level]');
+  if (b) toggleSeatLevel(b.dataset.seatLevel);
+});
 $('#seat-assign-clear').addEventListener('click', clearSeatAssignment);
 $('#seat-assign-search').addEventListener('input', (e) => renderSeatAssignList(e.target.value));
 $('#seat-assign-list').addEventListener('click', (e) => {

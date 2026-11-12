@@ -745,7 +745,7 @@ function renderSchedule(box) {
               <p class="text-sm text-slate-800 break-words">${esc(s.title || '—')}</p>
               ${(s.session || s.instructor || s.note) ? `<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400">
                 ${s.session ? `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${esc(s.session)}</span>` : ''}
-                ${s.instructor ? `<span>${esc(s.instructorLabel || '講師')}：${esc(s.instructor)}</span>` : ''}
+                ${s.instructor ? `<span>${esc(s.instructorLabel || '講師')}：${esc(s.instructor)}${s.instructorTitle ? ` ${esc(s.instructorTitle)}` : ''}</span>` : ''}
                 ${s.note ? `<span>備註：${esc(s.note)}</span>` : ''}
               </div>` : ''}
             </div>

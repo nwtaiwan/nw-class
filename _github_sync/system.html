@@ -387,9 +387,12 @@
     <h3 id="modal-student-title" class="text-lg font-bold mb-4 text-center">新增學員</h3>
     <div class="space-y-3">
       <div class="flex items-center gap-3">
-        <div class="shrink-0">
+        <div class="shrink-0 relative">
           <img id="stu-avatar-preview" alt="大頭照" class="w-16 h-16 rounded-full object-cover bg-slate-100 hidden" />
           <div id="stu-avatar-fallback" class="w-16 h-16 rounded-full bg-slate-100 text-slate-400 grid place-items-center text-xl font-bold">N</div>
+          <span id="stu-avatar-crown" class="hidden absolute -top-1 -right-1 w-6 h-6 rounded-full bg-white shadow ring-1 ring-slate-200 grid place-items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M4 8l3.7 2.6L12 5l4.3 5.6L20 8l-1.6 10.5H5.6L4 8zm1.6 11.2h12.8v1.6H5.6z"/></svg>
+          </span>
         </div>
         <div class="flex-1 min-w-0">
           <label class="text-xs text-slate-500">大頭照</label>
@@ -419,6 +422,15 @@
       <div>
         <label class="text-xs text-slate-500">職稱</label>
         <select id="stu-title" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"><option value="">請選擇職稱</option></select>
+      </div>
+      <div>
+        <label class="text-xs text-slate-500">學員級別</label>
+        <select id="stu-level" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+          <option value="">（不指定）</option>
+          <option value="A">A</option>
+          <option value="B">B</option>
+          <option value="C">C</option>
+        </select>
       </div>
       <div>
         <label class="text-xs text-slate-500">區域</label>
@@ -487,6 +499,7 @@
     <h3 id="modal-instructor-title" class="text-lg font-bold mb-4 text-center">新增講師</h3>
     <div class="space-y-3">
       <div><label class="text-xs text-slate-500">姓名 <span class="text-red-500">*</span></label><input id="ins-name" type="text" placeholder="請輸入講師姓名" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
+      <div><label class="text-xs text-slate-500">職稱</label><input id="ins-title" type="text" placeholder="例：主任、講師" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
       <div><label class="text-xs text-slate-500">專長</label><input id="ins-specialty" type="text" placeholder="例：急救、AED" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
       <div><label class="text-xs text-slate-500">手機</label><input id="ins-phone" type="text" placeholder="選填" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
       <div><label class="text-xs text-slate-500">Email</label><input id="ins-email" type="email" placeholder="選填" class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand" /></div>
@@ -672,6 +685,21 @@ const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
 const toast = (msg, ms = 2200) => { const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), ms); };
 const initial = (name) => (name || 'N').trim().charAt(0).toUpperCase();
+/* 學員等級皇冠：A 金、B 銀、C 銅（未設定等級則不顯示） */
+const LEVEL_CROWN_COLORS = { A: '#e8b006', B: '#9aa5b1', C: '#b87333' };
+const LEVEL_CROWN_PATH = 'M4 8l3.7 2.6L12 5l4.3 5.6L20 8l-1.6 10.5H5.6L4 8zm1.6 11.2h12.8v1.6H5.6z';
+function levelCrownHtml(level, small) {
+  const color = LEVEL_CROWN_COLORS[String(level || '').trim().toUpperCase()];
+  if (!color) return '';
+  const bx = small ? 'w-3.5 h-3.5' : 'w-4 h-4';
+  const px = small ? 10 : 11;
+  return `<span class="${bx} absolute -top-1 -right-1 rounded-full bg-white shadow ring-1 ring-slate-200 grid place-items-center" style="color:${color}"><svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" fill="currentColor" viewBox="0 0 24 24"><path d="${LEVEL_CROWN_PATH}"/></svg></span>`;
+}
+/* 大頭照外層加上等級皇冠（未設定等級則原樣回傳） */
+function withLevelCrown(innerHtml, level, small) {
+  const crown = levelCrownHtml(level, small);
+  return crown ? `<span class="relative inline-block shrink-0">${innerHtml}${crown}</span>` : innerHtml;
+}
 
 function cleanupListener(key) { if (state[key]) { try { state[key](); } catch(e){} state[key] = null; } }
 
@@ -869,9 +897,9 @@ async function loadStudents() {
         : '';
       return `
       <div class="bg-white border-2 border-slate-200 rounded-xl p-3 flex items-center gap-3"${unitStyle ? ` style="${unitStyle}"` : ''}>
-        ${u.avatar
+        ${withLevelCrown(u.avatar
           ? `<img src="${u.avatar}" alt="" class="w-10 h-10 rounded-full object-cover shrink-0" />`
-          : `<div class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0">${initial(u.name || '學')}</div>`}
+          : `<div class="w-10 h-10 rounded-full bg-brand text-white grid place-items-center font-bold shrink-0">${initial(u.name || '學')}</div>`, u.level)}
         <div class="flex-1 min-w-0">
           <p class="font-semibold truncate">${u.name || '未命名'}</p>
           <p class="text-xs text-slate-500 truncate">${loginLabel || u.phone || '—'}${u.loginType === 'code' ? '（代號登入）' : ''}</p>
@@ -929,6 +957,7 @@ async function openStudentModal(data = null) {
   $('#stu-name').value = data?.name || '';
   $('#stu-email').value = data?.email || '';
   $('#stu-phone').value = data?.phone || '';
+  $('#stu-level').value = data?.level || '';
   $('#stu-password').value = isEdit ? (data?.password || '') : '';
   $('#stu-password-field').classList.remove('hidden');
   $('#stu-password-hint').textContent = isEdit
@@ -1000,6 +1029,20 @@ function renderStudentAvatar() {
     fb.textContent = initial($('#stu-name').value.trim() || '學');
     fb.classList.remove('hidden');
   }
+  renderStudentCrown();
+}
+/* 學員編輯彈窗大頭照的等級皇冠（未設定等級則不顯示） */
+function renderStudentCrown() {
+  const el = $('#stu-avatar-crown');
+  if (!el) return;
+  const color = LEVEL_CROWN_COLORS[String($('#stu-level').value || '').trim().toUpperCase()];
+  if (color) {
+    const svg = el.querySelector('svg');
+    if (svg) svg.style.color = color;
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
+  }
 }
 function renderAccountAvatar() {
   const has = !!state.accountAvatar;
@@ -1051,6 +1094,7 @@ async function saveStudent() {
       title: $('#stu-title').value, region: $('#stu-region').value,
       community: $('#stu-community').value,
       unit: $('#stu-unit').value,
+      level: $('#stu-level').value,
       meal: studentMealValue(),
       avatar: state.studentAvatar || '',
     };
@@ -1348,7 +1392,7 @@ function loadInstructors() {
       <div class="bg-white border border-slate-200 rounded-xl p-3">
         <div class="flex items-start justify-between gap-2">
           <div class="flex-1 min-w-0">
-            <p class="font-semibold truncate">${i.name || '未命名講師'}</p>
+            <p class="font-semibold truncate">${i.name || '未命名講師'}${i.title ? `<span class="ml-1 text-xs font-normal text-slate-400">${i.title}</span>` : ''}</p>
             ${i.specialty ? `<p class="text-xs text-slate-500 mt-0.5">${i.specialty}</p>` : ''}
             ${i.phone ? `<p class="text-xs text-slate-400 mt-0.5">📞 ${i.phone}</p>` : ''}
             ${i.email ? `<p class="text-xs text-slate-400 mt-0.5 truncate">✉️ ${i.email}</p>` : ''}
@@ -1365,6 +1409,7 @@ function openInstructorModal(data = null) {
   state.editingInstructorId = data?.id || null;
   $('#modal-instructor-title').textContent = data ? '編輯講師' : '新增講師';
   $('#ins-name').value = data?.name || '';
+  $('#ins-title').value = data?.title || '';
   $('#ins-specialty').value = data?.specialty || '';
   $('#ins-phone').value = data?.phone || '';
   $('#ins-email').value = data?.email || '';
@@ -1375,6 +1420,7 @@ async function saveInstructor() {
   if (!name) return toast('講師姓名必填');
   const data = {
     name,
+    title: $('#ins-title').value.trim(),
     specialty: $('#ins-specialty').value.trim(),
     phone: $('#ins-phone').value.trim(),
     email: $('#ins-email').value.trim(),
@@ -1855,6 +1901,7 @@ $('#stu-avatar-file').addEventListener('change', async (e) => {
   e.target.value = '';
 });
 $('#stu-name').addEventListener('input', () => { if (!state.studentAvatar) renderStudentAvatar(); });
+$('#stu-level').addEventListener('change', renderStudentCrown);
 $('#sc-cancel').addEventListener('click', () => { state.assignStudentUid = null; $('#modal-student-courses').classList.add('hidden'); });
 $('#sc-save').addEventListener('click', saveStudentCourses);
 
