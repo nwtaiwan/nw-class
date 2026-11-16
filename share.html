@@ -67,11 +67,23 @@
 
   <!-- 下：學員清單 -->
   <main class="flex-1 min-h-0 overflow-y-auto no-scrollbar p-3">
-    <p id="list-count" class="text-[11px] text-slate-400 px-1 pb-1.5"></p>
+    <div class="flex items-center justify-between px-1 pb-1.5">
+      <p id="list-count" class="text-[11px] text-slate-400"></p>
+      <label class="flex items-center gap-1 text-[11px] text-slate-500">
+        <input id="select-all" type="checkbox" class="w-3.5 h-3.5 accent-brand" />全選
+      </label>
+    </div>
     <div id="list" class="space-y-2">
       <p class="text-slate-400 text-center py-6 text-sm">載入中…</p>
     </div>
   </main>
+
+  <!-- 分享工具列（勾選 1 位＝單選，多位＝複選） -->
+  <div id="share-bar" class="hidden shrink-0 border-t border-slate-200 bg-white px-3 py-2 flex items-center gap-2">
+    <span id="share-count" class="flex-1 text-sm text-slate-600"></span>
+    <button id="share-clear" class="px-3 py-2 text-sm rounded-lg border border-slate-300 text-slate-600 active:scale-95">取消</button>
+    <button id="share-do" class="px-4 py-2 text-sm rounded-lg bg-brand text-white font-semibold active:scale-95">分享</button>
+  </div>
 
 </div>
 
@@ -104,7 +116,7 @@ const toast = (msg, ms = 2200) => {
 const initial = (name) => (name || 'N').trim().charAt(0).toUpperCase();
 
 const state = {
-  students: [], unitColorMap: {}, comCodeMap: {},
+  students: [], unitColorMap: {}, comCodeMap: {}, selected: new Set(), currentRows: [],
 };
 
 const courseSel = $('#course-filter');
@@ -113,8 +125,13 @@ const comSel = $('#community-filter');
 const kwInput = $('#kw-filter');
 const listEl = $('#list');
 const countEl = $('#list-count');
+const selectAllEl = $('#select-all');
+const barEl = $('#share-bar');
+const barCountEl = $('#share-count');
 
-/* ===== 分享連結：導向學員登入頁並帶入帳號、密碼 ===== */
+const uidOf = (s) => s.uid || s.id || '';
+
+/* ===== 分享連結：導向學員登入頁並帶入帳號、密碼（每位學員皆為專屬連結） ===== */
 function loginUrl(s) {
   const account = s.email || s.loginCode || s.phone || '';
   const password = s.password || digitsOf(s.phone);
@@ -123,16 +140,56 @@ function loginUrl(s) {
   u.searchParams.set('p', password);
   return u.href;
 }
+
+/* ===== 分享：每位學員的內容與連結網址皆為專屬且獨一 ===== */
+function shareMessage(s) {
+  return `${s.name || '學員'} 您好，這是西北會議系統學員登入連結，這是您專屬連結，請勿分享給其他使用者，謝謝！`;
+}
 async function shareStudent(s) {
   const url = loginUrl(s);
   const title = '西北會議系統';
-  const text = `${s.name || '學員'} 您好，這是西北會議系統學員登入連結，這是您專屬連結，請勿分享給其他使用者，謝謝！`;
+  const text = shareMessage(s);
   if (navigator.share) {
     try { await navigator.share({ title, text, url }); return; }
     catch (err) { if (err && err.name === 'AbortError') return; }
   }
   try { await navigator.clipboard.writeText(`${text}\n${url}`); toast('已複製登入連結'); }
   catch { window.prompt('請複製以下登入連結：', url); }
+}
+function selectedStudents() {
+  return state.students.filter((s) => state.selected.has(uidOf(s)));
+}
+async function shareSelected() {
+  const list = selectedStudents();
+  if (!list.length) { toast('請先勾選要分享的帳號'); return; }
+  if (list.length === 1) { shareStudent(list[0]); return; }
+  // 複選：每位學員各自保留專屬內容與專屬連結
+  const combined = list.map((s) => `${shareMessage(s)}\n${loginUrl(s)}`).join('\n\n');
+  if (navigator.share) {
+    try { await navigator.share({ title: '西北會議系統', text: combined }); return; }
+    catch (err) { if (err && err.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(combined); toast(`已複製 ${list.length} 位學員的專屬連結`); }
+  catch { window.prompt('請複製以下登入連結：', combined); }
+}
+
+/* ===== 勾選狀態同步 ===== */
+function syncSelectionUI(rows) {
+  const valid = new Set(state.students.map(uidOf).filter(Boolean));
+  for (const id of Array.from(state.selected)) if (!valid.has(id)) state.selected.delete(id);
+  const n = state.selected.size;
+  barEl.classList.toggle('hidden', n === 0);
+  barCountEl.textContent = `已選 ${n} 位`;
+  const ids = (rows || []).map(uidOf).filter(Boolean);
+  const sel = ids.filter((i) => state.selected.has(i)).length;
+  selectAllEl.checked = ids.length > 0 && sel === ids.length;
+  selectAllEl.indeterminate = sel > 0 && sel < ids.length;
+}
+function applyCheckboxState() {
+  listEl.querySelectorAll('input[data-check]').forEach((cb) => {
+    cb.checked = state.selected.has(cb.dataset.check);
+  });
+  syncSelectionUI(state.currentRows);
 }
 
 /* ===== 渲染清單 ===== */
@@ -163,12 +220,14 @@ function renderList() {
     || String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hant'));
 
   countEl.textContent = rows.length ? `共 ${rows.length} 人` : '';
+  state.currentRows = rows;
   if (!rows.length) {
     listEl.innerHTML = '<p class="text-slate-400 text-center py-6 text-sm">沒有符合的學員</p>';
+    syncSelectionUI(rows);
     return;
   }
   listEl.innerHTML = rows.map((s) => {
-    const uid = s.uid || s.id || '';
+    const uid = uidOf(s);
     const unitColor = state.unitColorMap[s.unit];
     const cardStyle = unitColor
       ? `border-color:${unitColor}; box-shadow: inset 0 0 0 1px ${unitColor}40, inset 0 0 14px ${unitColor}55`
@@ -179,8 +238,10 @@ function renderList() {
     const comChip = s.community
       ? `<span class="px-1.5 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600">${escHtml(s.community)}</span>`
       : '';
+    const checked = state.selected.has(uid) ? ' checked' : '';
     return `
     <div class="bg-white border-2 border-slate-200 rounded-xl p-3 flex items-center gap-3"${cardStyle ? ` style="${cardStyle}"` : ''}>
+      <input type="checkbox" data-check="${escHtml(uid)}" class="shrink-0 w-5 h-5 accent-brand"${checked} />
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-1.5 flex-wrap">${unitChip}${comChip}</div>
         <p class="mt-1 text-sm text-slate-500 truncate">${escHtml(s.title || '—')}</p>
@@ -189,6 +250,7 @@ function renderList() {
       <button data-share="${escHtml(uid)}" class="shrink-0 px-3 py-2 bg-brand text-white rounded-lg text-sm font-semibold active:scale-95">分享</button>
     </div>`;
   }).join('');
+  syncSelectionUI(rows);
 }
 
 /* ===== 載入資料（公開讀取） ===== */
@@ -248,9 +310,27 @@ kwInput.addEventListener('input', renderList);
 listEl.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-share]');
   if (!btn) return;
-  const s = state.students.find((x) => (x.uid || x.id) === btn.dataset.share);
+  const s = state.students.find((x) => uidOf(x) === btn.dataset.share);
   if (s) shareStudent(s);
 });
+listEl.addEventListener('change', (e) => {
+  const cb = e.target.closest('input[data-check]');
+  if (!cb) return;
+  if (cb.checked) state.selected.add(cb.dataset.check);
+  else state.selected.delete(cb.dataset.check);
+  syncSelectionUI(state.currentRows);
+});
+selectAllEl.addEventListener('change', () => {
+  const ids = (state.currentRows || []).map(uidOf).filter(Boolean);
+  if (selectAllEl.checked) ids.forEach((i) => state.selected.add(i));
+  else ids.forEach((i) => state.selected.delete(i));
+  applyCheckboxState();
+});
+$('#share-clear').addEventListener('click', () => {
+  state.selected.clear();
+  applyCheckboxState();
+});
+$('#share-do').addEventListener('click', shareSelected);
 
 loadData();
 </script>

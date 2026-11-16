@@ -1578,6 +1578,12 @@ async function saveCommunity() {
   const name = $('#com-name').value.trim();
   if (!code || !name) { toast('請填寫社區代號與名稱'); return; }
   try {
+    // 代號不可重複：檢查是否已有相同代號的社區（編輯時排除自己）
+    const dupSnap = await getDocs(query(collection(db, 'communities'), where('code', '==', code)));
+    if (dupSnap.docs.some(d => d.id !== state.editingCommunityId)) {
+      toast(`社區代號「${code}」已存在，請改用其他代號`);
+      return;
+    }
     if (state.editingCommunityId) {
       await updateDoc(doc(db, 'communities', state.editingCommunityId), { code, name, updatedAt: serverTimestamp() });
       toast('已更新');
