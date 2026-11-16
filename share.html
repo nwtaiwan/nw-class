@@ -163,14 +163,19 @@ async function shareSelected() {
   const list = selectedStudents();
   if (!list.length) { toast('請先勾選要分享的帳號'); return; }
   if (list.length === 1) { shareStudent(list[0]); return; }
-  // 複選：每位學員各自保留專屬內容與專屬連結
-  const combined = list.map((s) => `${shareMessage(s)}\n${loginUrl(s)}`).join('\n\n');
+  // 複選：產生一個只顯示這些學員的專屬頁面，分享該頁面網址
+  const ids = list.map(uidOf).filter(Boolean);
+  const u = new URL('share-view.html', location.href);
+  u.searchParams.set('ids', ids.join(','));
+  const url = u.href;
+  const title = '西北會議系統 · 分享清單';
+  const text = `這是西北會議系統的學員登入資訊頁面（共 ${list.length} 位），請開啟連結查看。`;
   if (navigator.share) {
-    try { await navigator.share({ title: '西北會議系統', text: combined }); return; }
+    try { await navigator.share({ title, text, url }); return; }
     catch (err) { if (err && err.name === 'AbortError') return; }
   }
-  try { await navigator.clipboard.writeText(combined); toast(`已複製 ${list.length} 位學員的專屬連結`); }
-  catch { window.prompt('請複製以下登入連結：', combined); }
+  try { await navigator.clipboard.writeText(`${text}\n${url}`); toast('已複製分享頁面連結'); }
+  catch { window.prompt('請複製以下分享頁面連結：', url); }
 }
 
 /* ===== 勾選狀態同步 ===== */
