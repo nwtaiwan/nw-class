@@ -193,10 +193,10 @@ function closeShareSheet() {
   pendingShare = null;
 }
 function lineShareUrl(p) {
-  // LINE 分享頁必須帶 url 參數，否則會顯示「連結無效」；text 為聊天室訊息文字
-  const url = p.url || location.href;
-  return 'https://social-plugins.line.me/lineit/share?url=' + encodeURIComponent(url)
-    + (p.text ? '&text=' + encodeURIComponent(p.text) : '');
+  // LINE 分享：只有 line.me/R/share 會帶入訊息本文（注意事項 + 連結），
+  // social-plugins.line.me/lineit/share 只會帶連結、不會顯示文字
+  const content = p.url ? `${p.text}\n${p.url}` : (p.text || '');
+  return 'https://line.me/R/share?text=' + encodeURIComponent(content);
 }
 async function copyShareLink(p) {
   try { await navigator.clipboard.writeText(`${p.text}\n${p.url}`); toast('已複製連結'); }
