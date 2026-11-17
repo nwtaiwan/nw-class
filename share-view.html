@@ -161,7 +161,8 @@ function loginUrl(s) {
 
 /* ===== 分享：每位學員的內容與連結網址皆為專屬且獨一 ===== */
 function shareMessage(s) {
-  return `${s.name || '學員'} 您好，這是西北會議系統學員登入連結，這是您專屬連結，請勿分享給其他使用者，謝謝！`;
+  const who = [s.community, s.name].filter(Boolean).join('') || '學員';
+  return `${who} 您好，這是西北會議系統學員登入連結，這是您專屬連結，請勿分享給其他使用者，謝謝！`;
 }
 function studentPayload(s) {
   return { title: '西北會議系統', text: shareMessage(s), url: loginUrl(s) };
