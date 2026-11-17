@@ -143,9 +143,27 @@
   .cr-ph { border: 1px dashed #cbd5e1; }
   .cr-foot { margin-top: auto; padding-top: 8px; font-size: 11px; color: #666; display: flex; justify-content: space-between; }
 </style>
+<!-- 座位表列印：A4 橫式，僅輸出座位表區塊 -->
+<style id="seat-print-style">
+  @media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
+    body > *:not(#seat-print-root) { display: none !important; }
+    #seat-print-root {
+      display: block !important;
+      height: 194mm;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    #seat-print-root .no-scrollbar { overflow: visible !important; }
+    #seat-print-root * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
 </head>
 
 <body class="font-sans text-slate-800">
+
+<div id="seat-print-root" class="hidden"></div>
 
 <div id="app-shell" class="w-full h-[100dvh] bg-white flex flex-col overflow-hidden">
 
@@ -1583,6 +1601,7 @@ function renderTabContent(id, label) {
             <p id="seat-meta" class="text-[13px] text-slate-400 truncate">尚未設定</p>
           </div>
           <div class="shrink-0 flex items-center gap-2">
+            <button id="btn-seat-print" class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold">列印</button>
             <button id="btn-seat-setting" class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold">設定</button>
             ${tabVisToggleHtml('seat')}
           </div>
@@ -1594,6 +1613,7 @@ function renderTabContent(id, label) {
         <div id="seat-map" class="flex-1 min-h-0 overflow-auto no-scrollbar p-4"></div>
       </div>`;
     $('#btn-seat-setting').addEventListener('click', openSeatSetting);
+    $('#btn-seat-print').addEventListener('click', printSeatMap);
     $('#seat-map').addEventListener('click', (e) => {
       const b = e.target.closest('[data-seat]');
       if (b) openSeatAssign(b.dataset.seat);
@@ -3890,6 +3910,22 @@ function renderSeatMap() {
         <div class="h-10 rounded-lg bg-brand text-white grid place-items-center text-sm font-bold tracking-[0.5em]">講台</div>
       </div>
     </div>`;
+}
+/* ===== 列印座位表（A4 橫式） ===== */
+function printSeatMap() {
+  const box = $('#seat-map');
+  const mapEl = box && box.querySelector('.grid');
+  const root = $('#seat-print-root');
+  if (!mapEl || !root) { toast('尚未設定座位表，請先按「設定」', 2000, 'warning'); return; }
+  const clone = box.firstElementChild.cloneNode(true);
+  // 讓列高改為平均分配，填滿整頁且不裁切
+  const grid = clone.querySelector('.grid');
+  if (grid) grid.style.gridTemplateRows = grid.style.gridTemplateRows.replace('minmax(2.5rem, 1fr)', 'minmax(0, 1fr)');
+  root.innerHTML = '';
+  root.appendChild(clone);
+  const cleanup = () => { root.innerHTML = ''; window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(() => { try { window.print(); } catch { cleanup(); } }, 60);
 }
 function openSeatSetting() {
   const { rows, cols, aisles, allowSelfSelect } = seatConfig(state.activeCourse);
